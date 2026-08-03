@@ -75,6 +75,10 @@ export const DB_PESOS = {
     "CHAMPIÑONES Y SETAS GIMENEZ": {
       "10X250": { min: 250, max: 255, tipo: "ATADO", presentacion: "Box 2.50 Kg" },
       "20X250": { min: 250, max: 255, tipo: "ATADO", presentacion: "Box 5.00 Kg" }
+    },
+    "S&F GLOBAL FRESH EXOTICS": {
+      "20X250": { min: 250, max: 255, tipo: "ATADO", presentacion: "Box 5.00 Kg" },
+      "11X454": { min: 454, max: 463, tipo: "ATADO", presentacion: "Box 5.00 Kg" }
     }
   },
   USA: {

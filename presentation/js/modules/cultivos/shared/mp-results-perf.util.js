@@ -85,7 +85,8 @@ export const SAP_ZONE_HEADER_LABELS_BY_JS = {
 };
 
 /**
- * Encabezado UI del bloque SAP/WULUT: nombre fijo aunque el Excel venga vacío o genérico.
+ * Encabezado UI del bloque Productor…Peso Bruto / Nota Condición.
+ * Sin etiqueta «(SAP)» en ningún cultivo: solo el nombre de columna (las celdas sí se pintan).
  * @param {number} colJs
  * @param {string} [excelHeader]
  * @returns {{ label: string, isSap: boolean, title: string }}
@@ -97,20 +98,18 @@ export function resolveSapZoneHeader(colJs, excelHeader = "", options = {}) {
     const raw = String(excelHeader || "").trim();
     return { label: raw || `Col ${idx + 1}`, isSap: false, title: raw };
   }
-  // PT puede pedir labels sin “(SAP)” mientras PT_SKIP_SAP_VALIDATION esté activo.
-  if (Boolean(options.suppressSapLabel)) {
+  const hideSapTag = options.suppressSapLabel !== false; // default: ocultar «(SAP)»
+  if (hideSapTag) {
     const isNota = idx === NOTA_CONDICION_COL_JS;
     return {
-      label: isNota ? `${known} (WULUT)` : known,
+      label: known,
       isSap: false,
-      title: isNota ? `Nota Condición (WULUT, no es dato SAP)` : known
+      title: isNota ? "Nota Condición" : known
     };
   }
   const isSap = idx !== NOTA_CONDICION_COL_JS;
   const label = isSap ? `${known} (SAP)` : `${known} (WULUT)`;
-  const title = isSap
-    ? `Dato SAP · ${known}`
-    : `Nota Condición (WULUT, no es dato SAP)`;
+  const title = isSap ? known : "Nota Condición";
   return { label, isSap, title };
 }
 
