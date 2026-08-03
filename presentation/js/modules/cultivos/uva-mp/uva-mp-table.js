@@ -13,7 +13,9 @@ import {
 import { hydrateLucideIcons } from "../../../utils/lucide-icon.util.js";
 import { translateExcelHeader } from "../../../utils/excel-header-i18n.util.js";
 import { refreshTranslatedHeaderRow } from "../../../utils/table-header-i18n.util.js";
+import { isDateColumnJs, formatDateValueToDMY } from "../shared/excel-date-format.util.js";
 
+/** JS: cosecha ~19, inspección 50, LMR 69 — siempre filtrado por encabezado. */
 const DATE_COLS = new Set([19, 50, 69]);
 
 function isPinnedColumn(index) {
@@ -23,6 +25,16 @@ function isPinnedColumn(index) {
 export function applyStickyColumnClasses(el, index) {
   if (!isPinnedColumn(index)) return;
   el.classList.add("agv-mp-sticky-col", `agv-mp-sticky-col-${index}`);
+}
+
+function formatUvaMpCell(raw, colJs, headers) {
+  const hinted = [...DATE_COLS].map((js) => js + 1);
+  if (DATE_COLS.has(colJs) && isDateColumnJs(colJs, headers, hinted)) {
+    const asDate = formatDateValueToDMY(raw);
+    if (asDate) return asDate;
+    return formatFechaCelda(raw);
+  }
+  return valorCelda(raw);
 }
 
 function buildDisplayColumns(headers) {
@@ -43,10 +55,8 @@ function buildDisplayColumns(headers) {
   ];
 }
 
-function formatCellDisplay(row, colJs) {
-  const raw = row[colJs];
-  if (DATE_COLS.has(colJs)) return formatFechaCelda(raw);
-  return valorCelda(raw);
+function formatCellDisplay(row, colJs, headers = []) {
+  return formatUvaMpCell(row[colJs], colJs, headers);
 }
 
 function formatExtraDisplay(row, key) {
@@ -146,7 +156,9 @@ export function renderUvaMpResultsTable({
       if (title) td.title = title;
       td.textContent =
         val ??
-        (typeof col.key === "number" ? formatCellDisplay(row, col.key) : formatExtraDisplay(row, col.key));
+        (typeof col.key === "number"
+          ? formatCellDisplay(row, col.key, headers)
+          : formatExtraDisplay(row, col.key));
       if (col.sticky != null) applyStickyColumnClasses(td, col.sticky);
       tr.appendChild(td);
     });
@@ -185,7 +197,9 @@ export function htmlTablaFilasConError(headers, filas, { htmlEscape, t, titled =
           const titleAttr = title ? ` title="${htmlEscape(title)}"` : "";
           const displayVal =
             val ??
-            (typeof col.key === "number" ? formatCellDisplay(row, col.key) : formatExtraDisplay(row, col.key));
+            (typeof col.key === "number"
+          ? formatCellDisplay(row, col.key, headers)
+          : formatExtraDisplay(row, col.key));
           return `<td${classAttr}${titleAttr}>${htmlEscape(displayVal)}</td>`;
         })
         .join("");

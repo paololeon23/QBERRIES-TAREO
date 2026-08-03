@@ -28,15 +28,14 @@ import {
   applyMpColumnVisibility,
   bindMpColumnContextMenu
 } from "../shared/mp-column-menu.util.js";
+import {
+  DEFAULT_MP_STICKY_WIDTHS,
+  syncMpStickyOffsets
+} from "../shared/mp-sticky-offsets.util.js";
 
 const STICKY_COLUMNS = [0, 1, 6, 9]; // Id, Inspección código, Usuario, Lote
 /** Anchos base sticky Espárrago MP (Usuario ancho por emails). */
-const STICKY_COL_WIDTHS = {
-  0: 88,
-  1: 108,
-  6: 260,
-  9: 118
-};
+const STICKY_COL_WIDTHS = { ...DEFAULT_MP_STICKY_WIDTHS };
 /** Columnas de contexto siempre visibles en la tabla de errores (JS 0-based). */
 const CONTEXT_COLUMNS_JS = DEFAULT_MP_CONTEXT_COLS_JS;
 /** Productor…Peso Bruto (Excel 13–33). */
@@ -98,34 +97,9 @@ function applyStickyColumnClasses(el, index) {
   el.classList.add("agv-mp-sticky-col", `agv-mp-sticky-col-${index}`);
 }
 
-/** Recalcula left según anchos reales pintados (sin aplastar columnas). */
+/** Anchos fijos + left acumulado. No tocar z-index inline (pisa thead sticky). */
 function syncEsparragoMpStickyOffsets(tableEl) {
-  if (!tableEl) return;
-
-  STICKY_COLUMNS.forEach((idx) => {
-    const width = STICKY_COL_WIDTHS[idx] ?? 90;
-    tableEl.querySelectorAll(`.agv-mp-sticky-col-${idx}`).forEach((el) => {
-      el.style.boxSizing = "border-box";
-      el.style.minWidth = `${width}px`;
-      el.style.width = `${width}px`;
-      el.style.maxWidth = `${width}px`;
-      el.style.left = "";
-    });
-  });
-
-  let left = 0;
-  STICKY_COLUMNS.forEach((idx) => {
-    const cells = tableEl.querySelectorAll(`.agv-mp-sticky-col-${idx}`);
-    if (!cells.length) return;
-    const sample = cells[0];
-    const measured = Math.ceil(sample.getBoundingClientRect().width);
-    const width = measured > 0 ? measured : STICKY_COL_WIDTHS[idx] ?? 90;
-    cells.forEach((el) => {
-      el.style.left = `${left}px`;
-      el.style.zIndex = idx === 0 ? "6" : "5";
-    });
-    left += width;
-  });
+  syncMpStickyOffsets(tableEl, STICKY_COLUMNS, STICKY_COL_WIDTHS);
 }
 
 function excelColToJs(col) {

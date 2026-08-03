@@ -158,7 +158,9 @@
     },
     {
       "numero": 37,
-      "nombre-de-la-columna": "Calibre ASP"
+      "nombre-de-la-columna": "Calibre ASP",
+      "es-obligatorio": true,
+      "si-falla-mostrar": "Calibre ASP obligatorio — debe tener valor (Small / Standard / Large)"
     },
     {
       "numero": 38,

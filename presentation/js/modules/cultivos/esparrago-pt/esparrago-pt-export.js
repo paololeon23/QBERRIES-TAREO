@@ -12,6 +12,7 @@ import {
   parseFlexibleNumber
 } from "../../../../../engine/cartilla-cell-validation.js";
 import { resolvePtEsparragoColumnLabel } from "./esparrago-pt-i18n-labels.js";
+import { isDateColumnJs, formatDateValueToDMY } from "../shared/excel-date-format.util.js";
 
 function cellObject(val, jsIdx, textCols) {
   if (val === "") return { v: "", t: "s" };
@@ -22,9 +23,12 @@ function cellObject(val, jsIdx, textCols) {
   return { v: String(val), t: "s" };
 }
 
-function formatExportValue(val, jsIdx, textCols, dateCols) {
-  if (dateCols.has(jsIdx)) {
+function formatExportValue(val, jsIdx, textCols, dateCols, headers) {
+  const hintedExcel = [...dateCols].map((js) => js + 1);
+  if (dateCols.has(jsIdx) && isDateColumnJs(jsIdx, headers, hintedExcel)) {
     if (typeof val === "number" && Number.isFinite(val)) return serialExcelAFecha(val);
+    const asDate = formatDateValueToDMY(val);
+    if (asDate) return asDate;
     const txt = cellDisplayValue(val).trim();
     return txt || "";
   }
@@ -58,7 +62,11 @@ export function exportEsparragoPtFiltered({ rows, headers, fechaLabel }) {
     wsData.push(
       exportOrder.map((idx) => {
         const raw = idx === LINEA_ASP_JS ? resolveLineaAspValue(fila) : fila[idx];
-        return cellObject(formatExportValue(raw, idx, textCols, dateCols), idx, textCols);
+        return cellObject(
+          formatExportValue(raw, idx, textCols, dateCols, headers),
+          idx,
+          textCols
+        );
       })
     );
   });

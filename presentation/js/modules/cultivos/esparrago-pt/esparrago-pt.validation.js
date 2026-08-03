@@ -14,7 +14,7 @@ import {
 } from "../../../../../engine/cartilla-cell-validation.js";
 import { isPtSapDataColJs, PT_SKIP_SAP_VALIDATION } from "../shared/mp-results-perf.util.js";
 
-const CRITICOS_VACIOS = [9, 10, 37, 49, 50, 53, 58, 59, 60, 61, 62, 64];
+const CRITICOS_VACIOS = [9, 10, 36, 37, 49, 50, 53, 58, 59, 60, 61, 62, 64];
 /** Peso 01–05 → Excel 59–63 / JS 58–62 */
 const MERCADOS_VALIDOS = ["USA", "EUROPA", "ASIA"];
 export const LINEA_JS = 26;
@@ -32,11 +32,30 @@ export function getFechaLmrMayoritaria() {
   return _fechaLmrMayoritariaISO;
 }
 
+function looksLikeDateDisplay(value) {
+  const texto = String(value ?? "").trim();
+  if (!texto) return false;
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(texto)) return true;
+  if (/^\d{4}-\d{2}-\d{2}/.test(texto)) return true;
+  if (value instanceof Date && Number.isFinite(value.getTime())) return true;
+  if (typeof value === "number" && Number.isFinite(value) && value > 20000 && value < 80000) {
+    return true;
+  }
+  return false;
+}
+
 export function resolveLineaAspValue(row) {
   if (!row) return "";
-  const lineaAsp = cellDisplayValue(row[LINEA_ASP_JS]).trim();
-  if (lineaAsp) return lineaAsp;
-  return cellDisplayValue(row[LINEA_JS]).trim();
+  const lineaAspRaw = row[LINEA_ASP_JS];
+  const lineaAsp = cellDisplayValue(lineaAspRaw).trim();
+  const linea = cellDisplayValue(row[LINEA_JS]).trim();
+  // Si Linea Asp vino como fecha (Excel mal tipado / formateo previo), usar Linea.
+  if (lineaAsp && !looksLikeDateDisplay(lineaAspRaw) && !looksLikeDateDisplay(lineaAsp)) {
+    return lineaAsp;
+  }
+  if (linea && !looksLikeDateDisplay(linea)) return linea;
+  if (lineaAsp && !looksLikeDateDisplay(lineaAsp)) return lineaAsp;
+  return linea || "";
 }
 
 export function serialExcelAFecha(serial) {

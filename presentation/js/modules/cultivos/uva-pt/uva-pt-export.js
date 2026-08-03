@@ -7,12 +7,14 @@ import {
   parseFlexibleNumber,
   computeSumaTonalidades
 } from "./uva-pt.validation.js";
+import { isDateColumnJs, formatDateValueToDMY } from "../shared/excel-date-format.util.js";
 
 const ROW_FILL = {
   green: "AFD8AF",
   orange: "FF9900"
 };
 
+/** JS: cosecha 51, embalaje 52, inspección 53, LMR 70 — siempre filtrado por encabezado. */
 const DATE_COLS_JS = new Set([51, 52, 53, 70]);
 
 function rowFillColor(row) {
@@ -43,8 +45,13 @@ function cellObject(val, jsIdx, textCols) {
   return { v: String(val), t: "s" };
 }
 
-function formatExportValue(val, jsIdx, textCols) {
-  if (DATE_COLS_JS.has(jsIdx) && typeof val === "number") return serialExcelAFecha(val);
+function formatExportValue(val, jsIdx, textCols, headers) {
+  const hinted = [...DATE_COLS_JS].map((js) => js + 1);
+  if (DATE_COLS_JS.has(jsIdx) && isDateColumnJs(jsIdx, headers, hinted)) {
+    if (typeof val === "number") return serialExcelAFecha(val);
+    const asDate = formatDateValueToDMY(val);
+    if (asDate) return asDate;
+  }
   if (val === null || val === undefined || valorCelda(val).trim() === "") return "";
   if (textCols.has(jsIdx)) return valorCelda(val);
   const n = parseFlexibleNumber(val);
@@ -73,7 +80,7 @@ export function exportUvaPtFiltered({ rows, headers, fechaLabel }) {
   rows.forEach((fila) => {
     const fillColor = rowFillColor(fila);
     const rowCells = exportOrder.map((idx) => {
-      const formatted = formatExportValue(fila[idx], idx, textCols);
+      const formatted = formatExportValue(fila[idx], idx, textCols, headers);
       return applyFill(cellObject(formatted, idx, textCols), fillColor);
     });
     const suma = computeSumaTonalidades(fila);

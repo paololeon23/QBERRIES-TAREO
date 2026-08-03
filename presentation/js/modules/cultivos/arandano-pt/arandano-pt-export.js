@@ -84,10 +84,15 @@ function valueFromOriginalColumn(row, originalColJs, loadReorder) {
   return internalIdx >= 0 ? row[internalIdx] : "";
 }
 
-function formatTextExportValue(val, excelCol, dateCols, helpers) {
+function formatTextExportValue(val, excelCol, dateCols, helpers, headers = []) {
   const { formatISOToDMY, parseExcelDateISO } = helpers;
+  const jsIdx = excelCol - 1;
+  const header = headers[jsIdx] ?? "";
+  const looksDate =
+    dateCols.has(excelCol) &&
+    !/linea|asp|formato|destino|lote|usuario|hora/i.test(String(header));
 
-  if (dateCols.has(excelCol)) {
+  if (looksDate || (dateCols.has(excelCol) && /fecha|lmr|date/i.test(String(header)))) {
     const iso = parseExcelDateISO(val);
     return iso ? formatISOToDMY(iso) : val === null || val === undefined ? "" : String(val);
   }
@@ -100,12 +105,16 @@ function formatTextExportValue(val, excelCol, dateCols, helpers) {
   return val === null || val === undefined ? "" : String(val);
 }
 
-export function formatExportCellValue(val, excelCol, exportCfg, helpers) {
+export function formatExportCellValue(val, excelCol, exportCfg, helpers, headers = []) {
   const textCols = new Set(exportCfg?.["columnas-texto"] || DEFAULT_TEXT_COLS);
   const dateCols = new Set(exportCfg?.["columnas-fecha"] || DEFAULT_DATE_COLS);
 
   if (textCols.has(excelCol)) {
-    return formatTextExportValue(val, excelCol, dateCols, helpers);
+    return formatTextExportValue(val, excelCol, dateCols, helpers, headers);
+  }
+
+  if (dateCols.has(excelCol)) {
+    return formatTextExportValue(val, excelCol, dateCols, helpers, headers);
   }
 
   if (val === 0 || val === "0") return 0;
@@ -184,7 +193,7 @@ export function buildPtExportSheetData(rows, cartilla, exportMeta, exportCfg, he
     const fillColor = rowFillColor(row);
     const line = order.map((excelCol) => {
       const raw = valueFromOriginalColumn(row, excelCol - 1, loadReorder);
-      const formatted = formatExportCellValue(raw, excelCol, exportCfg, helpers);
+      const formatted = formatExportCellValue(raw, excelCol, exportCfg, helpers, headerOriginal);
       return applyFill(cellObject(formatted, excelCol, exportCfg), fillColor);
     });
 

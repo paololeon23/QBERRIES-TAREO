@@ -357,7 +357,8 @@ export class PaltaMpService {
       }
 
       this.headers = headers;
-      this.rawRows = applyDateDisplayFormatToRows(layoutRows, headers, [20, 21, 41, 51, 64, 65]).map(
+      // Excel 1-based: inspección 65, LMR 72 (headers mandan; sin 51 genérico).
+      this.rawRows = applyDateDisplayFormatToRows(layoutRows, headers, [20, 21, 64, 65, 72]).map(
         (row) => {
           const copy = Array.isArray(row) ? [...row] : [];
           while (copy.length < getTotalColumnas()) copy.push("");

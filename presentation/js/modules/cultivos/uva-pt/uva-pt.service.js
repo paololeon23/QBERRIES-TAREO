@@ -208,12 +208,13 @@ export class UvaPtService {
       }
 
       this.excelCabecera = this.parseExcelCabecera(data);
+      // Excel 1-based: cosecha 52, embalaje 53, inspección 54, LMR 71 (nunca 51 genérico).
       this.dataRows = applyDateDisplayFormatToRows(
         data
           .slice(DATA_START_INDEX)
           .filter((row) => row.some((c) => String(c ?? "").trim())),
         this.headers,
-        [20, 21, 41, 51]
+        [20, 21, 52, 53, 54, 71]
       );
 
       const tipoFila = String(this.dataRows[0]?.[1] ?? "").trim().toUpperCase();

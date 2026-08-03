@@ -430,7 +430,8 @@ export class ArandanoPtService {
           return;
         }
 
-        const filas = applyDateDisplayFormatToRows(bodyRows, headerRow, [20, 21, 41, 42, 48, 49, 51])
+        // Excel 1-based desde rules: inspección 42, LMR 49 (+ cosecha/prod. SAP).
+        const filas = applyDateDisplayFormatToRows(bodyRows, headerRow, [20, 21, 42, 49])
           .filter((r) => r.some((c) => c !== ""))
           .map((r) => {
             const copy = [...r];

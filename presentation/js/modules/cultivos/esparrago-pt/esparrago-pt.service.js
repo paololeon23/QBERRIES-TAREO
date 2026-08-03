@@ -15,7 +15,8 @@ import {
   getColInspeccionJs,
   getColLmrJs,
   getExcelCabecera,
-  getColumnLabelsByIndex
+  getColumnLabelsByIndex,
+  getExportDateColsJs
 } from "./esparrago-pt.config.js";
 import { scanGlobalWarnings, serialExcelAFecha, computeFechaLmrMayoritaria, formatISOToDMY, parseFechaToISO } from "./esparrago-pt.validation.js";
 import {
@@ -200,7 +201,9 @@ export class EsparragoPtService {
 
       this.headers = headers;
       this.excelCabecera = this.parseExcelCabecera(data);
-      this.dataRows = applyDateDisplayFormatToRows(layoutRows, headers, [20, 21, 41, 51]);
+      // Fechas reales (JS→Excel 1-based). Nunca usar 51 aquí: en PTES la col 51 es Linea Asp.
+      const dateExcelHints = [...getExportDateColsJs()].map((js) => js + 1);
+      this.dataRows = applyDateDisplayFormatToRows(layoutRows, headers, dateExcelHints);
       this._sapLayoutNotice = sapLayoutExpanded
         ? { insertedSap15, insertedSap5 }
         : null;

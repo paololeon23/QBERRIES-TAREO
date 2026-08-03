@@ -32,8 +32,13 @@ export function formatYyyyMmDd(raw) {
 }
 
 /** Valor legible en UI: convierte serial Excel / YYYYMMDD en fechas. */
-export function formatPlagasCellDisplay(idx, rawVal) {
-  if (DATE_COLS_JS.has(idx)) {
+export function formatPlagasCellDisplay(idx, rawVal, headers = []) {
+  const header = String(headers[idx] ?? "");
+  const headerBlocks =
+    header &&
+    /linea|asp|formato|destino|lote|usuario|hora|productor|guia/i.test(header) &&
+    !/fecha|lmr|date/i.test(header);
+  if (DATE_COLS_JS.has(idx) && !headerBlocks) {
     if (typeof rawVal === "number" && Number.isFinite(rawVal)) {
       const asDate = serialExcelAFecha(rawVal);
       if (asDate) return asDate;

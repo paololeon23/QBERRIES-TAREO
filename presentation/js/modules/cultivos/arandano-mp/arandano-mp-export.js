@@ -70,13 +70,18 @@ export function parseFlexibleNumber(val) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-export function formatExportValue(val, excelCol, exportCfg, formatISOToDMY, parseExcelDateISO) {
+export function formatExportValue(val, excelCol, exportCfg, formatISOToDMY, parseExcelDateISO, headers = []) {
   if (excelCol === VACIO) return "";
 
   const textCols = new Set(exportCfg?.["columnas-texto"] || [4, 5, 10, 19, 20, 41, 51]);
   const dateCols = new Set(exportCfg?.["columnas-fecha"] || [41, 51]);
+  const header = String(headers[excelCol - 1] ?? "");
+  const headerOk =
+    !header ||
+    /fecha|lmr|date/i.test(header) ||
+    !/linea|asp|formato|destino|lote|usuario|hora|productor|guia/i.test(header);
 
-  if (dateCols.has(excelCol)) {
+  if (dateCols.has(excelCol) && headerOk) {
     const iso = parseExcelDateISO(val);
     return iso ? formatISOToDMY(iso) : "";
   }
@@ -130,7 +135,7 @@ export function buildFilteredSheetData(rows, cartilla, headers, exportCfg, helpe
     wsData.push(
       order.map((excelCol) =>
         cellForFilteredExport(
-          formatExportValue(row[excelCol - 1], excelCol, exportCfg, formatISOToDMY, parseExcelDateISO),
+          formatExportValue(row[excelCol - 1], excelCol, exportCfg, formatISOToDMY, parseExcelDateISO, headers),
           excelCol,
           exportCfg
         )
@@ -169,7 +174,9 @@ export function buildFullSheetDataWithErrors(
         excelCol,
         exportCfg,
         formatISOToDMY,
-        parseExcelDateISO
+        parseExcelDateISO,
+        undefined,
+        headers
       );
       const { cellClass } = getCellMeta(row, js);
 

@@ -1,6 +1,6 @@
 /**
- * Espárrago MP — offsets sticky Id/Código/Usuario/Lote.
- * El análisis de cartilla vive en cartilla-analysis.css (shared).
+ * Espárrago MP — sticky Id / Código / Usuario / Lote.
+ * thead sticky debe quedar por encima de th que scrollean (z≤10).
  */
 
 #agvMpApp .agv-mp-table.agv-mp-table--esparrago .agv-mp-sticky-col {
@@ -16,14 +16,17 @@
   left: 0;
   min-width: 88px;
   width: 88px;
+  max-width: 88px;
 }
 
 #agvMpApp .agv-mp-table.agv-mp-table--esparrago .agv-mp-sticky-col-1 {
   left: 88px;
   min-width: 108px;
   width: 108px;
+  max-width: 108px;
 }
 
+/* Usuario: ellipsis para emails largos */
 #agvMpApp .agv-mp-table.agv-mp-table--esparrago .agv-mp-sticky-col-6 {
   left: 196px;
   min-width: 260px;
@@ -41,16 +44,44 @@
   box-shadow: 2px 0 6px rgba(15, 23, 42, 0.06);
 }
 
-#agvMpApp .agv-mp-table.agv-mp-table--esparrago thead th.agv-mp-sticky-col {
-  z-index: 12;
-  background: #f1f5f9;
-}
-
-#agvMpApp .agv-mp-table.agv-mp-table--esparrago tbody td.agv-mp-sticky-col {
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago tbody td.agv-mp-sticky-col-0 {
   z-index: 4;
 }
 
-#agvMpApp .agv-mp-table.agv-mp-table--esparrago thead th {
-  z-index: 10;
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago tbody td.agv-mp-sticky-col-1,
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago tbody td.agv-mp-sticky-col-6,
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago tbody td.agv-mp-sticky-col-9 {
+  z-index: 3;
+}
+
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago thead th.agv-mp-sticky-col {
+  top: 0;
   background: #f1f5f9;
+  z-index: 12;
+}
+
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago thead th.agv-mp-sticky-col-0 {
+  z-index: 13;
+}
+
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago thead th.agv-mp-sticky-col-1,
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago thead th.agv-mp-sticky-col-6,
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago thead th.agv-mp-sticky-col-9 {
+  z-index: 12;
+}
+
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago tbody tr:nth-child(even) td.agv-mp-sticky-col {
+  background: #f8fafc;
+}
+
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago tbody tr:hover td.agv-mp-sticky-col {
+  background: #f1f5f9;
+}
+
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago tbody td.agv-mp-sticky-col.agv-mp-cell-error-empty {
+  background: var(--agv-mp-err) !important;
+}
+
+#agvMpApp .agv-mp-table.agv-mp-table--esparrago tbody td.agv-mp-sticky-col.agv-mp-cell-error-value {
+  background: #fee2e2 !important;
 }

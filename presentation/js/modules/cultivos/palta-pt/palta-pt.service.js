@@ -190,10 +190,11 @@ export class PaltaPtService {
       }
 
       this.excelCabecera = this.parseExcelCabecera(data);
+      // Excel 1-based: embalaje 55, LMR 72. No usar 51 (en PTCP Destino/otras cols).
       this.dataRows = applyDateDisplayFormatToRows(
         data.slice(DATA_START_INDEX).filter((row) => row.some((c) => String(c ?? "").trim())),
         this.headers,
-        [20, 21, 41, 51, 64, 65]
+        [20, 21, 55, 72]
       );
       this.resetResultsUi();
 

@@ -1,10 +1,11 @@
 /**
  * Formato de fechas Excel/SAP compartido (todos los cultivos).
- * YYYYMMDD / ISO / serial → DD/MM/YYYY. No toca horas ni textos no-fecha.
+ * Solo columnas cuyo encabezado parece fecha (o hint Excel validado).
+ * Nunca formatea Linea Asp, Formato, Destino, etc. aunque el índice Excel esté mal.
  */
 
-/** Columnas Excel 1-based frecuentes (Cosecha, Producción, Inspección, LMR). */
-export const DEFAULT_SAP_DATE_COLS_EXCEL = [20, 21, 41, 51];
+/** Hints Excel 1-based frecuentes SAP (sin LMR=51: en varios PT esa col no es fecha). */
+export const DEFAULT_SAP_DATE_COLS_EXCEL = [20, 21, 41];
 
 export function parseFlexibleDateToISO(valor) {
   if (valor == null || valor === "") return "";
@@ -50,8 +51,8 @@ export function parseFlexibleDateToISO(valor) {
     return `${fullY}-${m}-${d}`;
   }
 
-  const parsed = Date.parse(texto);
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : "";
+  // No usar Date.parse genérico: convierte textos/códigos no-fecha.
+  return "";
 }
 
 export function formatISOToDMY(iso) {
@@ -81,22 +82,84 @@ function normHeader(h) {
 }
 
 /**
- * Índices JS (0-based) de columnas fecha: hints Excel + encabezados con «fecha»/LMR.
- * Omite columnas de hora.
+ * Encabezados que NUNCA deben formatearse como fecha
+ * (aunque un hint Excel 1-based apunte mal a esa columna).
+ */
+export function isNonDateHeader(header) {
+  const headerNorm = normHeader(header);
+  if (!headerNorm) return false;
+  if (/\bhora\b/.test(headerNorm) || /^hora\b/.test(headerNorm)) return true;
+  if (/\blinea\b/.test(headerNorm)) return true;
+  if (/\basp\b/.test(headerNorm)) return true;
+  if (/\bformato\b/.test(headerNorm)) return true;
+  if (/\bmercado\b/.test(headerNorm)) return true;
+  if (/\blote\b/.test(headerNorm)) return true;
+  if (/\busuario\b/.test(headerNorm)) return true;
+  if (/\bcliente\b/.test(headerNorm)) return true;
+  if (/\bdestino\b/.test(headerNorm)) return true;
+  if (/\bproductor\b/.test(headerNorm)) return true;
+  if (/\bguia\b/.test(headerNorm) || /\bremision\b/.test(headerNorm)) return true;
+  if (/\betapa\b/.test(headerNorm)) return true;
+  if (/\bcampo\b/.test(headerNorm)) return true;
+  if (/\bturno\b/.test(headerNorm)) return true;
+  if (/\bfundo\b/.test(headerNorm)) return true;
+  if (/\bvariedad\b/.test(headerNorm)) return true;
+  if (/\bcalibre\b/.test(headerNorm)) return true;
+  if (/\bdefecto\b/.test(headerNorm)) return true;
+  if (/\bobserv/.test(headerNorm)) return true;
+  if (/\bcodig/.test(headerNorm) && !/\bfecha\b/.test(headerNorm)) return true;
+  if (/\bcant\b/.test(headerNorm) || /\bmuestra\b/.test(headerNorm)) {
+    if (!/\bfecha\b/.test(headerNorm)) return true;
+  }
+  if (/\bpeso\b/.test(headerNorm) && !/\bfecha\b/.test(headerNorm)) return true;
+  if (/\blongitud\b/.test(headerNorm)) return true;
+  if (/\btonalidad\b/.test(headerNorm)) return true;
+  if (/\bexportable\b/.test(headerNorm)) return true;
+  return false;
+}
+
+function headerLooksLikeDate(headerNorm) {
+  if (!headerNorm) return false;
+  if (isNonDateHeader(headerNorm)) return false;
+  return (
+    headerNorm.includes("fecha") ||
+    headerNorm.includes("date") ||
+    /\blmr\b/.test(headerNorm)
+  );
+}
+
+/** ¿Esta columna JS debe tratarse como fecha según encabezado (+ hint opcional)? */
+export function isDateColumnJs(jsIdx, headers = [], excelColsHint = []) {
+  const js = Number(jsIdx);
+  if (!Number.isFinite(js) || js < 0) return false;
+  const headerNorm = normHeader(headers?.[js]);
+  if (isNonDateHeader(headerNorm)) return false;
+  if (headerLooksLikeDate(headerNorm)) return true;
+  const excelCol = js + 1;
+  const hinted = (excelColsHint || []).some((c) => Number(c) === excelCol);
+  if (!hinted) return false;
+  // Hint solo si no hay encabezado legible en contra.
+  if (headerNorm && String(headers[js]).trim()) return false;
+  return true;
+}
+
+/**
+ * Índices JS (0-based) de columnas fecha: encabezados con «fecha»/LMR + hints validados.
+ * Omite Linea Asp, Formato, Destino, etc. Sin fallback ciego a columnas fijas.
  */
 export function resolveDateColumnJsIndexes(headers = [], excelColsHint = []) {
   const set = new Set();
   (excelColsHint || []).forEach((c) => {
     const n = Number(c);
-    if (Number.isFinite(n) && n >= 1) set.add(n - 1);
+    if (!Number.isFinite(n) || n < 1) return;
+    const js = n - 1;
+    if (!isDateColumnJs(js, headers, [n])) return;
+    set.add(js);
   });
   (headers || []).forEach((h, i) => {
     const n = normHeader(h);
     if (!n) return;
-    if (/\bhora\b/.test(n) || /^hora\b/.test(n)) return;
-    if (n.includes("fecha") || n.includes("date") || /\blmr\b/.test(n)) {
-      set.add(i);
-    }
+    if (headerLooksLikeDate(n)) set.add(i);
   });
   return [...set];
 }
@@ -110,8 +173,8 @@ function copyRowPreservingMeta(row) {
 }
 
 /**
- * Aplica DD/MM/YYYY en columnas fecha de todas las filas.
- * Seguro: solo reescribe valores parseables como fecha.
+ * Aplica DD/MM/YYYY solo en columnas fecha resueltas por encabezado/hint seguro.
+ * Sin fallback a DEFAULT: evita convertir Linea Asp / Destino / etc.
  *
  * @param {unknown[][]} rows
  * @param {unknown[]} [headers]
@@ -122,9 +185,9 @@ export function applyDateDisplayFormatToRows(
   headers = [],
   excelColsHint = DEFAULT_SAP_DATE_COLS_EXCEL
 ) {
-  let cols = resolveDateColumnJsIndexes(headers, excelColsHint);
+  const cols = resolveDateColumnJsIndexes(headers, excelColsHint);
   if (!cols.length) {
-    cols = DEFAULT_SAP_DATE_COLS_EXCEL.map((c) => c - 1);
+    return (rows || []).map((row) => (Array.isArray(row) ? copyRowPreservingMeta(row) : row));
   }
 
   return (rows || []).map((row) => {
@@ -132,6 +195,7 @@ export function applyDateDisplayFormatToRows(
     const copy = copyRowPreservingMeta(row);
     cols.forEach((js) => {
       if (js < 0 || js >= copy.length) return;
+      if (!isDateColumnJs(js, headers, excelColsHint)) return;
       const formatted = formatDateValueToDMY(copy[js]);
       if (formatted) copy[js] = formatted;
     });
@@ -143,11 +207,22 @@ export function applyDateDisplayFormatToRows(
 export function formatRowDateCellsInPlace(row, headers = [], excelColsHint = DEFAULT_SAP_DATE_COLS_EXCEL) {
   if (!Array.isArray(row)) return row;
   const cols = resolveDateColumnJsIndexes(headers, excelColsHint);
-  const useCols = cols.length ? cols : DEFAULT_SAP_DATE_COLS_EXCEL.map((c) => c - 1);
-  useCols.forEach((js) => {
+  cols.forEach((js) => {
     if (js < 0 || js >= row.length) return;
+    if (!isDateColumnJs(js, headers, excelColsHint)) return;
     const formatted = formatDateValueToDMY(row[js]);
     if (formatted) row[js] = formatted;
   });
   return row;
+}
+
+/**
+ * Para export: formatea solo si la columna es fecha por encabezado (o hint seguro).
+ * @returns {string|null} null = no es columna fecha (dejar valor original)
+ */
+export function formatExportDateIfApplicable(val, jsIdx, headers = [], excelColsHint = []) {
+  if (!isDateColumnJs(jsIdx, headers, excelColsHint)) return null;
+  if (val == null || String(val).trim() === "") return "";
+  const formatted = formatDateValueToDMY(val);
+  return formatted != null ? formatted : String(val).trim();
 }
