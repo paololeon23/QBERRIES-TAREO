@@ -1,0 +1,25 @@
+{
+  "name": "AGV - MI",
+  "short_name": "AGV-MI",
+  "description": "Aseguramiento de la calidad — cartillas MP/PT/Plagas",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#000a28",
+  "lang": "es-PE",
+  "icons": [
+    {
+      "src": "presentation/images/icono.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "presentation/images/icono.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

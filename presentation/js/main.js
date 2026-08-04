@@ -19,8 +19,10 @@ import { showConfidentialityGate } from "./components/confidentiality-gate.js";
 import { getAppDocumentTitle, applyBrandPixelAssets } from "./utils/brand-pixel.util.js";
 import { ensureStylesheets } from "./utils/ensure-stylesheet.util.js";
 import { prefetchXlsxJs } from "./utils/ensure-xlsx.util.js";
+import { registerServiceWorker } from "./utils/register-sw.util.js";
 
 document.title = getAppDocumentTitle();
+registerServiceWorker();
 
 function renderBootstrapError(errorMessage) {
   const applicationRoot = document.getElementById("applicationRoot");

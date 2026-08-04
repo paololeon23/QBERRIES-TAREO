@@ -6,7 +6,7 @@ export const appConfig = {
   appVersion: "1.0.0",
   defaultLanguage: "es-PE",
   supportedLanguages: ["es-PE", "en-US", "fr-MA", "zh-CN"],
-  cacheBustingVersion: "2026080407",
+  cacheBustingVersion: "2026080409",
   defaultRoute: "#/inicio",
   brandLogoPath: "presentation/images/logo.png",
   brandMarkPath: "presentation/images/logo%20-%20copia.png",
