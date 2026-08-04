@@ -237,6 +237,14 @@ export function buildPtCompuestaColumnMap(reglasCompuestas = []) {
     if (regla.tipo === "trazabilidad-pt") {
       map.set(msg, [regla["columna-trazabilidad"]]);
     }
+    if (
+      regla.tipo === "igual-anio-mes-entre-columnas" ||
+      regla.tipo === "igual-entre-columnas" ||
+      regla.tipo === "fecha-no-mayor-que" ||
+      regla.tipo === "fecha-menor-o-igual"
+    ) {
+      map.set(msg, [regla["columna-a"], regla["columna-b"]].filter(Boolean));
+    }
   });
   return map;
 }

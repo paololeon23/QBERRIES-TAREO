@@ -525,6 +525,12 @@
   ],
   "validaciones-compuestas": [
     {
+      "tipo": "igual-anio-mes-entre-columnas",
+      "columna-a": 20,
+      "columna-b": 42,
+      "si-falla-mostrar": "Año y mes de cosecha deben coincidir con la fecha de inspección"
+    },
+    {
       "tipo": "cliente-destino-pt",
       "columna-cliente": 35,
       "columna-destino": 39,

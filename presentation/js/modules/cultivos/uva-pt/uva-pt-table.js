@@ -8,7 +8,8 @@ import {
 import {
   formatCellDisplay,
   collectRowIncidencias,
-  applySumaTonalidadesCell
+  applySumaTonalidadesCell,
+  applyFechaYmCell
 } from "./uva-pt.validation.js";
 import { hydrateLucideIcons } from "../../../utils/lucide-icon.util.js";
 import { translateExcelHeader } from "../../../utils/excel-header-i18n.util.js";
@@ -177,6 +178,7 @@ function renderBodyRows(tbody, rows, headers, tableEl, onRowMark, onCopyReport) 
       } else {
         td.textContent = formatCellDisplay(row[col], col);
         if (col === 0 || col === 9) makeCopyableCell(td, row[col]);
+        if (typeof col === "number") applyFechaYmCell(td, row, col);
       }
       if (typeof col === "number") applySticky(td, col);
       tr.appendChild(td);

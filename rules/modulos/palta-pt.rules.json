@@ -7,10 +7,16 @@
   },
   "validaciones-cruzadas": [
     {
-      "tipo": "fecha-menor-o-igual",
+      "tipo": "igual-anio-mes-entre-columnas",
       "columna-a": 54,
       "columna-b": 55,
-      "si-falla-mostrar": "Fecha cosecha debe ser ≤ Fecha embalaje"
+      "si-falla-mostrar": "Año y mes de cosecha deben coincidir con la fecha de embalaje"
+    },
+    {
+      "tipo": "igual-anio-mes-entre-columnas",
+      "columna-a": 20,
+      "columna-b": 55,
+      "si-falla-mostrar": "Año y mes de cosecha deben coincidir con la fecha de embalaje"
     },
     {
       "tipo": "derivar-etapa-campo-desde-trazabilidad",

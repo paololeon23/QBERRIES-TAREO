@@ -16,6 +16,11 @@ import {
   parseFlexibleNumber
 } from "../../../../../engine/cartilla-cell-validation.js";
 import { isPtSapDataColJs, PT_SKIP_SAP_VALIDATION } from "../shared/mp-results-perf.util.js";
+import {
+  paintPtYearMonthMismatch,
+  PT_FECHA_YM_MSG_EMBALAJE
+} from "../shared/pt-fecha-ym.util.js";
+import { parseFlexibleDateToISO } from "../shared/excel-date-format.util.js";
 
 export function serialExcelAFecha(serial) {
   if (!serial || Number.isNaN(Number(serial))) return serial;
@@ -118,7 +123,7 @@ function collectAllIssues(row, fechaEmbalaje, config = null) {
     (_colIdx, issue) => incidencias.push(issue.message),
     {
       parseNumber: parseFlexibleNumber,
-      normalizeDate: normalizeDateValue,
+      normalizeDate: (v) => parseFlexibleDateToISO(v) || normalizeDateValue(v),
       compareDates: compareDatesDMY
     }
   );
@@ -157,15 +162,17 @@ export function applyCellValidation(td, fila, colIdx, valor, fechaEmbalaje, conf
     return;
   }
 
-  if (colIdx === getColCosechaJs() || colIdx === getColEmbalajeJs()) {
-    const cosecha = normalizeDateValue(fila[getColCosechaJs()]);
-    const embalaje = normalizeDateValue(fila[getColEmbalajeJs()]);
-    if (cosecha && embalaje) {
-      const cmp = compareDatesDMY(cosecha, embalaje);
-      if (cmp !== null && cmp > 0) {
-        td.className = "agv-pt-cell-error-value";
-        td.title = "Fecha cosecha debe ser ≤ Fecha embalaje";
-      }
+  if (colIdx === getColCosechaJs() || colIdx === getColEmbalajeJs() || colIdx === 19) {
+    paintPtYearMonthMismatch(
+      td,
+      colIdx,
+      fila,
+      getColCosechaJs(),
+      getColEmbalajeJs(),
+      PT_FECHA_YM_MSG_EMBALAJE
+    );
+    if (colIdx === getColEmbalajeJs() || colIdx === 19) {
+      paintPtYearMonthMismatch(td, colIdx, fila, 19, getColEmbalajeJs(), PT_FECHA_YM_MSG_EMBALAJE);
     }
   }
 }

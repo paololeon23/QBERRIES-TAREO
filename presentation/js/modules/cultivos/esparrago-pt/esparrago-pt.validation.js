@@ -13,6 +13,10 @@ import {
   parseFlexibleNumber
 } from "../../../../../engine/cartilla-cell-validation.js";
 import { isPtSapDataColJs, PT_SKIP_SAP_VALIDATION } from "../shared/mp-results-perf.util.js";
+import {
+  paintPtYearMonthMismatch,
+  PT_FECHA_YM_MSG
+} from "../shared/pt-fecha-ym.util.js";
 
 const CRITICOS_VACIOS = [9, 10, 36, 37, 49, 50, 53, 58, 59, 60, 61, 62, 64];
 /** Peso 01–05 → Excel 59–63 / JS 58–62 */
@@ -20,6 +24,10 @@ const MERCADOS_VALIDOS = ["USA", "EUROPA", "ASIA"];
 export const LINEA_JS = 26;
 export const LINEA_ASP_JS = 50;
 export const FECHA_LMR_JS = 51;
+/** Excel 46 / 47 → JS */
+const FECHA_COSECHA_PT_JS = 45;
+const FECHA_INSPECCION_JS = 46;
+const FECHA_COSECHA_SAP_JS = 19;
 
 /** Fecha LMR mayoritaria (ISO yyyy-mm-dd) de la inspección en revisión. */
 let _fechaLmrMayoritariaISO = "";
@@ -400,5 +408,32 @@ export function applyCellValidation(td, fila, colIdx, valor) {
 
   if (colIdx === 53 && valUpper && !MERCADOS_VALIDOS.includes(valUpper)) {
     markEmpty(failMsg(colIdx, "Mercado no válido. Solo se permite USA, EUROPA o ASIA"));
+  }
+
+  // PT: solo año-mes iguales (cosecha vs inspección). Día puede diferir.
+  if (!hasValueError && !hasEmptyError) {
+    if (
+      paintPtYearMonthMismatch(
+        td,
+        colIdx,
+        fila,
+        FECHA_COSECHA_PT_JS,
+        FECHA_INSPECCION_JS,
+        PT_FECHA_YM_MSG
+      )
+    ) {
+      return;
+    }
+    // También SAP Fecha Cosecha (20) vs inspección — pinta inspección aunque SAP no se valide.
+    if (colIdx === FECHA_INSPECCION_JS || colIdx === FECHA_COSECHA_SAP_JS) {
+      paintPtYearMonthMismatch(
+        td,
+        colIdx,
+        fila,
+        FECHA_COSECHA_SAP_JS,
+        FECHA_INSPECCION_JS,
+        PT_FECHA_YM_MSG
+      );
+    }
   }
 }

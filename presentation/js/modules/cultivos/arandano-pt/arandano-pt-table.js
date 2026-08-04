@@ -19,6 +19,10 @@ import {
   formatSubgrupoCellValue,
   applyDestinoValidation
 } from "./arandano-pt.validation.js";
+import {
+  paintPtYearMonthMismatch,
+  PT_FECHA_YM_MSG
+} from "../shared/pt-fecha-ym.util.js";
 
 const PALABRAS_PROHIBIDAS_REGULAR = [
   "JUMBO", "MIXED", "REGULAR", "SUPER JUMBO", "MEDIUM", "EXTRA JUMBO", "MIXTO", "NO COMBINADO", "SIN CALIBRAR"
@@ -232,6 +236,13 @@ function applyCellValidations(td, colKey, row, profile, fechaInspeccion) {
   if (colKey === c.notaCondicion && !val) td.classList.add("agv-pt-cell-error-empty");
   if (colKey === c.cliente && !val) td.classList.add("agv-pt-cell-error-empty");
   if (colKey === c.cliente && val === "TF INTERNATIONAL") td.classList.add("agv-pt-cell-error-value");
+
+  // PT: solo año-mes (Fecha Cosecha SAP 20 vs Fecha inspección).
+  const cosechaJs = 19;
+  const inspJs = c.fechaInspeccion;
+  if (Number.isFinite(inspJs) && (colKey === cosechaJs || colKey === inspJs)) {
+    paintPtYearMonthMismatch(td, colKey, row, cosechaJs, inspJs, PT_FECHA_YM_MSG);
+  }
 }
 
 const COLUMN_LABELS = {

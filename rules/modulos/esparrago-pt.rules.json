@@ -641,5 +641,19 @@
       "nombre-de-la-columna": "Turiones Mas Cortos",
       "es-obligatorio": true
     }
+  ],
+  "validaciones-compuestas": [
+    {
+      "tipo": "igual-anio-mes-entre-columnas",
+      "columna-a": 46,
+      "columna-b": 47,
+      "si-falla-mostrar": "Año y mes de cosecha deben coincidir con la fecha de inspección"
+    },
+    {
+      "tipo": "igual-anio-mes-entre-columnas",
+      "columna-a": 20,
+      "columna-b": 47,
+      "si-falla-mostrar": "Año y mes de cosecha deben coincidir con la fecha de inspección"
+    }
   ]
 }

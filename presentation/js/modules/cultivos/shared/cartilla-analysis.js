@@ -22,7 +22,13 @@ function shouldOmitSapFromAnalysis(column, colNum, cause, t) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{M}/gu, "");
-  if (low.includes("debe ser igual") || low.includes("igual a fecha") || low.includes("≠")) {
+  if (
+    low.includes("debe ser igual") ||
+    low.includes("igual a fecha") ||
+    low.includes("año y mes") ||
+    low.includes("anio y mes") ||
+    low.includes("≠")
+  ) {
     return false;
   }
   if (!isMissingDataCause(cause, t)) return false;

@@ -1,4 +1,4 @@
-/** Validaciones Uva PT — única regla: suma tonalidades cols 60-69 = col 11 */
+/** Validaciones Uva PT — suma tonalidades + año/mes cosecha vs inspección */
 
 import {
   getColCosechaJs,
@@ -8,6 +8,13 @@ import {
   getSumaTonalidadesConfig
 } from "./uva-pt.config.js";
 import { cellDisplayValue, parseFlexibleNumber } from "../../../../../engine/cartilla-cell-validation.js";
+import {
+  collectPtYearMonthMismatch,
+  paintPtYearMonthMismatch,
+  PT_FECHA_YM_MSG
+} from "../shared/pt-fecha-ym.util.js";
+
+const FECHA_COSECHA_SAP_JS = 19;
 
 export function serialExcelAFecha(serial) {
   if (!serial || Number.isNaN(Number(serial))) return serial;
@@ -81,8 +88,36 @@ export function formatCellDisplay(val, colIdx) {
 }
 
 export function collectRowIncidencias(row) {
+  const msgs = [];
   const result = validateSumaTonalidades(row);
-  return result.message ? [result.message] : [];
+  if (result.message) msgs.push(result.message);
+  collectPtYearMonthMismatch(row, getColCosechaJs(), getColInspeccionJs(), PT_FECHA_YM_MSG).forEach(
+    (i) => {
+      if (!msgs.includes(i.message)) msgs.push(i.message);
+    }
+  );
+  collectPtYearMonthMismatch(row, FECHA_COSECHA_SAP_JS, getColInspeccionJs(), PT_FECHA_YM_MSG).forEach(
+    (i) => {
+      if (!msgs.includes(i.message)) msgs.push(i.message);
+    }
+  );
+  return msgs;
+}
+
+export function applyFechaYmCell(td, row, colJs) {
+  if (
+    paintPtYearMonthMismatch(td, colJs, row, getColCosechaJs(), getColInspeccionJs(), PT_FECHA_YM_MSG)
+  ) {
+    return true;
+  }
+  return paintPtYearMonthMismatch(
+    td,
+    colJs,
+    row,
+    FECHA_COSECHA_SAP_JS,
+    getColInspeccionJs(),
+    PT_FECHA_YM_MSG
+  );
 }
 
 export function applySumaTonalidadesCell(td, row) {

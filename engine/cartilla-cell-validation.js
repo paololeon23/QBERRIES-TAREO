@@ -291,6 +291,34 @@ export function applyReglasCompuestasFila(row, reglas, onIssue, helpers = {}) {
       }
     }
 
+    if (tipo === "igual-anio-mes-entre-columnas") {
+      const colA = (regla["columna-a"] ?? regla["columna-a-excel"]) - 1;
+      const colB = (regla["columna-b"] ?? regla["columna-b-excel"]) - 1;
+      const rawA = row[colA];
+      const rawB = row[colB];
+      if (!cellDisplayValue(rawA) || !cellDisplayValue(rawB)) return;
+      let a = helpers.normalizeDate?.(rawA) || "";
+      let b = helpers.normalizeDate?.(rawB) || "";
+      // normalizeDate PT a veces devuelve DD/MM/YYYY → convertir a ISO-like YM
+      const toYm = (v, raw) => {
+        const s = String(v || "").trim();
+        if (/^\d{4}-\d{2}/.test(s)) return s.slice(0, 7);
+        if (/^\d{2}[/-]\d{2}[/-]\d{4}$/.test(s)) {
+          const [d, m, y] = s.split(/[/-]/);
+          return `${y}-${m.padStart(2, "0")}`;
+        }
+        const fromHelper = helpers.normalizeDate?.(raw);
+        if (fromHelper && /^\d{4}-\d{2}/.test(String(fromHelper))) return String(fromHelper).slice(0, 7);
+        return "";
+      };
+      const ymA = toYm(a, rawA);
+      const ymB = toYm(b, rawB);
+      if (ymA && ymB && ymA !== ymB) {
+        onIssue(colA, { kind: "value", message: mensaje });
+        onIssue(colB, { kind: "value", message: mensaje });
+      }
+    }
+
     if (tipo === "fecha-menor-o-igual" || tipo === "fecha-no-mayor-que") {
       const colA = (regla["columna-a"] ?? regla["columna-a-excel"]) - 1;
       const colB = (regla["columna-b"] ?? regla["columna-b-excel"]) - 1;

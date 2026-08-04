@@ -482,6 +482,22 @@ function evaluarValidacionCompuesta(filas, regla, contexto = {}) {
     });
   }
 
+  // PT: solo año-mes (YYYY-MM). Día puede diferir.
+  if (tipo === "igual-anio-mes-entre-columnas") {
+    filas.forEach((registro) => {
+      const valorA = obtenerValorRegistro(registro, regla["columna-a"]);
+      const valorB = obtenerValorRegistro(registro, regla["columna-b"]);
+      if (valorVacio(valorA) || valorVacio(valorB)) return;
+      const isoA = parseFechaIso(valorA);
+      const isoB = parseFechaIso(valorB);
+      if (!isoA || !isoB) return;
+      if (isoA.slice(0, 7) !== isoB.slice(0, 7)) {
+        detalle.push(crearDetalle(registro.fila, valorA, mensajeFallo, "compuesta"));
+        filasAfectadasSet.add(registro.fila);
+      }
+    });
+  }
+
   if (tipo === "fecha-no-mayor-que" || tipo === "fecha-menor-o-igual") {
     filas.forEach((registro) => {
       const valorA = obtenerValorRegistro(registro, regla["columna-a"]);
