@@ -541,15 +541,6 @@ export function buildCartillaAnalysis(params) {
     observations = []
   } = params;
 
-  const total = rows.length;
-  const errors = filasConError.length;
-  const ok = Math.max(total - errors, 0);
-  const conformity = total ? Math.round((ok / total) * 100) : 100;
-
-  let level = "ok";
-  if (errors > 0 && conformity >= 95) level = "warn";
-  if (errors > 0 && conformity < 95) level = "critical";
-
   const headerByColNum = new Map();
   columns.forEach((col) => {
     const idx = typeof col === "object" ? col.originalIndex : col;
@@ -559,6 +550,31 @@ export function buildCartillaAnalysis(params) {
     // pisaría la columna anterior (ej. LMR 51 ← Observación).
     headerByColNum.set(Number(idx) + 1, translateHeader(header, idx));
   });
+
+  const hintOpts = {
+    errorMap,
+    duplicateLotes,
+    colLoteJs,
+    headerByColNum,
+    t,
+    includeEmptyObligatorio: true,
+    skipSapValidation
+  };
+
+  // Filas solo con rojo SAP (omitidas del panel) NO bajan conformidad.
+  const filasConErrorPanel = (filasConError || []).filter((row) => {
+    const { pairs } = extractRowErrorHints(row, hintOpts);
+    return pairs.some((p) => !isGenericOnlyCause(p.cause, t));
+  });
+
+  const total = rows.length;
+  const errors = filasConErrorPanel.length;
+  const ok = Math.max(total - errors, 0);
+  const conformity = total ? Math.round((ok / total) * 100) : 100;
+
+  let level = "ok";
+  if (errors > 0 && conformity >= 95) level = "warn";
+  if (errors > 0 && conformity < 95) level = "critical";
 
   const causeCount = new Map();
   const colCount = new Map();
@@ -636,19 +652,11 @@ export function buildCartillaAnalysis(params) {
     });
   };
 
-  filasConError.forEach((row) => {
+  filasConErrorPanel.forEach((row) => {
     const lote = String(row[colLoteJs] ?? "").trim() || t("cartillaAnalysis.unknownLot");
     const id = String(row[colIdJs] ?? "").trim();
 
-    const { pairs: rawPairs } = extractRowErrorHints(row, {
-      errorMap,
-      duplicateLotes,
-      colLoteJs,
-      headerByColNum,
-      t,
-      includeEmptyObligatorio: true,
-      skipSapValidation
-    });
+    const { pairs: rawPairs } = extractRowErrorHints(row, hintOpts);
 
     // Solo lotes con causa real (no el genérico «Desviación de validación»).
     const pairs = rawPairs.filter((p) => !isGenericOnlyCause(p.cause, t));
@@ -1021,6 +1029,17 @@ export function createCartillaAnalysisController(options) {
     refreshPanel,
     getLast: () => lastAnalysis
   };
+}
+
+/**
+ * Filas con error relevante para KPIs / panel (excluye filas solo con rojo SAP).
+ */
+export function filterFilasConErrorExcludingSapOnly(filasConError, options = {}) {
+  const t = options.t || ((k) => k);
+  return (filasConError || []).filter((row) => {
+    const { pairs } = extractRowErrorHints(row, { ...options, t });
+    return pairs.some((p) => !isGenericOnlyCause(p.cause, t));
+  });
 }
 
 /**

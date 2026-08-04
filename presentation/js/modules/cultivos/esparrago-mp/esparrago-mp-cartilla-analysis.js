@@ -5,5 +5,6 @@ export {
   htmlCartillaAnalysisPanel,
   createCartillaAnalysisController,
   deriveFilasConErrorFromDom,
+  filterFilasConErrorExcludingSapOnly,
   headersToAnalysisColumns
 } from "../shared/cartilla-analysis.js";

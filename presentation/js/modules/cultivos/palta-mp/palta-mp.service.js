@@ -43,7 +43,11 @@ import {
 import { expandMissingSapLayout } from "../shared/mp-sap-layout.util.js";
 import { applyDateDisplayFormatToRows } from "../shared/excel-date-format.util.js";
 import { loadSapColumnasCatalog, getSapPerfil } from "../../../config/sap-columnas.registry.js";
-import { createCartillaAnalysisController, headersToAnalysisColumns } from "../shared/cartilla-analysis.js";
+import {
+  createCartillaAnalysisController,
+  filterFilasConErrorExcludingSapOnly,
+  headersToAnalysisColumns
+} from "../shared/cartilla-analysis.js";
 import {
   applyMpColumnVisibility,
   bindMpColumnContextMenu,
@@ -693,7 +697,14 @@ export class PaltaMpService {
     this.lotesDuplicados = lotesDuplicados;
     this.processedRows = rows;
 
-    const filasConError = rows.filter((row) => filaTieneError(row));
+    const filasConErrorAll = rows.filter((row) => filaTieneError(row));
+    const filasConError = filterFilasConErrorExcludingSapOnly(filasConErrorAll, {
+      errorMap: null,
+      duplicateLotes: new Set(lotesDuplicados || []),
+      colLoteJs: getColLoteJs(),
+      t: (k, v) => t(k, v),
+      skipSapValidation: false
+    });
 
     renderPaltaMpResultsTable({
       refs: this.shell.refs,

@@ -22,7 +22,10 @@ import { applyDateDisplayFormatToRows } from "../shared/excel-date-format.util.j
 import { normalizeMphaColumnLayout } from "./arandano-mp-mpha-layout.util.js";
 import { loadSapColumnasCatalog, getSapPerfil } from "../../../config/sap-columnas.registry.js";
 import { translateExcelHeader } from "../../../utils/excel-header-i18n.util.js";
-import { createCartillaAnalysisController } from "../shared/cartilla-analysis.js";
+import {
+  createCartillaAnalysisController,
+  filterFilasConErrorExcludingSapOnly
+} from "../shared/cartilla-analysis.js";
 import {
   applyMpColumnVisibility,
   bindMpColumnContextMenu,
@@ -1912,11 +1915,19 @@ export class ArandanoMpService {
     this.duplicateLotes = detectDuplicateLotes(rows, this.colLoteJsFor(cartilla));
 
     const colLoteJs = this.colLoteJsFor(cartilla);
-    const filasConError = sortErrorRowsByDuplicateLote(
+    const filasConErrorAll = sortErrorRowsByDuplicateLote(
       rows.filter((row) => this.rowHasError(row)),
       colLoteJs,
       this.duplicateLotes
     );
+    // SAP solo pinta: no cuenta como error de cartilla (conformidad / listado).
+    const filasConError = filterFilasConErrorExcludingSapOnly(filasConErrorAll, {
+      errorMap: this.lastErrorMap || null,
+      duplicateLotes: this.duplicateLotes || new Set(),
+      colLoteJs,
+      t: (k) => t(k),
+      skipSapValidation: false
+    });
     this.renderResultsTable(rows, filasConError, cartilla, fechaISO);
     this.lastReviewKey = `${cartilla}|${fechaISO}`;
     this.syncActionButtons();

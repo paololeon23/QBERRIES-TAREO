@@ -41,7 +41,11 @@ import {
   IngestionError,
   isXlsxAvailable
 } from "../../../../../ingestion/index.js";
-import { createCartillaAnalysisController, headersToAnalysisColumns } from "../shared/cartilla-analysis.js";
+import {
+  createCartillaAnalysisController,
+  filterFilasConErrorExcludingSapOnly,
+  headersToAnalysisColumns
+} from "../shared/cartilla-analysis.js";
 import {
   applyMpColumnVisibility,
   bindMpColumnContextMenu,
@@ -602,7 +606,14 @@ export class UvaMpService {
     this.lotesDuplicados = lotesDuplicados;
     this.processedRows = rows;
 
-    const filasConError = rows.filter((row) => filaTieneError(row));
+    const filasConErrorAll = rows.filter((row) => filaTieneError(row));
+    const filasConError = filterFilasConErrorExcludingSapOnly(filasConErrorAll, {
+      errorMap: null,
+      duplicateLotes: new Set(lotesDuplicados || []),
+      colLoteJs: getColLoteJs(),
+      t: (k, v) => t(k, v),
+      skipSapValidation: false
+    });
 
     renderUvaMpResultsTable({
       refs: this.shell.refs,

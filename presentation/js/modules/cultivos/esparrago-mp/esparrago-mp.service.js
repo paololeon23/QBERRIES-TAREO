@@ -12,7 +12,8 @@ import {
 import { translateExcelHeader } from "../../../utils/excel-header-i18n.util.js";
 import { refreshTranslatedHeaderRow } from "../../../utils/table-header-i18n.util.js";
 import {
-  createCartillaAnalysisController
+  createCartillaAnalysisController,
+  filterFilasConErrorExcludingSapOnly
 } from "./esparrago-mp-cartilla-analysis.js";
 import {
   collectValidatedColumnIndexesJs,
@@ -1847,7 +1848,15 @@ export class EsparragoMpService {
     this.lastErrorMap = buildErrorMap(resultado, this.compuestaMapFor(cartilla));
     this.duplicateLotes = detectDuplicateLotes(rows, this.colLoteJsFor(cartilla));
 
-    const filasConError = rows.filter((row) => this.rowHasError(row));
+    const filasConErrorAll = rows.filter((row) => this.rowHasError(row));
+    const colLoteJs = this.colLoteJsFor(cartilla);
+    const filasConError = filterFilasConErrorExcludingSapOnly(filasConErrorAll, {
+      errorMap: this.lastErrorMap || null,
+      duplicateLotes: this.duplicateLotes || new Set(),
+      colLoteJs,
+      t: (k, v) => t(k, v),
+      skipSapValidation: false
+    });
     this.renderResultsTable(rows, filasConError, cartilla, fechaISO);
     this.lastReviewKey = `${cartilla}|${fechaISO}`;
     this.syncActionButtons();
@@ -1857,7 +1866,7 @@ export class EsparragoMpService {
       filasConError,
       errorMap: this.lastErrorMap || null,
       duplicateLotes: this.duplicateLotes || new Set(),
-      colLoteJs: this.colLoteJsFor(cartilla),
+      colLoteJs,
       columns: this.columnsByCartilla?.[cartilla] || [],
       cartilla: cartilla || "—",
       fechaLabel: formatISOToDMY(fechaISO),
