@@ -10,14 +10,24 @@
 /** Nunca listar / agrupar el bloque SAP en el panel (todos los cultivos). */
 const SHOW_SAP_MISSING_LABEL = false;
 
-/** Omitir del panel: índice Excel 13–33 o causa «Falta datos SAP». */
+/**
+ * Omitir del panel solo vacíos/faltantes del bloque SAP.
+ * Errores de valor (ej. Fecha Cosecha ≠ Fecha Inspección) SÍ se listan.
+ */
 function shouldOmitSapFromAnalysis(column, colNum, cause, t) {
   if (SHOW_SAP_MISSING_LABEL) return false;
   if (isSapMissingCause(cause, t)) return true;
+  // Desigualdad / valor incorrecto de fechas: siempre al panel.
+  const low = String(cause || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  if (low.includes("debe ser igual") || low.includes("igual a fecha") || low.includes("≠")) {
+    return false;
+  }
+  if (!isMissingDataCause(cause, t)) return false;
   const n = Number(colNum);
   if (Number.isFinite(n) && n >= 1) return isSapZoneColNum(n);
-  // Sin índice fiable: no usar nombres ambiguos (Variedad, Calibre…).
-  // Solo marcador explícito o rótulos inequívocos del bloque SAP.
   const c = String(column || "")
     .toLowerCase()
     .normalize("NFD")
@@ -31,7 +41,6 @@ function shouldOmitSapFromAnalysis(column, colNum, cause, t) {
     /\balmacen\b/.test(c) ||
     /\bguia\b/.test(c) ||
     /\bremision\b/.test(c) ||
-    /\bcosecha\b/.test(c) ||
     /\btecnologia\b/.test(c) ||
     /\bembalado\b/.test(c) ||
     /\bnota condicion\b/.test(c) ||

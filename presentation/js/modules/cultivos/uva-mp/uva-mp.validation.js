@@ -2,12 +2,14 @@
 
 import { getValidationConfig } from "./uva-mp.config.js";
 import {
+  applyReglasCompuestasFila,
   cellDisplayValue,
   findDuplicates,
   getCellValidationIssues,
   indicesToValidate,
   parseFlexibleNumber
 } from "../../../../../engine/cartilla-cell-validation.js";
+import { parseFlexibleDateToISO } from "../shared/excel-date-format.util.js";
 
 export const EXTRA_COL_SUMA_TONALIDADES = "__suma_tonalidades__";
 export const EXTRA_COL_SUMA_CALIBRES = "__suma_calibres__";
@@ -23,19 +25,7 @@ export function celdaVacia(val) {
 export { parseFlexibleNumber };
 
 export function parseExcelDateISO(v) {
-  const s = valorCelda(v).trim();
-  if (!s) return "";
-  if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
-    const [d, m, y] = s.split("/");
-    return `${y}-${m}-${d}`;
-  }
-  if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
-    const [d, m, y] = s.split("-");
-    return `${y}-${m}-${d}`;
-  }
-  const d = Date.parse(s);
-  return Number.isFinite(d) ? new Date(d).toISOString().slice(0, 10) : "";
+  return parseFlexibleDateToISO(v);
 }
 
 export function formatISOToDMY(iso) {
@@ -66,6 +56,14 @@ function compareIsoDates(a, b) {
 }
 
 function applyUvaMpReglasCruzadas(row, err, cfg) {
+  const cosechaIso = parseExcelDateISO(row[19]);
+  const inspeccionIso = parseExcelDateISO(row[50]);
+  if (cosechaIso && inspeccionIso && cosechaIso !== inspeccionIso) {
+    const msg = "Fecha cosecha debe ser igual a fecha de inspección";
+    err(19, msg);
+    err(50, msg);
+  }
+
   const resumen = cfg.validaciones_resumen || {};
 
   const fc = resumen.fecha_cosecha_max_inspeccion;
@@ -153,6 +151,18 @@ export function ejecutarValidacion(rows, config = null) {
     });
 
     applyUvaMpReglasCruzadas(row, err, cfg);
+
+    const origen = cfg._reglasOrigen || {};
+    applyReglasCompuestasFila(
+      row,
+      origen,
+      (colJs, issue) => err(colJs, issue?.message || "Validación cruzada"),
+      {
+        normalizeDate: parseExcelDateISO,
+        compareDates: compareIsoDates,
+        parseNumber: parseFlexibleNumber
+      }
+    );
   });
 
   return { lotesDuplicados };

@@ -7,10 +7,10 @@
   },
   "validaciones-cruzadas": [
     {
-      "tipo": "fecha-no-mayor-que",
+      "tipo": "igual-entre-columnas",
       "columna-a": 20,
       "columna-b": 51,
-      "si-falla-mostrar": "Fecha cosecha no puede ser posterior a fecha de inspección"
+      "si-falla-mostrar": "Fecha cosecha debe ser igual a fecha de inspección"
     },
     {
       "tipo": "suma-columnas",
@@ -138,7 +138,9 @@
     },
     {
       "numero": 20,
-      "nombre-de-la-columna": "Fecha Cosecha"
+      "nombre-de-la-columna": "Fecha Cosecha",
+      "igual-a-columna": 51,
+      "si-falla-mostrar": "Fecha cosecha debe ser igual a fecha de inspección"
     },
     {
       "numero": 21,

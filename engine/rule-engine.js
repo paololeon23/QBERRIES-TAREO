@@ -206,8 +206,21 @@ function aplicaReglaACartilla(reglaColumna, contexto = {}) {
 }
 
 function parseFechaIso(valor) {
+  // Serial Excel (número o texto) → ISO, para comparar aunque se haya formateado a DD/MM/YYYY.
+  if (typeof valor === "number" && Number.isFinite(valor) && valor > 20000 && valor < 80000) {
+    const fecha = new Date(Math.round((valor - 25569) * 86400 * 1000));
+    if (Number.isNaN(fecha.getTime())) return "";
+    const y = fecha.getUTCFullYear();
+    const m = String(fecha.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(fecha.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
   const texto = normalizarTexto(valor);
   if (!texto) return "";
+  if (/^\d{5,6}(\.\d+)?$/.test(texto)) {
+    const n = Number(texto);
+    if (Number.isFinite(n) && n > 20000 && n < 80000) return parseFechaIso(n);
+  }
   if (/^\d{8}$/.test(texto)) {
     return `${texto.slice(0, 4)}-${texto.slice(4, 6)}-${texto.slice(6, 8)}`;
   }
@@ -223,8 +236,7 @@ function parseFechaIso(valor) {
     const fullY = Number(y) <= 50 ? `20${y}` : `19${y}`;
     return `${fullY}-${m}-${d}`;
   }
-  const fecha = Date.parse(texto);
-  return Number.isFinite(fecha) ? new Date(fecha).toISOString().slice(0, 10) : "";
+  return "";
 }
 
 export function evaluarColumna(filas, reglaColumna, contexto = {}) {
@@ -457,30 +469,27 @@ function evaluarValidacionCompuesta(filas, regla, contexto = {}) {
       if (valorVacio(valorA) && valorVacio(valorB)) {
         return;
       }
-      if (normalizarTexto(valorA) !== normalizarTexto(valorB)) {
-        detalle.push(
-          crearDetalle(
-            registro.fila,
-            valorA,
-            `${mensajeFallo} (${normalizarTexto(valorA)} ≠ ${normalizarTexto(valorB)})`,
-            "compuesta"
-          )
-        );
+      const isoA = parseFechaIso(valorA);
+      const isoB = parseFechaIso(valorB);
+      const iguales =
+        isoA && isoB
+          ? isoA === isoB
+          : normalizarTexto(valorA) === normalizarTexto(valorB);
+      if (!iguales) {
+        detalle.push(crearDetalle(registro.fila, valorA, mensajeFallo, "compuesta"));
         filasAfectadasSet.add(registro.fila);
       }
     });
   }
 
-  if (tipo === "fecha-no-mayor-que") {
+  if (tipo === "fecha-no-mayor-que" || tipo === "fecha-menor-o-igual") {
     filas.forEach((registro) => {
-      const valorA = normalizarTexto(obtenerValorRegistro(registro, regla["columna-a"]));
-      const valorB = normalizarTexto(obtenerValorRegistro(registro, regla["columna-b"]));
-      if (!valorA || !valorB) {
-        return;
-      }
-      const fechaA = Date.parse(valorA.includes("/") ? valorA.split("/").reverse().join("-") : valorA);
-      const fechaB = Date.parse(valorB.includes("/") ? valorB.split("/").reverse().join("-") : valorB);
-      if (Number.isFinite(fechaA) && Number.isFinite(fechaB) && fechaA > fechaB) {
+      const valorA = obtenerValorRegistro(registro, regla["columna-a"]);
+      const valorB = obtenerValorRegistro(registro, regla["columna-b"]);
+      const isoA = parseFechaIso(valorA);
+      const isoB = parseFechaIso(valorB);
+      if (!isoA || !isoB) return;
+      if (isoA > isoB) {
         detalle.push(crearDetalle(registro.fila, valorA, mensajeFallo, "compuesta"));
         filasAfectadasSet.add(registro.fila);
       }
@@ -536,7 +545,8 @@ function evaluarValidacionCompuesta(filas, regla, contexto = {}) {
 
   return {
     nombreColumna: nombre,
-    numeroColumna: regla["columna-resultado"] ?? regla["columna-lmr"] ?? null,
+    numeroColumna:
+      regla["columna-resultado"] ?? regla["columna-lmr"] ?? regla["columna-a"] ?? null,
     estado: totalFallidas > 0 ? "observado" : "ok",
     totalRevisadas: filas.length,
     totalFallidas,

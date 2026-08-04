@@ -93,7 +93,9 @@
     },
     {
       "numero": 20,
-      "nombre-de-la-columna": "Fecha Cosecha"
+      "nombre-de-la-columna": "Fecha Cosecha",
+      "igual-a-columna": 48,
+      "si-falla-mostrar": "Fecha cosecha debe ser igual a fecha de inspección"
     },
     {
       "numero": 21,
@@ -219,7 +221,9 @@
     },
     {
       "numero": 47,
-      "nombre-de-la-columna": "Fecha de Cosecha"
+      "nombre-de-la-columna": "Fecha de Cosecha",
+      "igual-a-columna": 48,
+      "si-falla-mostrar": "Fecha de cosecha debe ser igual a fecha de inspección"
     },
     {
       "numero": 48,
@@ -847,10 +851,16 @@
   ],
   "validaciones-compuestas": [
     {
-      "tipo": "fecha-no-mayor-que",
+      "tipo": "igual-entre-columnas",
+      "columna-a": 20,
+      "columna-b": 48,
+      "si-falla-mostrar": "Fecha cosecha debe ser igual a fecha de inspección"
+    },
+    {
+      "tipo": "igual-entre-columnas",
       "columna-a": 47,
       "columna-b": 48,
-      "si-falla-mostrar": "La fecha de cosecha es posterior a la fecha de inspección"
+      "si-falla-mostrar": "Fecha de cosecha debe ser igual a fecha de inspección"
     },
     {
       "tipo": "fecha-lmr-mayoritaria",

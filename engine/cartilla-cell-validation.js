@@ -275,6 +275,22 @@ export function applyReglasCompuestasFila(row, reglas, onIssue, helpers = {}) {
       }
     }
 
+    if (tipo === "igual-entre-columnas") {
+      const colA = (regla["columna-a"] ?? regla["columna-a-excel"]) - 1;
+      const colB = (regla["columna-b"] ?? regla["columna-b-excel"]) - 1;
+      const rawA = row[colA];
+      const rawB = row[colB];
+      if (!cellDisplayValue(rawA) && !cellDisplayValue(rawB)) return;
+      const a = helpers.normalizeDate?.(rawA) || "";
+      const b = helpers.normalizeDate?.(rawB) || "";
+      const iguales =
+        a && b ? a === b : cellDisplayValue(rawA) === cellDisplayValue(rawB);
+      if (!iguales) {
+        onIssue(colA, { kind: "value", message: mensaje });
+        onIssue(colB, { kind: "value", message: mensaje });
+      }
+    }
+
     if (tipo === "fecha-menor-o-igual" || tipo === "fecha-no-mayor-que") {
       const colA = (regla["columna-a"] ?? regla["columna-a-excel"]) - 1;
       const colB = (regla["columna-b"] ?? regla["columna-b-excel"]) - 1;
@@ -286,6 +302,10 @@ export function applyReglasCompuestasFila(row, reglas, onIssue, helpers = {}) {
           onIssue(colA, { kind: "value", message: mensaje });
           onIssue(colB, { kind: "value", message: mensaje });
         }
+      } else if (a && b && a > b) {
+        // ISO yyyy-mm-dd: comparación lexicográfica = cronológica.
+        onIssue(colA, { kind: "value", message: mensaje });
+        onIssue(colB, { kind: "value", message: mensaje });
       }
     }
   });

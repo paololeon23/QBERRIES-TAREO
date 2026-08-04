@@ -105,11 +105,14 @@ function applyPaltaMpReglasLegacyFechas(row, err) {
       err(63, msgIgual);
     }
   }
-  if (fechaInspeccionISO && fechaCosecha64ISO && fechaCosecha64ISO > fechaInspeccionISO) {
-    err(63, "Fecha de Cosecha (64) no puede ser mayor a la fecha de inspección");
+  const msgIgualInspeccion = "Fecha cosecha debe ser igual a fecha de inspección";
+  if (fechaInspeccionISO && fechaCosechaISO && fechaCosechaISO !== fechaInspeccionISO) {
+    err(19, msgIgualInspeccion);
+    err(64, msgIgualInspeccion);
   }
-  if (fechaInspeccionISO && fechaCosechaISO && fechaCosechaISO > fechaInspeccionISO) {
-    err(19, "Fecha Cosecha (20) no puede ser mayor a la fecha de inspección");
+  if (fechaInspeccionISO && fechaCosecha64ISO && fechaCosecha64ISO !== fechaInspeccionISO) {
+    err(63, msgIgualInspeccion);
+    err(64, msgIgualInspeccion);
   }
 }
 

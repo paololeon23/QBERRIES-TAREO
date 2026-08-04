@@ -7,6 +7,18 @@
   },
   "validaciones-cruzadas": [
     {
+      "tipo": "igual-entre-columnas",
+      "columna-a": 20,
+      "columna-b": 65,
+      "si-falla-mostrar": "Fecha cosecha debe ser igual a fecha de inspección"
+    },
+    {
+      "tipo": "igual-entre-columnas",
+      "columna-a": 64,
+      "columna-b": 65,
+      "si-falla-mostrar": "Fecha de cosecha debe ser igual a fecha de inspección"
+    },
+    {
       "tipo": "suma-columnas",
       "columnas": [
         36,
@@ -129,7 +141,9 @@
     {
       "numero": 20,
       "nombre-de-la-columna": "Fecha Cosecha",
-      "es-obligatorio": true
+      "es-obligatorio": true,
+      "igual-a-columna": 65,
+      "si-falla-mostrar": "Fecha cosecha debe ser igual a fecha de inspección"
     },
     {
       "numero": 21,
@@ -324,8 +338,8 @@
       "numero": 64,
       "nombre-de-la-columna": "Fecha de Cosecha",
       "es-obligatorio": true,
-      "igual-a-columna": 20,
-      "si-falla-mostrar": "Fecha de Cosecha (64) debe ser igual a Fecha Cosecha (20)"
+      "igual-a-columna": 65,
+      "si-falla-mostrar": "Fecha de cosecha debe ser igual a fecha de inspección"
     },
     {
       "numero": 65,

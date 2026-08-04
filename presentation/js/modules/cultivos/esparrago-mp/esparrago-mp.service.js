@@ -334,8 +334,16 @@ function buildCompuestaColumnMap(reglas) {
   const map = new Map();
   (reglas?.["validaciones-compuestas"] || []).forEach((regla) => {
     const msg = regla["si-falla-mostrar"] || "";
-    if (regla.tipo === "diferencia-maxima-columnas") {
+    if (
+      regla.tipo === "diferencia-maxima-columnas" ||
+      regla.tipo === "igual-entre-columnas" ||
+      regla.tipo === "fecha-no-mayor-que" ||
+      regla.tipo === "fecha-menor-o-igual"
+    ) {
       map.set(msg, [regla["columna-a"], regla["columna-b"]].filter(Boolean));
+    }
+    if (regla.tipo === "fecha-lmr-mayoritaria") {
+      map.set(msg, [regla["columna-lmr"]].filter(Boolean));
     }
   });
   return map;
