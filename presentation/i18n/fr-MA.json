@@ -1103,6 +1103,8 @@
   "cartillaAnalysis.noDataWithRule": "{{column}} vide · {{rule}}",
   "cartillaAnalysis.missingTemps": "Erreur de température",
   "cartillaAnalysis.missingFields": "Vide dans : {{columns}}",
+  "cartillaAnalysis.errorFields": "Erreur dans : {{columns}}",
+  "cartillaAnalysis.errorInColumn": "Erreur dans {{column}} : {{detail}}",
   "cartillaAnalysis.missingTempsAndFields": "Erreur de température · {{fields}}",
   "cartillaAnalysis.readingMissingSap": "Attention rapide requise : lots sans données SAP ({{lots}}).",
   "cartillaAnalysis.observations": "Observation",

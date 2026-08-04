@@ -1109,6 +1109,8 @@
   "cartillaAnalysis.noDataWithRule": "{{column}} empty · {{rule}}",
   "cartillaAnalysis.missingTemps": "Temperature error",
   "cartillaAnalysis.missingFields": "Empty in: {{columns}}",
+  "cartillaAnalysis.errorFields": "Error in: {{columns}}",
+  "cartillaAnalysis.errorInColumn": "Error in {{column}}: {{detail}}",
   "cartillaAnalysis.missingTempsAndFields": "Temperature error · {{fields}}",
   "cartillaAnalysis.readingMissingSap": "Needs quick attention: lots without SAP data ({{lots}}).",
   "cartillaAnalysis.observations": "Observation",

@@ -270,11 +270,14 @@ function formatPreciseErrorText(pair, row, t) {
   if (empty) {
     return t("cartillaAnalysis.noDataIn", { column: col });
   }
-  if (cause && !isWeakCause(cause, t) && !isGenericOnlyCause(cause, t)) {
-    return `${col}: ${cause}`;
+  // Celda con valor: nunca «vacío» → «Error en …»
+  if (cause && !isWeakCause(cause, t) && !isGenericOnlyCause(cause, t) && !isMissingDataCause(cause, t)) {
+    return t("cartillaAnalysis.errorInColumn", { column: col, detail: cause });
   }
-  if (cause) return `${col}: ${cause}`;
-  return col;
+  if (cause && !isMissingDataCause(cause, t)) {
+    return t("cartillaAnalysis.errorInColumn", { column: col, detail: cause });
+  }
+  return t("cartillaAnalysis.errorFields", { columns: col });
 }
 
 /**
@@ -308,13 +311,43 @@ function summarizeNonSapErrorText(pairs, row, t) {
     if (label && !otherLabels.includes(label)) otherLabels.push(label);
   });
 
+  const pairIsEmpty = (p) => {
+    const js = Number.isFinite(p.colNum) ? Number(p.colNum) - 1 : NaN;
+    if (Number.isFinite(js)) return !cellHasDisplayData(row, js);
+    return isMissingDataCause(p.cause, t);
+  };
+
   const parts = [];
   if (hasDup) parts.push(t("plagasArandano.duplicateLots"));
   if (hasTemp) parts.push(t("cartillaAnalysis.missingTemps"));
   if (otherLabels.length === 1) {
     parts.push(formatPreciseErrorText(otherPairs[0], row, t));
   } else if (otherLabels.length > 1) {
-    parts.push(t("cartillaAnalysis.missingFields", { columns: otherLabels.join(", ") }));
+    // «Vacío en: …» solo si TODAS las celdas están realmente vacías.
+    // Si hay valor incorrecto (ej. año/mes distinto), mostrar la causa real.
+    const allEmpty = otherPairs.every(pairIsEmpty);
+    if (allEmpty) {
+      parts.push(t("cartillaAnalysis.missingFields", { columns: otherLabels.join(", ") }));
+    } else {
+      // Valor incorrecto (no vacío): siempre «Error en: …» + causa si hay.
+      const strong = [];
+      otherPairs.forEach((p) => {
+        const c = String(p.cause || "").trim();
+        if (
+          c &&
+          !isWeakCause(c, t) &&
+          !isGenericOnlyCause(c, t) &&
+          !isMissingDataCause(c, t) &&
+          !strong.includes(c)
+        ) {
+          strong.push(c);
+        }
+      });
+      const errorCols = t("cartillaAnalysis.errorFields", {
+        columns: otherLabels.join(", ")
+      });
+      parts.push(strong.length ? `${errorCols} · ${strong.join(" · ")}` : errorCols);
+    }
   }
   return parts.filter(Boolean).join(" · ");
 }

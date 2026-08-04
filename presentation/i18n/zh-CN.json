@@ -1103,6 +1103,8 @@
   "cartillaAnalysis.noDataWithRule": "{{column}} 为空 · {{rule}}",
   "cartillaAnalysis.missingTemps": "温度错误",
   "cartillaAnalysis.missingFields": "空值：{{columns}}",
+  "cartillaAnalysis.errorFields": "错误：{{columns}}",
+  "cartillaAnalysis.errorInColumn": "{{column}} 错误：{{detail}}",
   "cartillaAnalysis.missingTempsAndFields": "温度错误 · {{fields}}",
   "cartillaAnalysis.readingMissingSap": "请尽快处理：缺少 SAP 数据的批次（{{lots}}）。",
   "cartillaAnalysis.observations": "观察",
