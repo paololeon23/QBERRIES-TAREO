@@ -7,12 +7,6 @@
   },
   "validaciones-cruzadas": [
     {
-      "tipo": "igual-entre-columnas",
-      "columna-a": 20,
-      "columna-b": 51,
-      "si-falla-mostrar": "Fecha cosecha debe ser igual a fecha de inspección"
-    },
-    {
       "tipo": "suma-columnas",
       "nombre": "Suma Tonalidades",
       "columnas": [
@@ -138,9 +132,7 @@
     },
     {
       "numero": 20,
-      "nombre-de-la-columna": "Fecha Cosecha",
-      "igual-a-columna": 51,
-      "si-falla-mostrar": "Fecha cosecha debe ser igual a fecha de inspección"
+      "nombre-de-la-columna": "Fecha Cosecha"
     },
     {
       "numero": 21,

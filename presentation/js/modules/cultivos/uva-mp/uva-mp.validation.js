@@ -56,26 +56,8 @@ function compareIsoDates(a, b) {
 }
 
 function applyUvaMpReglasCruzadas(row, err, cfg) {
-  const cosechaIso = parseExcelDateISO(row[19]);
-  const inspeccionIso = parseExcelDateISO(row[50]);
-  if (cosechaIso && inspeccionIso && cosechaIso !== inspeccionIso) {
-    const msg = "Fecha cosecha debe ser igual a fecha de inspección";
-    err(19, msg);
-    err(50, msg);
-  }
-
   const resumen = cfg.validaciones_resumen || {};
-
-  const fc = resumen.fecha_cosecha_max_inspeccion;
-  if (fc) {
-    const cosechaJs = (fc.cosecha_excel ?? 20) - 1;
-    const inspJs = (fc.inspeccion_excel ?? 51) - 1;
-    const cosechaISO = parseExcelDateISO(row[cosechaJs]);
-    const inspISO = parseExcelDateISO(row[inspJs]);
-    if (cosechaISO && inspISO && compareIsoDates(cosechaISO, inspISO) > 0) {
-      err(cosechaJs, "Fecha cosecha no puede ser posterior a fecha de inspección");
-    }
-  }
+  // Fecha Cosecha SAP (20) no se valida en MP: no llegan datos.
 
   const ton = resumen.suma_tonalidades;
   if (ton) {

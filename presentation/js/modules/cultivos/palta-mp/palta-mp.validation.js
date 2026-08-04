@@ -86,34 +86,9 @@ export function limpiarMarcasValidacion(rows) {
   });
 }
 
-/** Excel 20 (JS 19) = Fecha Cosecha, 64 (JS 63) = Fecha de Cosecha, 65 (JS 64) = Fecha inspección. */
-function applyPaltaMpReglasLegacyFechas(row, err) {
-  const rawCosecha = valorCelda(row[19]).trim();
-  const rawCosecha64 = valorCelda(row[63]).trim();
-  const fechaCosechaISO = parseExcelDateISO(row[19]);
-  const fechaCosecha64ISO = parseExcelDateISO(row[63]);
-  const fechaInspeccionISO = parseExcelDateISO(row[64]);
-  const msgIgual = "Fecha de Cosecha (64) debe ser igual a Fecha Cosecha (20)";
-
-  // Misma regla en revisión por fecha y en "Revisar todas"
-  if (rawCosecha || rawCosecha64) {
-    if (!rawCosecha || !rawCosecha64) {
-      err(63, msgIgual);
-    } else if (fechaCosechaISO && fechaCosecha64ISO) {
-      if (fechaCosechaISO !== fechaCosecha64ISO) err(63, msgIgual);
-    } else if (rawCosecha !== rawCosecha64) {
-      err(63, msgIgual);
-    }
-  }
-  const msgIgualInspeccion = "Fecha cosecha debe ser igual a fecha de inspección";
-  if (fechaInspeccionISO && fechaCosechaISO && fechaCosechaISO !== fechaInspeccionISO) {
-    err(19, msgIgualInspeccion);
-    err(64, msgIgualInspeccion);
-  }
-  if (fechaInspeccionISO && fechaCosecha64ISO && fechaCosecha64ISO !== fechaInspeccionISO) {
-    err(63, msgIgualInspeccion);
-    err(64, msgIgualInspeccion);
-  }
+/** Fecha Cosecha SAP (20) no se valida en MP: no llegan datos. */
+function applyPaltaMpReglasLegacyFechas(_row, _err) {
+  // Intencionalmente vacío.
 }
 
 /** Solo UI: calcula Σ 36–50 y si coincide con Cant. muestra (11). */

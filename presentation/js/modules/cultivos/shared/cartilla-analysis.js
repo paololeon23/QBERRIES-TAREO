@@ -2,38 +2,46 @@
  * Análisis gerencial de cartilla — compartido (MP / PT / Plagas).
  * Semáforo + conformidad + causa + lotes, sin tocar la lógica de validación.
  *
- * Política UI: bloque Excel 13–33 (datos SAP + Nota Condición) → solo pintura roja
- * en la tabla. Nunca se listan en el panel (ni «Falta datos SAP», ni «Vacío en: …»
- * de esas columnas). El resto de la cartilla sí aparece en el análisis.
+ * Política UI: bloque Excel 13–33 (datos SAP) → SOLO pintura roja en la tabla.
+ * Nunca se listan en el panel (vacíos, «Debe ser…», fechas, etc.).
+ * En MP, la comparación Fecha Cosecha(SAP) vs Fecha Inspección tampoco se lista:
+ * solo se pinta en rojo.
  */
 
 /** Nunca listar / agrupar el bloque SAP en el panel (todos los cultivos). */
 const SHOW_SAP_MISSING_LABEL = false;
 
-/**
- * Omitir del panel solo vacíos/faltantes del bloque SAP.
- * Errores de valor (ej. Fecha Cosecha ≠ Fecha Inspección) SÍ se listan.
- */
-function shouldOmitSapFromAnalysis(column, colNum, cause, t) {
-  if (SHOW_SAP_MISSING_LABEL) return false;
-  if (isSapMissingCause(cause, t)) return true;
-  // Desigualdad / valor incorrecto de fechas: siempre al panel.
+/** Causas de comparación cosecha(SAP) ↔ inspección/embalaje (solo pintar). */
+function isSapDateCompareCause(cause) {
   const low = String(cause || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{M}/gu, "");
-  if (
-    low.includes("debe ser igual") ||
-    low.includes("igual a fecha") ||
-    low.includes("año y mes") ||
-    low.includes("anio y mes") ||
-    low.includes("≠")
-  ) {
-    return false;
-  }
-  if (!isMissingDataCause(cause, t)) return false;
+  if (!low) return false;
+  if (low.includes("ano y mes de cosecha") || low.includes("año y mes de cosecha")) return true;
+  if (low.includes("cosecha") && low.includes("igual") && low.includes("inspeccion")) return true;
+  if (low.includes("cosecha") && low.includes("coincid") && low.includes("inspeccion")) return true;
+  if (low.includes("cosecha") && low.includes("igual") && low.includes("embalaje")) return true;
+  if (low.includes("cosecha") && low.includes("coincid") && low.includes("embalaje")) return true;
+  return false;
+}
+
+/**
+ * Omitir del panel TODO el bloque SAP (vacío o valor) + en MP la comparación de fechas SAP.
+ */
+function shouldOmitSapFromAnalysis(column, colNum, cause, t, options = {}) {
+  if (SHOW_SAP_MISSING_LABEL) return false;
+  if (isSapMissingCause(cause, t)) return true;
+
+  const skipSapValidation = Boolean(options.skipSapValidation);
+  // MP: comparación cosecha(SAP) vs inspección → solo pintura (no listar).
+  if (!skipSapValidation && isSapDateCompareCause(cause)) return true;
+
   const n = Number(colNum);
+  // Con índice Excel fiable: solo bloque 13–33.
   if (Number.isFinite(n) && n >= 1) return isSapZoneColNum(n);
+
+  // Sin índice: nombres inequívocos del bloque SAP (no «Fecha de Cosecha» de calidad).
   const c = String(column || "")
     .toLowerCase()
     .normalize("NFD")
@@ -283,10 +291,12 @@ function formatPreciseErrorText(pair, row, t) {
 /**
  * Un solo texto no-SAP por ID/Lote (no listar Ambiente + Pulpa por separado).
  */
-function summarizeNonSapErrorText(pairs, row, t) {
+function summarizeNonSapErrorText(pairs, row, t, options = {}) {
   // Seguridad: aunque un par SAP se filtrara mal arriba, no listarlo aquí.
   const nonSap = pairs.filter(
-    (p) => !p.sapMissing && !shouldOmitSapFromAnalysis(p.column, p.colNum, p.cause, t)
+    (p) =>
+      !p.sapMissing &&
+      !shouldOmitSapFromAnalysis(p.column, p.colNum, p.cause, t, options)
   );
   if (!nonSap.length) return "";
 
@@ -388,8 +398,8 @@ export function extractRowErrorHints(row, options = {}) {
     const rawCause = cause || t("cartillaAnalysis.genericError");
     if (skipSapValidation && isSapMissingCause(rawCause, t)) return;
 
-    // Bloque SAP (13–33): solo pintura en tabla; no entra al panel.
-    if (shouldOmitSapFromAnalysis(col, colNum, rawCause, t)) return;
+    // Bloque SAP (13–33) y comparación fechas SAP (MP): solo pintura; no panel.
+    if (shouldOmitSapFromAnalysis(col, colNum, rawCause, t, { skipSapValidation })) return;
 
     const zoneEmpty = !skipSapValidation && isSapFailure(col, colNum, rawCause, t);
     const sapMissing = SHOW_SAP_MISSING_LABEL && zoneEmpty;
@@ -671,7 +681,7 @@ export function buildCartillaAnalysis(params) {
       entry.strong += 1;
     }
 
-    const nonSapSummary = summarizeNonSapErrorText(pairs, row, t);
+    const nonSapSummary = summarizeNonSapErrorText(pairs, row, t, { skipSapValidation });
     if (nonSapSummary) {
       pushErrorLine(id, lote, nonSapSummary, false);
       if (!entry.hints.includes(nonSapSummary)) entry.hints.push(nonSapSummary);
@@ -683,6 +693,7 @@ export function buildCartillaAnalysis(params) {
     const hasStrong = pairs.some((p) => !p.weak);
     causes.forEach((cause) => {
       if (!SHOW_SAP_MISSING_LABEL && isSapMissingCause(cause, t)) return;
+      if (!skipSapValidation && isSapDateCompareCause(cause)) return;
       if (hasSap && !isSapMissingCause(cause, t) && isWeakCause(cause, t)) return;
       if (isWeakCause(cause, t) && hasStrong && !isSapMissingCause(cause, t)) return;
       causeCount.set(cause, (causeCount.get(cause) || 0) + 1);
@@ -701,7 +712,11 @@ export function buildCartillaAnalysis(params) {
   });
 
   const rankedCauses = [...causeCount.entries()]
-    .filter(([cause]) => SHOW_SAP_MISSING_LABEL || !isSapMissingCause(cause, t))
+    .filter(
+      ([cause]) =>
+        (SHOW_SAP_MISSING_LABEL || !isSapMissingCause(cause, t)) &&
+        (skipSapValidation || !isSapDateCompareCause(cause))
+    )
     .sort((a, b) => {
     const aSap = SHOW_SAP_MISSING_LABEL && isSapMissingCause(a[0], t) ? 0 : 1;
     const bSap = SHOW_SAP_MISSING_LABEL && isSapMissingCause(b[0], t) ? 0 : 1;
