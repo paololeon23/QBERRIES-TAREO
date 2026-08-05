@@ -559,11 +559,19 @@ export function buildCartillaAnalysis(params) {
     skipSapValidation
   };
 
+  // Cache de hints: evita extract×2 (filtro + detalle) → más rápido en cartillas grandes.
+  const pairsCache = new WeakMap();
+  const getPanelPairs = (row) => {
+    let cached = pairsCache.get(row);
+    if (cached) return cached;
+    const { pairs: raw } = extractRowErrorHints(row, hintOpts);
+    const pairs = raw.filter((p) => !isGenericOnlyCause(p.cause, t));
+    pairsCache.set(row, pairs);
+    return pairs;
+  };
+
   // Filas solo con rojo SAP (omitidas del panel) NO bajan conformidad.
-  const filasConErrorPanel = (filasConError || []).filter((row) => {
-    const { pairs } = extractRowErrorHints(row, hintOpts);
-    return pairs.some((p) => !isGenericOnlyCause(p.cause, t));
-  });
+  const filasConErrorPanel = (filasConError || []).filter((row) => getPanelPairs(row).length > 0);
 
   const total = rows.length;
   const errors = filasConErrorPanel.length;
@@ -577,23 +585,22 @@ export function buildCartillaAnalysis(params) {
   const causeCount = new Map();
   const colCount = new Map();
   const loteDetails = new Map();
-  /** Líneas precisas: ID · Lote · Error (una por incidencia). */
+  /** Líneas precisas: ID · Lote · Error (accionables). LMR → 1 resumen. */
   const errorLines = [];
-  const errorLineKeys = new Set();
+  const errorLineByKey = new Map();
+  let lmrRowCount = 0;
+  /** Tope de filas DOM en incidencias (velocidad; LMR no cuenta aquí). */
+  const MAX_DETAIL_LINES = 80;
+  let omittedDetailCount = 0;
 
   const pushErrorLine = (id, lote, error, sap = false) => {
     const errText = String(error || "").trim();
     if (!errText) return;
     const isDup = isDuplicateCauseText(errText);
-    // Duplicados: una sola fila por lote. LMR y el resto: una línea por ID
-    // (antes LMR colapsaba todo y ocultaba errores como longitud de Lote).
     const key = isDup ? `DUP|${lote}` : `${id}|${lote}|${sap ? "SAP" : "OTHER"}`;
-    if (errorLineKeys.has(key)) {
-      const existing = errorLines.find((line) => {
-        if (isDup) return line.dup && line.lote === lote;
-        return line.id === (id || "—") && line.lote === lote && Boolean(line.sap) === Boolean(sap);
-      });
-      if (existing && isDup && id) {
+    const existing = errorLineByKey.get(key);
+    if (existing) {
+      if (isDup && id) {
         const ids = String(existing.id)
           .split(",")
           .map((s) => s.trim())
@@ -602,7 +609,7 @@ export function buildCartillaAnalysis(params) {
           ids.push(id);
           existing.id = ids.join(", ");
         }
-      } else if (existing && !sap && !isDup) {
+      } else if (!sap && !isDup) {
         const parts = existing.error.split(" · ").map((s) => s.trim()).filter(Boolean);
         errText.split(" · ").forEach((part) => {
           const p = part.trim();
@@ -612,25 +619,25 @@ export function buildCartillaAnalysis(params) {
       }
       return;
     }
-    errorLineKeys.add(key);
-    errorLines.push({
+    if (!isDup && !sap && errorLines.length >= MAX_DETAIL_LINES) {
+      omittedDetailCount += 1;
+      return;
+    }
+    const line = {
       id: id || "—",
       lote,
       error: isDup ? t("plagasArandano.duplicateLots") : errText,
       sap: Boolean(sap),
-      dup: isDup,
-      lmrOnly: !isDup && !sap && isLmrMajorityCauseText(errText)
-    });
+      dup: isDup
+    };
+    errorLineByKey.set(key, line);
+    errorLines.push(line);
   };
 
   filasConErrorPanel.forEach((row) => {
     const lote = String(row[colLoteJs] ?? "").trim() || t("cartillaAnalysis.unknownLot");
     const id = String(row[colIdJs] ?? "").trim();
-
-    const { pairs: rawPairs } = extractRowErrorHints(row, hintOpts);
-
-    // Solo lotes con causa real (no el genérico «Desviación de validación»).
-    const pairs = rawPairs.filter((p) => !isGenericOnlyCause(p.cause, t));
+    const pairs = getPanelPairs(row);
     if (!pairs.length) return;
 
     const causes = pairs.map((p) => p.cause);
@@ -660,8 +667,8 @@ export function buildCartillaAnalysis(params) {
       entry.strong += 1;
     }
 
-    // Separar LMR del resto: si se mezclan, el texto con «mayoritaria» hacía
-    // colapsar TODA la fila y desaparecía p.ej. «Lote debe tener 10 caracteres».
+    // LMR (mismo mensaje × N filas) → 1 línea resumen (rápido).
+    // Otros errores (lote, etc.) → una línea por ID (sin mezclar con LMR).
     const lmrPairs = pairs.filter((p) => isLmrErrorPair(p));
     const otherPairs = pairs.filter((p) => !isLmrErrorPair(p));
 
@@ -673,16 +680,10 @@ export function buildCartillaAnalysis(params) {
     }
 
     if (lmrPairs.length) {
-      const lmrSummary = summarizeNonSapErrorText(lmrPairs, row, t, { skipSapValidation });
-      const lmrText =
-        lmrSummary ||
-        formatPreciseErrorText(lmrPairs[0], row, t) ||
-        String(lmrPairs[0].cause || "").trim();
-      if (lmrText) {
-        pushErrorLine(id, lote, lmrText, false);
-        if (!entry.hints.includes(lmrText)) entry.hints.push(lmrText);
-        entry.strong += 1;
-      }
+      lmrRowCount += 1;
+      const lmrHint = String(lmrPairs[0].cause || "").trim() || "LMR";
+      if (!entry.hints.includes(lmrHint)) entry.hints.push(lmrHint);
+      entry.strong += 1;
     }
 
     loteDetails.set(lote, entry);
@@ -697,12 +698,33 @@ export function buildCartillaAnalysis(params) {
     });
   });
 
+  if (lmrRowCount > 0) {
+    errorLines.push({
+      id: "—",
+      lote: "—",
+      error: t("cartillaAnalysis.lmrMajoritySummary", { count: String(lmrRowCount) }),
+      sap: false,
+      dup: false,
+      lmrSummary: true
+    });
+  }
+  if (omittedDetailCount > 0) {
+    errorLines.push({
+      id: "—",
+      lote: "—",
+      error: t("cartillaAnalysis.moreIncidents", { count: String(omittedDetailCount) }),
+      sap: false,
+      dup: false,
+      lmrSummary: true
+    });
+  }
+
   errorLines.sort((a, b) => {
-    // Primero duplicados, luego errores accionables (no solo LMR), luego LMR, luego SAP.
+    // Duplicados → accionables (ID) → resumen LMR → SAP.
     const rank = (line) => {
       if (line.dup) return 0;
+      if (line.lmrSummary) return 2;
       if (line.sap) return 3;
-      if (line.lmrOnly || isLmrMajorityCauseText(line.error)) return 2;
       return 1;
     };
     const ra = rank(a);
@@ -857,6 +879,11 @@ function renderDetails(analysis, t) {
   const lotesHtml = lines.length
     ? `<ul class="agv-cartilla-analysis__lots">${lines
         .map((item) => {
+          if (item.lmrSummary) {
+            return `<li class="agv-cartilla-analysis__lot agv-cartilla-analysis__lot--precise agv-cartilla-analysis__lot--summary">
+              <span class="agv-cartilla-analysis__lot-error">${esc(item.error || "")}</span>
+            </li>`;
+          }
           const id = item.id || "—";
           const lote = item.lote || "—";
           const error = String(item.error || "")
@@ -864,12 +891,15 @@ function renderDetails(analysis, t) {
             .replace(/\bfalta datos sap\b/gi, t("cartillaAnalysis.seeTable"))
             .replace(/\bmissing sap data\b/gi, t("cartillaAnalysis.seeTable"))
             .trim();
+          const errEsc = esc(error);
+          // title solo si el texto se corta (menos DOM attrs = más rápido).
+          const titleAttr = error.length > 72 ? ` title="${errEsc}"` : "";
           return `<li class="agv-cartilla-analysis__lot agv-cartilla-analysis__lot--precise">
-            <span class="agv-cartilla-analysis__lot-id" title="ID">${esc(id)}</span>
+            <span class="agv-cartilla-analysis__lot-id">${esc(id)}</span>
             <span class="agv-cartilla-analysis__lot-sep" aria-hidden="true">·</span>
-            <strong class="agv-cartilla-analysis__lot-code" title="Lote">${esc(lote)}</strong>
+            <strong class="agv-cartilla-analysis__lot-code">${esc(lote)}</strong>
             <span class="agv-cartilla-analysis__lot-sep" aria-hidden="true">·</span>
-            <span class="agv-cartilla-analysis__lot-error" title="${esc(error)}">${esc(error)}</span>
+            <span class="agv-cartilla-analysis__lot-error"${titleAttr}>${errEsc}</span>
           </li>`;
         })
         .join("")}</ul>`

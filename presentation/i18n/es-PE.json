@@ -1103,6 +1103,7 @@
   "arandanoPt.duplicateLot": "LOTE DUPLICADO EN SISTEMA",
   "cartillaAnalysis.missingSap": "Falta datos SAP",
   "cartillaAnalysis.lmrMajoritySummary": "Fecha LMR distinta a la mayoritaria · {{count}} filas detectadas",
+  "cartillaAnalysis.moreIncidents": "…y {{count}} incidencias más (ver tabla en rojo)",
   "cartillaAnalysis.topLotsSap": "Lotes con error SAP",
   "cartillaAnalysis.topIncidents": "Incidencias (ID · Lote · Error)",
   "cartillaAnalysis.noDataIn": "{{column}} vacío",

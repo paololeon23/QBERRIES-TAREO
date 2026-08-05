@@ -1097,6 +1097,7 @@
   "arandanoPt.duplicateLot": "系统中批次重复",
   "cartillaAnalysis.missingSap": "缺少 SAP 数据",
   "cartillaAnalysis.lmrMajoritySummary": "LMR 日期与多数日期不同 · 检测到 {{count}} 行",
+  "cartillaAnalysis.moreIncidents": "…另有 {{count}} 条问题（见表中红色单元格）",
   "cartillaAnalysis.topLotsSap": "SAP 错误批次",
   "cartillaAnalysis.topIncidents": "问题明细（ID · 批次 · 错误）",
   "cartillaAnalysis.noDataIn": "{{column}} 为空",

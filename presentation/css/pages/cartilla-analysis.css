@@ -263,6 +263,8 @@
   border-radius: 0.35rem;
   background: #fff;
   border: 1px solid #e2e8f0;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2.1rem;
 }
 
 .agv-cartilla-analysis__lots li.agv-cartilla-analysis__lot--precise {
