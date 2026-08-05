@@ -245,13 +245,25 @@ function isDuplicateCauseText(text) {
   return e.includes("duplic");
 }
 
-/** Fecha LMR distinta a la mayoritaria → no spamear fila por fila. */
+/** Fecha LMR distinta a la mayoritaria. */
 function isLmrMajorityCauseText(text) {
   const e = String(text || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{M}/gu, "");
   return e.includes("lmr") && (e.includes("mayoritaria") || e.includes("majority") || e.includes("majoritaire"));
+}
+
+function isLmrColumnName(column) {
+  const c = String(column || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  return c.includes("lmr") && (c.includes("fecha") || c.includes("actualizacion") || c.includes("date"));
+}
+
+function isLmrErrorPair(pair) {
+  return isLmrMajorityCauseText(pair?.cause) || isLmrColumnName(pair?.column);
 }
 
 function formatPreciseErrorText(pair, row, t) {
@@ -334,29 +346,15 @@ function summarizeNonSapErrorText(pairs, row, t, options = {}) {
     parts.push(formatPreciseErrorText(otherPairs[0], row, t));
   } else if (otherLabels.length > 1) {
     // «Vacío en: …» solo si TODAS las celdas están realmente vacías.
-    // Si hay valor incorrecto (ej. año/mes distinto), mostrar la causa real.
+    // Si hay valor incorrecto, una causa precisa por columna (no mezclar en un solo bloque).
     const allEmpty = otherPairs.every(pairIsEmpty);
     if (allEmpty) {
       parts.push(t("cartillaAnalysis.missingFields", { columns: otherLabels.join(", ") }));
     } else {
-      // Valor incorrecto (no vacío): siempre «Error en: …» + causa si hay.
-      const strong = [];
       otherPairs.forEach((p) => {
-        const c = String(p.cause || "").trim();
-        if (
-          c &&
-          !isWeakCause(c, t) &&
-          !isGenericOnlyCause(c, t) &&
-          !isMissingDataCause(c, t) &&
-          !strong.includes(c)
-        ) {
-          strong.push(c);
-        }
+        const txt = formatPreciseErrorText(p, row, t);
+        if (txt && !parts.includes(txt)) parts.push(txt);
       });
-      const errorCols = t("cartillaAnalysis.errorFields", {
-        columns: otherLabels.join(", ")
-      });
-      parts.push(strong.length ? `${errorCols} · ${strong.join(" · ")}` : errorCols);
     }
   }
   return parts.filter(Boolean).join(" · ");
@@ -587,17 +585,12 @@ export function buildCartillaAnalysis(params) {
     const errText = String(error || "").trim();
     if (!errText) return;
     const isDup = isDuplicateCauseText(errText);
-    const isLmr = isLmrMajorityCauseText(errText);
-    // Duplicados / LMR: una sola fila resumen (no spam).
-    const key = isDup
-      ? `DUP|${lote}`
-      : isLmr
-        ? `LMR|majority`
-        : `${id}|${lote}|${sap ? "SAP" : "OTHER"}`;
+    // Duplicados: una sola fila por lote. LMR y el resto: una línea por ID
+    // (antes LMR colapsaba todo y ocultaba errores como longitud de Lote).
+    const key = isDup ? `DUP|${lote}` : `${id}|${lote}|${sap ? "SAP" : "OTHER"}`;
     if (errorLineKeys.has(key)) {
       const existing = errorLines.find((line) => {
         if (isDup) return line.dup && line.lote === lote;
-        if (isLmr) return line.lmrSummary;
         return line.id === (id || "—") && line.lote === lote && Boolean(line.sap) === Boolean(sap);
       });
       if (existing && isDup && id) {
@@ -608,23 +601,6 @@ export function buildCartillaAnalysis(params) {
         if (id && !ids.includes(id)) {
           ids.push(id);
           existing.id = ids.join(", ");
-        }
-      } else if (existing && isLmr) {
-        existing.count = (existing.count || 1) + 1;
-        existing.error = t("cartillaAnalysis.lmrMajoritySummary", {
-          count: String(existing.count)
-        });
-        if (lote && lote !== "—") {
-          const lotes = String(existing.lote || "")
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
-          if (!lotes.includes(lote) && lotes.length < 3) {
-            lotes.push(lote);
-            existing.lote = lotes.join(", ");
-          } else if (!lotes.includes(lote) && lotes.length === 3 && !String(existing.lote).includes("…")) {
-            existing.lote = `${lotes.join(", ")}…`;
-          }
         }
       } else if (existing && !sap && !isDup) {
         const parts = existing.error.split(" · ").map((s) => s.trim()).filter(Boolean);
@@ -638,17 +614,12 @@ export function buildCartillaAnalysis(params) {
     }
     errorLineKeys.add(key);
     errorLines.push({
-      id: isLmr ? "—" : id || "—",
-      lote: isLmr ? lote || "—" : lote,
-      error: isDup
-        ? t("plagasArandano.duplicateLots")
-        : isLmr
-          ? t("cartillaAnalysis.lmrMajoritySummary", { count: "1" })
-          : errText,
+      id: id || "—",
+      lote,
+      error: isDup ? t("plagasArandano.duplicateLots") : errText,
       sap: Boolean(sap),
       dup: isDup,
-      lmrSummary: isLmr,
-      count: isLmr ? 1 : undefined
+      lmrOnly: !isDup && !sap && isLmrMajorityCauseText(errText)
     });
   };
 
@@ -689,11 +660,29 @@ export function buildCartillaAnalysis(params) {
       entry.strong += 1;
     }
 
-    const nonSapSummary = summarizeNonSapErrorText(pairs, row, t, { skipSapValidation });
-    if (nonSapSummary) {
-      pushErrorLine(id, lote, nonSapSummary, false);
-      if (!entry.hints.includes(nonSapSummary)) entry.hints.push(nonSapSummary);
+    // Separar LMR del resto: si se mezclan, el texto con «mayoritaria» hacía
+    // colapsar TODA la fila y desaparecía p.ej. «Lote debe tener 10 caracteres».
+    const lmrPairs = pairs.filter((p) => isLmrErrorPair(p));
+    const otherPairs = pairs.filter((p) => !isLmrErrorPair(p));
+
+    const otherSummary = summarizeNonSapErrorText(otherPairs, row, t, { skipSapValidation });
+    if (otherSummary) {
+      pushErrorLine(id, lote, otherSummary, false);
+      if (!entry.hints.includes(otherSummary)) entry.hints.push(otherSummary);
       entry.strong += 1;
+    }
+
+    if (lmrPairs.length) {
+      const lmrSummary = summarizeNonSapErrorText(lmrPairs, row, t, { skipSapValidation });
+      const lmrText =
+        lmrSummary ||
+        formatPreciseErrorText(lmrPairs[0], row, t) ||
+        String(lmrPairs[0].cause || "").trim();
+      if (lmrText) {
+        pushErrorLine(id, lote, lmrText, false);
+        if (!entry.hints.includes(lmrText)) entry.hints.push(lmrText);
+        entry.strong += 1;
+      }
     }
 
     loteDetails.set(lote, entry);
@@ -709,8 +698,13 @@ export function buildCartillaAnalysis(params) {
   });
 
   errorLines.sort((a, b) => {
-    // Primero duplicados, luego LMR resumen, luego el resto (sin bloque SAP especial).
-    const rank = (line) => (line.dup ? 0 : line.lmrSummary ? 1 : line.sap ? 2 : 3);
+    // Primero duplicados, luego errores accionables (no solo LMR), luego LMR, luego SAP.
+    const rank = (line) => {
+      if (line.dup) return 0;
+      if (line.sap) return 3;
+      if (line.lmrOnly || isLmrMajorityCauseText(line.error)) return 2;
+      return 1;
+    };
     const ra = rank(a);
     const rb = rank(b);
     if (ra !== rb) return ra - rb;
@@ -863,11 +857,6 @@ function renderDetails(analysis, t) {
   const lotesHtml = lines.length
     ? `<ul class="agv-cartilla-analysis__lots">${lines
         .map((item) => {
-          if (item.lmrSummary) {
-            return `<li class="agv-cartilla-analysis__lot agv-cartilla-analysis__lot--precise agv-cartilla-analysis__lot--summary">
-              <span class="agv-cartilla-analysis__lot-error" title="${esc(item.error || "")}">${esc(item.error || "")}</span>
-            </li>`;
-          }
           const id = item.id || "—";
           const lote = item.lote || "—";
           const error = String(item.error || "")

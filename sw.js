@@ -6,7 +6,7 @@
  */
 /* eslint-disable no-restricted-globals */
 
-const CACHE_VERSION = "2026080409";
+const CACHE_VERSION = "2026080501";
 const SHELL_CACHE = `agv-mi-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `agv-mi-runtime-${CACHE_VERSION}`;
 
