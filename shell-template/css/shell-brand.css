@@ -1,0 +1,57 @@
+/* Logo QBerries en el brand del sidebar */
+.sidebar__brand {
+  background: #0b0b0b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar__brand-link {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.sidebar__logo {
+  display: block;
+  width: auto;
+  max-width: 78%;
+  height: auto;
+  max-height: 2.35rem;
+  margin-left: 4px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.application-shell.is-sidebar-collapsed .sidebar__brand {
+  justify-content: center;
+  padding: 0.75rem 0.4rem;
+}
+
+.application-shell.is-sidebar-collapsed .sidebar__brand-link {
+  justify-content: center;
+}
+
+.application-shell.is-sidebar-collapsed .sidebar__logo {
+  margin: 0 auto;
+  width: 2.35rem;
+  height: 2.35rem;
+  max-width: 2.35rem;
+  max-height: 2.35rem;
+  object-fit: cover;
+  object-position: left center;
+  border-radius: 6px;
+}
+
+.topbar__trailing {
+  min-width: 0;
+}
+
+.topbar__title {
+  color: var(--color-brand-primary);
+}
+
+.footer__dot {
+  background: var(--color-brand-primary);
+}
+
+.footer {
+  color: #1a3a28;
+}

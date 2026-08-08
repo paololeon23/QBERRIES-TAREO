@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QBerries — Por hora</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/reset.css" />
+    <link rel="stylesheet" href="css/app-shell.css" />
+    <link rel="stylesheet" href="css/sidebar.css" />
+    <link rel="stylesheet" href="css/topbar.css" />
+    <link rel="stylesheet" href="css/shell-brand.css" />
+    <link rel="stylesheet" href="css/validacion.css" />
+  </head>
+  <body>
+    <div id="applicationRoot" class="application-shell">
+      <aside class="sidebar" id="sidebarNavigation">
+        <div class="sidebar__brand">
+          <a class="sidebar__brand-link" href="#/por-hora" aria-label="QBerries" title="QBerries">
+            <img
+              class="sidebar__logo"
+              id="imgApplicationLogo" width="100" height="100"
+              src="./Logo-Q-Berries.png"
+              alt="QBerries"
+            />
+          </a>
+        </div>
+
+        <nav class="sidebar__nav" id="sidebarNavigationMenu">
+          <div class="sidebar__search" role="search">
+            <svg class="sidebar__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="search"
+              class="sidebar__search-input"
+              id="txtSidebarSearch"
+              placeholder="Buscar…"
+              aria-label="Buscar en el menú"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="sidebar__primary-panel">
+            <a class="sidebar-nav-link is-active" href="#/por-hora" data-route="por-hora" data-sidebar-tooltip="Por hora">
+              <span class="sidebar-nav-link__icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </span>
+              <span class="sidebar-nav-link__text">Por hora</span>
+            </a>
+
+            <a class="sidebar-nav-link" href="#/historial" data-route="historial" data-sidebar-tooltip="Historial">
+              <span class="sidebar-nav-link__icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+              </span>
+              <span class="sidebar-nav-link__text">Historial</span>
+            </a>
+
+            <a class="sidebar-nav-link" href="#/recomendaciones" data-route="recomendaciones" data-sidebar-tooltip="Recomendaciones">
+              <span class="sidebar-nav-link__icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+              </span>
+              <span class="sidebar-nav-link__text">Recomendaciones</span>
+            </a>
+          </div>
+        </nav>
+
+        <div class="sidebar__footer">
+          <div class="sidebar-user">
+            <div class="sidebar-user__avatar" aria-hidden="true">QB</div>
+            <div class="sidebar-user__meta">
+              <strong class="sidebar-user__name">QBerries</strong>
+              <span class="sidebar-user__role">Operaciones · Tareo</span>
+            </div>
+            <span class="sidebar-user__badge" title="Sesión activa">Online</span>
+          </div>
+          <p class="sidebar-user__version">Control de tareo · v1.0.0</p>
+        </div>
+      </aside>
+
+      <header class="topbar" id="applicationTopbar">
+        <div class="topbar__leading">
+          <button
+            type="button"
+            class="topbar__sidebar-toggle"
+            id="btnSidebarCollapse"
+            aria-label="Colapsar menú"
+            title="Colapsar menú"
+          >
+            <svg class="topbar__sidebar-toggle-icon" viewBox="0 0 20 16" aria-hidden="true" focusable="false">
+              <rect x="3" y="1.5" width="14" height="1.75" rx="0.875" />
+              <rect x="7" y="7.125" width="10" height="1.75" rx="0.875" />
+              <path d="M3 8 L6.5 5.25 L6.5 10.75 Z" />
+              <rect x="3" y="12.75" width="14" height="1.75" rx="0.875" />
+            </svg>
+          </button>
+          <div class="topbar__primary">
+            <div class="topbar__breadcrumb">
+              <span class="topbar__breadcrumb-segment">QBerries</span>
+              <span class="topbar__breadcrumb-separator">•</span>
+              <span class="topbar__breadcrumb-segment topbar__breadcrumb-segment--active" id="txtBreadcrumbActive">Por hora</span>
+            </div>
+            <h1 class="topbar__title" id="txtPageTitle">Por hora</h1>
+          </div>
+        </div>
+
+        <div class="topbar__center">
+          <label class="topbar__search" aria-label="Buscar en el sistema">
+            <svg class="topbar__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="search"
+              class="topbar__search-input"
+              id="txtTopbarSearch"
+              placeholder="Buscar módulo, trabajador o reporte…"
+              autocomplete="off"
+            />
+          </label>
+        </div>
+
+        <div class="topbar__trailing" id="topbarTrailing">
+          <div class="topbar-chip" title="Fecha del sistema">
+            <svg class="topbar-chip__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+            <span id="txtTopbarDate">—</span>
+          </div>
+          <div class="topbar-chip" title="Hora del sistema">
+            <svg class="topbar-chip__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span id="txtTopbarTime">—</span>
+          </div>
+          <button type="button" class="btn-live is-live" id="btnLive" title="Estado en vivo">
+            <span class="btn-live__dot" aria-hidden="true"></span>
+            En vivo
+          </button>
+        </div>
+      </header>
+
+      <main class="main-content" id="dynamicModuleContainer">
+        <div class="main-content__inner" id="dynamicModuleInner">
+          <!-- POR HORA (inicio) -->
+          <section class="view is-active" id="viewPorHora" data-view="por-hora">
+            <div class="upload-zone" id="uploadZone">
+              <div class="hero-panel">
+                <div class="hero-panel__copy">
+                  <p class="hero-panel__eyebrow">QBerries · Control de tareo</p>
+                  <h2 class="hero-panel__title">Hola, QBerries</h2>
+                  <p class="hero-panel__lead">
+                    Detecta errores de horas antes de cerrar el día.
+                  </p>
+                  <ul class="hero-panel__checks">
+                    <li>Se muestran <strong>todas</strong> las macro partidas</li>
+                    <li>Regla de horas exactas solo en <strong>costo de cosecha</strong></li>
+                    <li>Valores del día: <strong>9.6</strong> · <strong>10.1</strong> · <strong>10.6</strong> · <strong>12</strong> (suma de turnos)</li>
+                  </ul>
+                </div>
+                <div class="hero-panel__visual" aria-hidden="true">
+                  <div class="hero-orb hero-orb--a"></div>
+                  <div class="hero-orb hero-orb--b"></div>
+                  <div class="hero-mark">
+                    <span class="hero-mark__q">Q</span>
+                    <span class="hero-mark__text">Por hora</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rule-grid">
+                <article class="rule-tile">
+                  <span class="rule-tile__badge">Exacto</span>
+                  <strong class="rule-tile__value">9.6 h</strong>
+                  <span class="rule-tile__label">Jornada normal</span>
+                  <span class="rule-tile__note">Solo este valor · OK</span>
+                </article>
+                <article class="rule-tile">
+                  <span class="rule-tile__badge">Exacto</span>
+                  <strong class="rule-tile__value">10.1 h</strong>
+                  <span class="rule-tile__label">Media hora extra</span>
+                  <span class="rule-tile__note">Solo este valor · aviso</span>
+                </article>
+                <article class="rule-tile">
+                  <span class="rule-tile__badge">Exacto</span>
+                  <strong class="rule-tile__value">10.6 h</strong>
+                  <span class="rule-tile__label">1 h extra</span>
+                  <span class="rule-tile__note">Solo este valor · aviso</span>
+                </article>
+                <article class="rule-tile">
+                  <span class="rule-tile__badge">Exacto</span>
+                  <strong class="rule-tile__value">12 h</strong>
+                  <span class="rule-tile__label">Tope jornada</span>
+                  <span class="rule-tile__note">Solo este valor · máx</span>
+                </article>
+                <article class="rule-tile rule-tile--danger">
+                  <span class="rule-tile__badge">Error</span>
+                  <strong class="rule-tile__value">≠ exacto</strong>
+                  <span class="rule-tile__label">Ej. 9.63</span>
+                  <span class="rule-tile__note">Se marca en rojo</span>
+                </article>
+              </div>
+
+              <div class="upload-panel" id="uploadDropCard">
+                <input type="file" id="inputExcel" accept=".xlsx,.xls,.csv" hidden />
+                <div class="upload-panel__icon" aria-hidden="true">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>
+                    <path d="M14 3v5h5"/>
+                    <path d="M12 18v-6"/>
+                    <path d="m9 15 3-3 3 3"/>
+                  </svg>
+                </div>
+                <div class="upload-panel__body">
+                  <p class="upload-panel__title">Tareo</p>
+                  <p class="upload-panel__meta">Formato .xlsx / .xls · te mostramos la tabla lista para validar</p>
+                </div>
+                <button type="button" class="btn btn--primary btn--lg" id="btnPickExcel">Seleccionar archivo</button>
+                <p class="upload-panel__hint">También puedes arrastrar el archivo a esta zona</p>
+              </div>
+
+              <div class="flow-strip">
+                <article class="flow-strip__step">
+                  <div class="flow-strip__icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/>
+                    </svg>
+                  </div>
+                  <div class="flow-strip__body">
+                    <span class="flow-strip__num">1</span>
+                    <strong class="flow-strip__title">Sube el tareo</strong>
+                    <p class="flow-strip__text">Arrastra tu Excel del campo. Leemos documento, turnos y macros automáticamente.</p>
+                  </div>
+                </article>
+                <article class="flow-strip__step">
+                  <div class="flow-strip__icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                  </div>
+                  <div class="flow-strip__body">
+                    <span class="flow-strip__num">2</span>
+                    <strong class="flow-strip__title">Validamos horas</strong>
+                    <p class="flow-strip__text">Sumamos mañana + tarde (ej. 5.5 + 4.6 = 10.1) y revisamos 1 h de descanso entre turnos.</p>
+                  </div>
+                </article>
+                <article class="flow-strip__step">
+                  <div class="flow-strip__icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>
+                    </svg>
+                  </div>
+                  <div class="flow-strip__body">
+                    <span class="flow-strip__num">3</span>
+                    <strong class="flow-strip__title">Revisa y descarga</strong>
+                    <p class="flow-strip__text">Filtra errores en rojo, exporta el detalle y cierra el día con seguridad.</p>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div class="validacion-workspace is-hidden" id="validacionWorkspace">
+              <div class="welcome-block welcome-block--compact" id="introBanner">
+                <p class="welcome-block__hello">Hola, QBerries</p>
+                <p class="welcome-block__lead">Tareo cargado. Revisa horas, filtros y reportes.</p>
+                <p class="welcome-block__meta" id="tareoFechaMeta" hidden></p>
+              </div>
+
+              <div class="kpi-row" id="kpiRow"></div>
+
+              <div class="results-panel">
+                <div class="results-panel__head">
+                  <h3 class="results-panel__title">Resultados del tareo</h3>
+                  <div class="results-panel__actions">
+                    <label class="search-pill has-tip" aria-label="Buscar registro" data-tip="Busca por documento (DNI) o nombre de trabajador en la tabla filtrada.">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+                      </svg>
+                      <input type="search" id="fltSearch" placeholder="Buscar Registro" autocomplete="off" />
+                    </label>
+                    <button type="button" class="btn btn--export has-tip" id="btnExportar" data-tip="Exporta el detalle visible (respeta filtros) con errores en rojo.">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" />
+                      </svg>
+                      Exportar
+                    </button>
+                  </div>
+                </div>
+
+                <div class="toolbar toolbar--filters">
+                  <div class="toolbar__filters">
+                    <label class="field has-tip" data-tip="Filtra la tabla por supervisor. Elige uno o deja Todos para ver toda la cuadrilla.">
+                      <span>Supervisor <i class="tip-dot" aria-hidden="true">i</i></span>
+                      <select id="fltSupervisor" aria-describedby="tipSupervisor"><option value="">Todos</option></select>
+                    </label>
+                    <label class="field has-tip" data-tip="Filtra por fundo / sede. Útil para revisar un campo a la vez.">
+                      <span>Fundo <i class="tip-dot" aria-hidden="true">i</i></span>
+                      <select id="fltFundo"><option value="">Todos</option></select>
+                    </label>
+                    <label class="field has-tip" data-tip="Filtra por fecha del tareo. Si hay varias fechas, acota el día que quieres revisar.">
+                      <span>Fecha <i class="tip-dot" aria-hidden="true">i</i></span>
+                      <select id="fltFecha"><option value="">Todas</option></select>
+                    </label>
+                    <label class="field has-tip" data-tip="Filtra por Macro Partida (ej. COSTO DE COSECHA). La regla de horas exactas aplica a costo de cosecha.">
+                      <span>Macro Partida <i class="tip-dot" aria-hidden="true">i</i></span>
+                      <select id="fltMacro"><option value="">Todas</option></select>
+                    </label>
+                    <label class="field has-tip" data-tip="Filtra por resultado: OK ≤ 9.6, Advertencia hasta 12 h, o Error si supera 12.">
+                      <span>Estado horas <i class="tip-dot" aria-hidden="true">i</i></span>
+                      <select id="fltEstado">
+                        <option value="">Todos</option>
+                        <option value="ok">OK ≤ 9.6</option>
+                        <option value="aviso">Advertencia ≤ 12</option>
+                        <option value="rojo">Error &gt; 12</option>
+                      </select>
+                    </label>
+
+                    <div class="focus-bars">
+                      <div class="error-focus" id="errorFocusBar" aria-live="polite">
+                        <span class="error-focus__count" id="errorFocusCount">0 errores</span>
+                        <div class="error-focus__btns">
+                          <button type="button" class="btn btn--danger-soft btn--sm" id="btnVerErrores" title="Solo registros en rojo">
+                            Ver
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarErrores" title="Volver a filtros previos">
+                            Atrás
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm" id="btnRestaurarTodo" title="Limpiar todos los filtros">
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="warn-focus" id="warnFocusBar" aria-live="polite">
+                        <span class="warn-focus__count" id="warnFocusCount">0 advertencias</span>
+                        <div class="warn-focus__btns">
+                          <button type="button" class="btn btn--warn-soft btn--sm" id="btnVerAvisos" title="Solo registros en advertencia">
+                            Ver
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarAvisos" title="Volver a filtros previos">
+                            Atrás
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="toolbar__actions">
+                    <button type="button" class="btn btn--ghost btn--sm has-tip" id="btnReportResumen" data-tip="Abre el resumen visual por supervisor y fundo, con gráficos y errores.">Resumen</button>
+                    <button type="button" class="btn btn--ghost btn--sm has-tip" id="btnReportHallazgos" data-tip="Descarga solo hallazgos: errores de horas, horarios y duplicados.">Hallazgos</button>
+                    <button type="button" class="btn btn--ghost btn--sm has-tip" id="btnReportDetalle" data-tip="Exporta el detalle igual a la tabla (con Horas Inicio/Fin y suma).">Detalle</button>
+                    <button type="button" class="btn btn--ghost btn--sm has-tip" id="btnNewUpload" data-tip="Cierra este tareo y carga otro Excel.">Otro Excel</button>
+                  </div>
+                </div>
+
+                <div class="table-wrap table-wrap--excel">
+                  <table class="data-table data-table--excel" id="tblValidacion">
+                    <thead id="tblValidacionHead"></thead>
+                    <tbody id="tblValidacionBody"></tbody>
+                  </table>
+                </div>
+
+                <div class="table-pager" id="tablePager" aria-label="Paginación de la tabla">
+                  <label class="table-pager__per-page">
+                    <span>Items per page:</span>
+                    <select id="pagerPageSize" aria-label="Filas por página">
+                      <option value="10">10</option>
+                      <option value="20" selected>20</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
+                  </label>
+                  <span class="table-pager__range" id="pagerRange">0 – 0 of 0</span>
+                  <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
+                    <button type="button" class="table-pager__btn" id="pagerFirst" aria-label="Primera página" title="Primera">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="pagerPrev" aria-label="Página anterior" title="Anterior">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="pagerNext" aria-label="Página siguiente" title="Siguiente">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="pagerLast" aria-label="Última página" title="Última">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5.59 7.41 10.18 12l-4.59 4.59L7 18l6-6-6-6zM16 6h2v12h-2z"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Extras después: hallazgos / charts / etiquetas (ocultos por ahora) -->
+              <div class="extras-later is-hidden" aria-hidden="true">
+                <div class="findings-panel" id="findingsPanel"></div>
+                <label class="field field--inline">
+                  <span>Etiqueta lote</span>
+                  <select id="fltTipoLote">
+                    <option value="">Sin filtrar</option>
+                    <option value="china">China</option>
+                    <option value="convencional">Convencional</option>
+                  </select>
+                </label>
+                <button type="button" class="btn btn--ghost" id="btnMarkChina">Marcar China</button>
+                <button type="button" class="btn btn--ghost" id="btnMarkConv">Marcar Convencional</button>
+                <button type="button" class="btn btn--ghost" id="btnSetVariedad">Agregar variedad</button>
+                <div class="charts-row">
+                  <div class="chart-card">
+                    <h3 class="chart-card__title">Horas / rendimiento por supervisor</h3>
+                    <canvas id="chartSupervisor" height="180"></canvas>
+                  </div>
+                  <div class="chart-card">
+                    <h3 class="chart-card__title">Alertas por Macro Partida</h3>
+                    <canvas id="chartMacro" height="180"></canvas>
+                  </div>
+                  <div class="chart-card">
+                    <h3 class="chart-card__title">China vs Convencional</h3>
+                    <canvas id="chartTipo" height="180"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- HISTORIAL -->
+          <section class="view" id="viewHistorial" data-view="historial" hidden>
+            <div class="panel">
+              <h2 class="panel__title">Historial de validaciones</h2>
+              <p class="panel__subtitle">Archivos procesados en este dispositivo.</p>
+              <div class="history-list" id="historyList"></div>
+            </div>
+          </section>
+
+          <!-- RECOMENDACIONES -->
+          <section class="view" id="viewRecomendaciones" data-view="recomendaciones" hidden>
+            <div class="panel">
+              <h2 class="panel__title">Reglas de validación</h2>
+              <ul class="rules-list">
+                <li>Se listan <strong>todas</strong> las macro partidas. La validación estricta de horas (9.6 / 10.1 / 10.6 / 12) aplica solo a <strong>costo de cosecha</strong>.</li>
+                <li>Un <strong>9.63</strong> (u otro decimal) en costo de cosecha es error y sale en rojo.</li>
+                <li>Se valida el <strong>total del día</strong> (suma de turnos, ej. 5.5+4.6=10.1). Exactos: 9.6 / 10.1 / 10.6 / 12 solo en Macro COSTO DE COSECHA.</li>
+                <li>Horarios: primer turno <strong>06:30</strong>; entre turnos exactamente <strong>1 h de descanso</strong> (ej. 12:00→13:00, 11:30→12:30, 11:00→12:00); fin tarde <strong>17:06 / 17:36 / 18:06</strong> (máx). Se leen por nombre de columna (Hora Inicio / Hora Fin); se quita la fecha y queda HH:MM.</li>
+                <li>Se marcan <strong>DNI duplicados</strong>.</li>
+                <li>Fallas <strong>N.A.</strong> se agrupan por supervisor / macro partida.</li>
+                <li>Se detecta información de <strong>cesado</strong> y <strong>menoritaria</strong>.</li>
+                <li>Filtros por supervisor, fundo, macro partida y día (como Excel).</li>
+                <li>Etiqueta <strong>China / Convencional</strong> y variedades se pueden asignar en sesión.</li>
+                <li>Se descargan <strong>3 reportes</strong>: resumen cuadrilla, hallazgos y detalle diario.</li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer class="footer" id="applicationFooter">
+        <span>QBerries</span>
+        <div class="footer__version">
+          <span class="footer__dot"></span>
+          <span>Por hora 1.0.0</span>
+        </div>
+      </footer>
+    </div>
+
+    <div class="modal" id="modalSuccess" hidden>
+      <div class="modal__backdrop" data-close-modal="success"></div>
+      <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="modalSuccessTitle">
+        <div class="modal__icon" aria-hidden="true">✓</div>
+        <h2 class="modal__title" id="modalSuccessTitle">Se subió correctamente</h2>
+        <p class="modal__text" id="modalSuccessText"></p>
+        <button type="button" class="btn btn--primary" id="btnCloseSuccessModal">Continuar</button>
+      </div>
+    </div>
+
+    <div class="modal" id="modalKpiHelp" hidden>
+      <div class="modal__backdrop" data-close-modal="kpi"></div>
+      <div class="modal__dialog modal__dialog--help" role="dialog" aria-modal="true" aria-labelledby="modalKpiHelpTitle">
+        <button type="button" class="modal__close" id="btnCloseKpiHelp" aria-label="Cerrar">×</button>
+        <div class="modal__help-icon" id="modalKpiHelpIcon" aria-hidden="true">i</div>
+        <h2 class="modal__title" id="modalKpiHelpTitle">Indicador</h2>
+        <div class="modal__help-body" id="modalKpiHelpBody"></div>
+        <button type="button" class="btn btn--primary" id="btnKpiHelpOk">Entendido</button>
+      </div>
+    </div>
+
+    <div class="modal modal--resumen" id="modalResumen" hidden>
+      <div class="modal__backdrop" data-close-modal="resumen"></div>
+      <div class="modal__dialog modal__dialog--resumen" role="dialog" aria-modal="true" aria-labelledby="modalResumenTitle">
+        <div class="resumen-shell">
+          <header class="resumen-shell__head">
+            <div>
+              <h2 class="resumen-shell__title" id="modalResumenTitle">Resumen de tareo</h2>
+              <p class="resumen-shell__subtitle">Por supervisor y fundo · con errores y extras visibles</p>
+            </div>
+            <div class="resumen-shell__actions">
+              <button type="button" class="btn btn--ghost btn--sm" id="btnResumenExport">Exportar Excel</button>
+              <button type="button" class="modal__close" id="btnCloseResumen" aria-label="Cerrar">×</button>
+            </div>
+          </header>
+
+          <div class="resumen-filters">
+            <label class="field">
+              <span>Supervisor</span>
+              <select id="resumenFltSupervisor"><option value="">Todos</option></select>
+            </label>
+            <label class="field">
+              <span>Fundo</span>
+              <select id="resumenFltFundo"><option value="">Todos</option></select>
+            </label>
+            <label class="field">
+              <span>Macro Partida</span>
+              <select id="resumenFltMacro"><option value="">Todas</option></select>
+            </label>
+            <label class="field">
+              <span>Actividad</span>
+              <select id="resumenFltActividad"><option value="">Todas</option></select>
+            </label>
+          </div>
+
+          <div class="resumen-grid">
+            <section class="resumen-card">
+              <div class="resumen-card__head">
+                <h3 class="resumen-card__title">Resumen de Tareo</h3>
+              </div>
+              <div class="resumen-kpis" id="resumenKpis"></div>
+              <div class="resumen-table-wrap">
+                <table class="resumen-table">
+                  <thead>
+                    <tr>
+                      <th>Fundo</th>
+                      <th>Supervisor</th>
+                      <th>Planillas</th>
+                      <th>Trabajadores</th>
+                      <th>Errores</th>
+                      <th>Extras</th>
+                      <th>OK</th>
+                    </tr>
+                  </thead>
+                  <tbody id="resumenTableBody"></tbody>
+                </table>
+              </div>
+              <div class="table-pager table-pager--compact">
+                <span class="table-pager__range" id="resumenPagerRange">0 – 0 of 0</span>
+              </div>
+            </section>
+
+            <section class="resumen-card">
+              <div class="resumen-card__head">
+                <h3 class="resumen-card__title">Personas por Actividad</h3>
+              </div>
+              <div class="resumen-chart-meta">
+                <strong id="resumenChartTitle">QBerries</strong>
+                <span id="resumenChartSubtitle">Total trabajadores: 0</span>
+              </div>
+              <div class="resumen-charts">
+                <div class="resumen-chart-box">
+                  <canvas id="chartResumenMacro"></canvas>
+                </div>
+                <div class="resumen-chart-box">
+                  <canvas id="chartResumenEstado"></canvas>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="vendor/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script type="module" src="js/shell.js"></script>
+    <script type="module" src="js/validacion-app.js"></script>
+  </body>
+</html>
