@@ -1,73 +1,33 @@
-# Netlify — sitio estático + caché (hash routing; archivos existentes se sirven primero).
+# Netlify — solo shell-template (QBerries Por hora / tareo)
 
 [build]
-  publish = "."
-  command = "node scripts/inject-gemini-config.mjs"
+  publish = "shell-template"
+  command = "echo Publishing shell-template"
 
-# La key de Gemini se inyecta en build a un JS de cliente (asistente IA).
-# Está en Site settings → Environment variables (no en el repo).
-# Omitimos el escaneo de ese secreto/ruta para que el deploy no falle.
-[build.environment]
-  SECRETS_SCAN_OMIT_KEYS = "GEMINI_API_KEY"
-  SECRETS_SCAN_OMIT_PATHS = "presentation/js/config/gemini.config.js"
-
-# Solo rutas inexistentes → SPA (los archivos reales en /presentation no se interceptan).
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
 [[headers]]
-  for = "/presentation/vendor/*"
+  for = "/vendor/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
-  for = "/presentation/images/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "/presentation/css/*"
+  for = "/css/*"
   [headers.values]
     Cache-Control = "public, max-age=604800"
 
 [[headers]]
-  for = "/presentation/js/*"
+  for = "/js/*"
   [headers.values]
     Cache-Control = "public, max-age=604800"
-
-[[headers]]
-  for = "/presentation/data/*"
-  [headers.values]
-    Cache-Control = "public, max-age=86400"
-
-[[headers]]
-  for = "/presentation/i18n/*"
-  [headers.values]
-    Cache-Control = "public, max-age=86400"
-
-[[headers]]
-  for = "/rules/*"
-  [headers.values]
-    Cache-Control = "public, max-age=86400"
 
 [[headers]]
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
-
-[[headers]]
-  for = "/sw.js"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
-    Service-Worker-Allowed = "/"
-
-[[headers]]
-  for = "/manifest.webmanifest"
-  [headers.values]
-    Cache-Control = "public, max-age=86400"
-    Content-Type = "application/manifest+json"
 
 [[headers]]
   for = "/*"

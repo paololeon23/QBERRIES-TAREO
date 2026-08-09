@@ -52,10 +52,17 @@ export function applyRoute(routeKey) {
   const shell = document.getElementById("applicationRoot");
   const collapseBtn = document.getElementById("btnSidebarCollapse");
   const searchInput = document.getElementById("txtSidebarSearch");
+  const backdrop = document.getElementById("sidebarDrawerBackdrop");
   const mobileMq = window.matchMedia("(max-width: 768px)");
 
   function isMobile() {
     return mobileMq.matches;
+  }
+
+  function syncBackdrop(open) {
+    if (!backdrop) return;
+    backdrop.hidden = !open;
+    backdrop.setAttribute("aria-hidden", open ? "false" : "true");
   }
 
   function setCollapsed(collapsed) {
@@ -65,18 +72,27 @@ export function applyRoute(routeKey) {
       if (collapsed) {
         shell.classList.remove("is-sidebar-drawer-open");
         document.body.classList.remove("is-sidebar-drawer-open");
+        syncBackdrop(false);
       } else {
         shell.classList.add("is-sidebar-drawer-open");
         document.body.classList.add("is-sidebar-drawer-open");
+        syncBackdrop(true);
       }
       collapseBtn?.classList.toggle("is-expand-state", !shell.classList.contains("is-sidebar-drawer-open"));
       return;
     }
 
+    syncBackdrop(false);
     shell.classList.add("is-sidebar-collapsing");
     shell.classList.toggle("is-sidebar-collapsed", collapsed);
     collapseBtn?.classList.toggle("is-expand-state", collapsed);
     window.setTimeout(() => shell.classList.remove("is-sidebar-collapsing"), 220);
+  }
+
+  function closeMobileDrawer() {
+    if (isMobile() && shell?.classList.contains("is-sidebar-drawer-open")) {
+      setCollapsed(true);
+    }
   }
 
   collapseBtn?.addEventListener("click", () => {
@@ -87,9 +103,23 @@ export function applyRoute(routeKey) {
     setCollapsed(!shell.classList.contains("is-sidebar-collapsed"));
   });
 
+  backdrop?.addEventListener("click", () => {
+    closeMobileDrawer();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMobileDrawer();
+  });
+
+  // Clic fuera del sidebar (main / topbar / footer) también cierra
   shell?.addEventListener("click", (event) => {
-    if (!isMobile()) return;
-    if (event.target === shell && shell.classList.contains("is-sidebar-drawer-open")) {
+    if (!isMobile() || !shell.classList.contains("is-sidebar-drawer-open")) return;
+    const sidebar = document.getElementById("sidebarNavigation");
+    if (sidebar?.contains(event.target)) return;
+    if (collapseBtn?.contains(event.target)) return;
+    if (backdrop?.contains(event.target)) return;
+    // Si el clic fue en el contenido (no en el panel), cerrar
+    if (!sidebar?.contains(event.target)) {
       setCollapsed(true);
     }
   });
@@ -109,6 +139,17 @@ export function applyRoute(routeKey) {
     link.addEventListener("click", () => {
       if (isMobile()) setCollapsed(true);
     });
+  });
+
+  mobileMq.addEventListener?.("change", () => {
+    if (isMobile()) {
+      shell?.classList.remove("is-sidebar-collapsed");
+      setCollapsed(true);
+    } else {
+      document.body.classList.remove("is-sidebar-drawer-open");
+      shell?.classList.remove("is-sidebar-drawer-open");
+      syncBackdrop(false);
+    }
   });
 
   window.addEventListener("hashchange", () => applyRoute(getCurrentRoute()));

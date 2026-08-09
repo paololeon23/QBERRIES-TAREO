@@ -1332,6 +1332,28 @@ body:has(.pmpar-dialog-overlay) .sidebar-ai-trigger__cloud {
 
 /* Mobile: sidebar off-canvas drawer */
 @media (max-width: 768px) {
+  .sidebar-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay);
+    border: none;
+    margin: 0;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.48);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .application-shell.is-sidebar-drawer-open .sidebar-drawer-backdrop,
+  body.is-sidebar-drawer-open .sidebar-drawer-backdrop {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
   .sidebar {
     position: fixed;
     left: 0;
@@ -1343,7 +1365,7 @@ body:has(.pmpar-dialog-overlay) .sidebar-ai-trigger__cloud {
     grid-area: unset;
     transform: translate3d(-105%, 0, 0);
     transition: transform 0.22s ease;
-    z-index: var(--z-overlay);
+    z-index: calc(var(--z-overlay) + 2);
     box-shadow: 12px 0 40px rgba(15, 23, 42, 0.22);
     overflow-x: hidden;
     overflow-y: auto;
@@ -1353,6 +1375,12 @@ body:has(.pmpar-dialog-overlay) .sidebar-ai-trigger__cloud {
 
   .application-shell.is-sidebar-drawer-open .sidebar {
     transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (min-width: 769px) {
+  .sidebar-drawer-backdrop {
+    display: none !important;
   }
 }
 
