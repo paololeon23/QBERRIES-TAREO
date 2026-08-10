@@ -1,12 +1,26 @@
 /**
  * Cliente API Pases de salida (solo lectura).
  *
- * Usa ÚNICAMENTE el proxy Netlify (token oculto en servidor).
+ * Proxy Netlify oficial (HTTPS, token solo en servidor).
  * NUNCA script.google.com ni API_TOKEN en el navegador.
  */
 
-/** Proxy oficial Q Berries */
+/** Proxy oficial Q Berries (lectura segura) */
 export const PERMISOS_API_BASE = "https://pasessalida-qberries.netlify.app/api/permisos";
+
+const REQUEST_TIMEOUT_MS = 22000;
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 450;
+/** Reutiliza respuesta reciente (misma query) para velocidad y menos fallos en poll */
+const SOFT_CACHE_MS = 2500;
+/** Caché durable en localStorage si falla la red (seguridad / continuidad) */
+const DURABLE_CACHE_KEY = "qb_permisos_cache_v1";
+const DURABLE_CACHE_MAX_ENTRIES = 12;
+
+/** @type {Map<string, { at: number, data: any }>} */
+const softCache = new Map();
+/** @type {Map<string, Promise<any>>} */
+const inflight = new Map();
 
 function buildQuery(params = {}) {
   const qs = new URLSearchParams();
@@ -16,6 +30,55 @@ function buildQuery(params = {}) {
     qs.set(key, String(value));
   });
   return qs.toString();
+}
+
+function readDurableStore() {
+  try {
+    const raw = localStorage.getItem(DURABLE_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDurableStore(store) {
+  try {
+    localStorage.setItem(DURABLE_CACHE_KEY, JSON.stringify(store));
+  } catch {
+    // cuota / modo privado: ignorar
+  }
+}
+
+function saveDurableCache(cacheKey, data) {
+  if (!cacheKey || !data || data.ok === false) return;
+  // No guardar pings
+  if (!String(cacheKey).includes("listarPermisos")) return;
+  const store = readDurableStore();
+  store[cacheKey] = { at: Date.now(), data };
+  const keys = Object.keys(store);
+  if (keys.length > DURABLE_CACHE_MAX_ENTRIES) {
+    keys
+      .sort((a, b) => (store[a]?.at || 0) - (store[b]?.at || 0))
+      .slice(0, keys.length - DURABLE_CACHE_MAX_ENTRIES)
+      .forEach((k) => delete store[k]);
+  }
+  writeDurableStore(store);
+}
+
+function loadDurableCache(cacheKey) {
+  const entry = readDurableStore()[cacheKey];
+  if (!entry?.data) return null;
+  return { at: Number(entry.at) || 0, data: entry.data };
+}
+
+function withCacheMeta(data, cachedAt) {
+  return {
+    ...data,
+    fromCache: true,
+    cachedAt: cachedAt || Date.now()
+  };
 }
 
 function apiErrorMessage(data, fallback) {
@@ -30,39 +93,129 @@ function apiErrorMessage(data, fallback) {
   return data.message || data.error || fallback;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function resolveApiBases() {
+  if (typeof window !== "undefined" && window.QB_PERMISOS_PROXY) {
+    return [String(window.QB_PERMISOS_PROXY)];
+  }
+  const bases = [];
+  try {
+    const host = window.location.hostname || "";
+    // Si estamos en el mismo sitio del proxy → same-origin (más rápido, HTTPS)
+    if (host === "pasessalida-qberries.netlify.app") {
+      bases.push("/api/permisos");
+    }
+  } catch (_) {}
+  bases.push(PERMISOS_API_BASE);
+  return bases;
+}
+
+async function fetchOnce(url) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      mode: "cors",
+      credentials: "omit",
+      signal: controller.signal
+    });
+    const text = await response.text();
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error("El servidor de pases no devolvió JSON válido.");
+    }
+    if (data && data.ok === false) {
+      throw new Error(apiErrorMessage(data, "Error en API de permisos"));
+    }
+    if (!response.ok) {
+      throw new Error(apiErrorMessage(data, `API permisos respondió ${response.status}`));
+    }
+    return data;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function isRetryableNetworkError(err) {
+  const msg = String(err?.message || err || "").toLowerCase();
+  if (err?.name === "AbortError") return true;
+  if (msg.includes("failed to fetch")) return true;
+  if (msg.includes("network")) return true;
+  if (msg.includes("load failed")) return true;
+  if (msg.includes("aborted")) return true;
+  return false;
+}
+
 /**
- * GET JSON al proxy (también acepta el mismo shape si el servidor responde error).
+ * GET JSON al proxy con:
+ * - dedupe in-flight
+ * - soft-cache corto
+ * - reintentos en fallos de red
+ * - caché durable (localStorage) si se cae la conexión
  */
 export async function callPermisosApi(params = {}) {
   const qs = buildQuery(params);
-  const url = qs ? `${PERMISOS_API_BASE}?${qs}` : PERMISOS_API_BASE;
+  const cacheKey = qs || "__ping__";
 
-  let response;
+  const cached = softCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < SOFT_CACHE_MS) {
+    return cached.data;
+  }
+
+  const pending = inflight.get(cacheKey);
+  if (pending) return pending;
+
+  const job = (async () => {
+    const bases = resolveApiBases();
+    let lastErr = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      for (const base of bases) {
+        const url = qs ? `${base}?${qs}` : base;
+        try {
+          const data = await fetchOnce(url);
+          softCache.set(cacheKey, { at: Date.now(), data });
+          saveDurableCache(cacheKey, data);
+          return data;
+        } catch (err) {
+          lastErr = err;
+          const msg = String(err?.message || "");
+          if (/autoriz|config|variables de entorno/i.test(msg)) throw err;
+        }
+      }
+      if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS * attempt);
+    }
+
+    if (cached?.data) return withCacheMeta(cached.data, cached.at);
+
+    const durable = loadDurableCache(cacheKey);
+    if (durable?.data) {
+      softCache.set(cacheKey, { at: Date.now(), data: durable.data });
+      return withCacheMeta(durable.data, durable.at);
+    }
+
+    if (isRetryableNetworkError(lastErr) || lastErr?.name === "AbortError") {
+      throw new Error("Sin conexión con el servidor de pases. Revisa tu red e intenta de nuevo.");
+    }
+    throw lastErr instanceof Error
+      ? lastErr
+      : new Error(String(lastErr || "No se pudo consultar permisos"));
+  })();
+
+  inflight.set(cacheKey, job);
   try {
-    response = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      cache: "no-store"
-    });
-  } catch {
-    throw new Error("Sin conexión con el servidor de pases. Revisa tu red e intenta de nuevo.");
+    return await job;
+  } finally {
+    inflight.delete(cacheKey);
   }
-
-  const text = await response.text();
-  let data = null;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error("El servidor de pases no devolvió JSON válido.");
-  }
-
-  if (data && data.ok === false) {
-    throw new Error(apiErrorMessage(data, "Error en API de permisos"));
-  }
-  if (!response.ok) {
-    throw new Error(apiErrorMessage(data, `API permisos respondió ${response.status}`));
-  }
-  return data;
 }
 
 export async function pingPermisos() {
@@ -230,7 +383,6 @@ export async function listarPermisos(opts = {}) {
     params.fecha = fecha;
     params.limit = opts.limit ?? 500;
   } else {
-    // Sin fecha ni todas → el proxy usa HOY (America/Lima)
     params.limit = opts.limit ?? 500;
   }
 
@@ -243,7 +395,9 @@ export async function listarPermisos(opts = {}) {
     ...data,
     data: rows,
     count: kpis.total,
-    kpis
+    kpis,
+    fromCache: Boolean(data.fromCache),
+    cachedAt: data.cachedAt || null
   };
 }
 

@@ -43,7 +43,8 @@ const state = {
   apiMotivos: [],
   apiTopMotivo: { motivo: "", count: 0 },
   apiPorDia: [],
-  apiRango: null
+  apiRango: null,
+  fromCache: false
 };
 
 const pagerState = {
@@ -289,13 +290,16 @@ function renderTable() {
     tbody.innerHTML = "";
     if (empty) {
       empty.hidden = state.loading || Boolean(state.error);
-      empty.textContent = state.loading
-        ? ""
-        : state.error
-          ? ""
-          : state.rows.length
-            ? "Ningún pase coincide con los filtros."
-            : "No hay pases para mostrar.";
+      const textEl = empty.querySelector(".pases-empty__text");
+      const titleEl = empty.querySelector(".pases-empty__title");
+      const msg = state.rows.length
+        ? "Ningún pase coincide con los filtros."
+        : "No hay pases para mostrar.";
+      const title = state.rows.length ? "Sin coincidencias" : "Sin pases";
+      if (textEl) textEl.textContent = msg;
+      else empty.textContent = msg;
+      if (titleEl) titleEl.textContent = title;
+      empty.dataset.kind = state.rows.length ? "filtered" : "empty";
     }
     return;
   }
@@ -410,7 +414,7 @@ function exportExcel() {
   }
 }
 
-const POLL_MS = 3000;
+const POLL_MS = 8000;
 
 let started = false;
 let pollTimer = null;
@@ -463,7 +467,8 @@ async function loadPases({ keepFilters = true, silent = false } = {}) {
     state.apiTopMotivo = resp.kpis?.topMotivo || { motivo: "", count: 0 };
     state.apiPorDia = Array.isArray(resp.kpis?.porDia) ? resp.kpis.porDia : [];
     state.apiRango = resp.rango || resp.kpis?.rango || null;
-    state.loadedAt = new Date();
+    state.fromCache = Boolean(resp.fromCache);
+    state.loadedAt = resp.cachedAt ? new Date(resp.cachedAt) : new Date();
     state.loading = false;
     state.error = "";
 
@@ -476,9 +481,17 @@ async function loadPases({ keepFilters = true, silent = false } = {}) {
         resp.rango?.modo === "todas" || (!fechaInput && resp.rango?.todas)
           ? "todas las fechas"
           : `día ${fechaInput || resp.rango?.fecha || limaTodayYmd()}`;
-      meta.textContent = `${n} pases · ${rango} · actualizado ${ts} (hora Lima)`;
+      const cacheNote = state.fromCache ? " · caché local (sin conexión)" : "";
+      meta.textContent = `${n} pases · ${rango} · actualizado ${ts} (hora Lima)${cacheNote}`;
     }
-    if (!silent) {
+    if (state.fromCache) {
+      if (!silent) {
+        setStatus(
+          "empty",
+          "Mostrando último listado guardado (caché). Se actualizará al recuperar la conexión."
+        );
+      }
+    } else if (!silent) {
       setStatus(
         state.filtered.length ? "" : "empty",
         state.filtered.length
@@ -495,8 +508,9 @@ async function loadPases({ keepFilters = true, silent = false } = {}) {
   } catch (err) {
     state.loading = false;
     const msg = err?.message || "Error al cargar pases";
-    if (silent && state.rows.length) {
-      // Mantener datos anteriores en auto-refresh
+    if (state.rows.length) {
+      // No borrar datos si ya hay listado (red intermitente / poll)
+      if (!silent) setStatus("error", msg);
     } else {
       state.error = msg;
       state.rows = [];
