@@ -11,7 +11,6 @@ $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $EnvFile = Join-Path $Root ".env"
 $Port = 8787
-$FallbackUrl = "https://script.google.com/macros/s/AKfycbxWxRtWPycpxD3gxzD2FbUoMxErmItFLRyG5MyD2arCH8NusKMLu8kdeVLAnMpmjZpk/exec"
 
 function Read-DotEnv([string]$Path) {
   $map = @{}
@@ -33,11 +32,16 @@ function Read-DotEnv([string]$Path) {
 
 $envMap = Read-DotEnv $EnvFile
 $Token = ""
-$ScriptUrl = $FallbackUrl
+$ScriptUrl = ""
 if ($envMap.ContainsKey("API_TOKEN") -and $envMap["API_TOKEN"]) { $Token = [string]$envMap["API_TOKEN"] }
 elseif ($envMap.ContainsKey("PERMISOS_API_TOKEN") -and $envMap["PERMISOS_API_TOKEN"]) { $Token = [string]$envMap["PERMISOS_API_TOKEN"] }
 if ($envMap.ContainsKey("PERMISOS_SCRIPT_URL") -and $envMap["PERMISOS_SCRIPT_URL"]) {
   $ScriptUrl = [string]$envMap["PERMISOS_SCRIPT_URL"]
+}
+
+if (-not $ScriptUrl) {
+  Write-Host "Falta PERMISOS_SCRIPT_URL en .env (solo ahí; no hardcodear en el repo)."
+  exit 1
 }
 
 $Allowed = @("ping", "listarPermisos", "obtenerPermiso", "existePaseHoy")
