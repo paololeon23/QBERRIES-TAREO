@@ -1,5 +1,6 @@
 import {
   listarPermisos,
+  peekCachedListarPermisos,
   limaTodayYmd,
   normalizeText
 } from "./pases-api.js";
@@ -44,7 +45,10 @@ const state = {
   apiTopMotivo: { motivo: "", count: 0 },
   apiPorDia: [],
   apiRango: null,
-  fromCache: false
+  fromCache: false,
+  dataSig: "",
+  /** 'hoy' | 'todas' | 'custom' — controla el pintado de botones */
+  fechaMode: "hoy"
 };
 
 const pagerState = {
@@ -414,11 +418,96 @@ function exportExcel() {
   }
 }
 
-const POLL_MS = 8000;
+const POLL_MS = 15000;
 
 let started = false;
 let pollTimer = null;
 let activeRoute = false;
+/** Descarta respuestas viejas si el usuario cambia Hoy/Todas a mitad del GET */
+let loadSeq = 0;
+
+function rowsSignature(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) return "0";
+  // Huella liviana: si no cambia, no re-pintamos en el poll
+  return list
+    .map(
+      (r) =>
+        `${r.dni}|${r.fechaRegistro}|${r.horaRegistro}|${r.motivo}|${r.fechaSalida}|${r.horaSalida}|${r.carnetVerificado}`
+    )
+    .join(";");
+}
+
+function syncFechaModeButtons() {
+  const mode = state.fechaMode || "hoy";
+  const isHoy = mode === "hoy";
+  const isTodas = mode === "todas";
+  const btnHoy = $("btnPasesHoy");
+  const btnTodas = $("btnPasesClearFecha");
+
+  if (btnHoy) {
+    btnHoy.classList.toggle("is-active", isHoy);
+    btnHoy.classList.toggle("btn--secondary", isHoy);
+    btnHoy.classList.toggle("btn--ghost", !isHoy);
+    btnHoy.setAttribute("aria-pressed", isHoy ? "true" : "false");
+  }
+  if (btnTodas) {
+    btnTodas.classList.toggle("is-active", isTodas);
+    btnTodas.classList.toggle("btn--secondary", isTodas);
+    btnTodas.classList.toggle("btn--ghost", !isTodas);
+    btnTodas.setAttribute("aria-pressed", isTodas ? "true" : "false");
+  }
+}
+
+function setFechaMode(mode, fechaValue) {
+  state.fechaMode = mode;
+  const fecha = $("fltPaseFecha");
+  if (fecha) fecha.value = fechaValue == null ? "" : String(fechaValue);
+  syncFechaModeButtons();
+}
+
+function applyApiPayload(resp, { resetPage = true, touchMeta = true } = {}) {
+  state.rows = resp.data || [];
+  state.apiTotal = Number(resp.kpis?.total ?? resp.count ?? state.rows.length) || 0;
+  state.apiMotivos = Array.isArray(resp.kpis?.motivos) ? resp.kpis.motivos : [];
+  state.apiTopMotivo = resp.kpis?.topMotivo || { motivo: "", count: 0 };
+  state.apiPorDia = Array.isArray(resp.kpis?.porDia) ? resp.kpis.porDia : [];
+  state.apiRango = resp.rango || resp.kpis?.rango || null;
+  state.fromCache = Boolean(resp.fromCache);
+  state.loadedAt = resp.cachedAt ? new Date(resp.cachedAt) : new Date();
+  state.dataSig = rowsSignature(state.rows);
+  state.error = "";
+  applyFilters({ resetPage });
+  syncFechaModeButtons();
+
+  if (!touchMeta) return;
+  const meta = $("pasesMeta");
+  if (!meta) return;
+  const fechaInput = ($("fltPaseFecha")?.value || "").trim();
+  const ts = state.loadedAt.toLocaleString("es-PE", { timeZone: "America/Lima" });
+  const n = Number(resp.count ?? state.rows.length) || state.rows.length;
+  // El texto sigue al modo del UI (botones), no al rango que mande la API
+  const rango =
+    state.fechaMode === "todas" || !fechaInput
+      ? "todas las fechas"
+      : `día ${fechaInput || limaTodayYmd()}`;
+  const cacheNote = state.fromCache ? " · caché local" : "";
+  meta.textContent = `${n} pases · ${rango} · actualizado ${ts} (hora Lima)${cacheNote}`;
+}
+
+function listarOptsFromUi(keepFilters) {
+  const fechaInput = keepFilters
+    ? ($("fltPaseFecha")?.value || "").trim()
+    : limaTodayYmd();
+  if (!keepFilters) {
+    const fechaEl = $("fltPaseFecha");
+    if (fechaEl) fechaEl.value = fechaInput;
+  }
+  return {
+    fechaInput,
+    opts: fechaInput ? { fecha: fechaInput } : { todas: true }
+  };
+}
 
 function stopPolling() {
   if (pollTimer) {
@@ -438,52 +527,47 @@ function startPolling() {
 }
 
 async function loadPases({ keepFilters = true, silent = false } = {}) {
-  if (state.loading) return;
+  // Poll no pisa un GET del usuario; clics del usuario SÍ pueden cancelar el anterior
+  if (silent && state.loading) return;
 
+  const seq = ++loadSeq;
   const btn = $("btnPasesRefresh");
-  state.loading = true;
+  const { fechaInput, opts } = listarOptsFromUi(keepFilters);
+
   if (!silent) {
-    state.error = "";
-    setStatus("loading", "Cargando pases desde BD-PERMISOS…");
+    syncFechaModeButtons();
+    // Pintado inmediato desde caché de ese modo (Hoy / Todas) — no se cuelga esperando
+    const peeked = peekCachedListarPermisos(opts);
+    if (peeked) {
+      applyApiPayload(peeked, { resetPage: true, touchMeta: true });
+      setStatus(
+        "loading",
+        fechaInput ? "Actualizando día seleccionado…" : "Cargando todas las fechas…"
+      );
+    } else {
+      state.error = "";
+      setStatus(
+        "loading",
+        fechaInput ? "Cargando pases del día…" : "Cargando todas las fechas…"
+      );
+    }
     if (btn) btn.disabled = true;
   }
 
+  state.loading = true;
+
   try {
-    const fechaInput = keepFilters
-      ? ($("fltPaseFecha")?.value || "").trim()
-      : limaTodayYmd();
-    if (!keepFilters) {
-      const fechaEl = $("fltPaseFecha");
-      if (fechaEl) fechaEl.value = fechaInput;
+    const resp = await listarPermisos(silent ? opts : { ...opts, force: true });
+    if (seq !== loadSeq) return;
+
+    const nextSig = rowsSignature(resp.data || []);
+    if (silent && nextSig === state.dataSig && state.rows.length) {
+      state.fromCache = Boolean(resp.fromCache);
+      return;
     }
 
-    // Default API = HOY. Fecha llena → día. Vacía → todas=1.
-    const resp = await listarPermisos(
-      fechaInput ? { fecha: fechaInput } : { todas: true }
-    );
-    state.rows = resp.data || [];
-    state.apiTotal = Number(resp.kpis?.total ?? resp.count ?? state.rows.length) || 0;
-    state.apiMotivos = Array.isArray(resp.kpis?.motivos) ? resp.kpis.motivos : [];
-    state.apiTopMotivo = resp.kpis?.topMotivo || { motivo: "", count: 0 };
-    state.apiPorDia = Array.isArray(resp.kpis?.porDia) ? resp.kpis.porDia : [];
-    state.apiRango = resp.rango || resp.kpis?.rango || null;
-    state.fromCache = Boolean(resp.fromCache);
-    state.loadedAt = resp.cachedAt ? new Date(resp.cachedAt) : new Date();
-    state.loading = false;
-    state.error = "";
+    applyApiPayload(resp, { resetPage: !silent, touchMeta: true });
 
-    applyFilters({ resetPage: !silent });
-    const meta = $("pasesMeta");
-    if (meta) {
-      const ts = state.loadedAt.toLocaleString("es-PE", { timeZone: "America/Lima" });
-      const n = Number(resp.count ?? state.rows.length) || state.rows.length;
-      const rango =
-        resp.rango?.modo === "todas" || (!fechaInput && resp.rango?.todas)
-          ? "todas las fechas"
-          : `día ${fechaInput || resp.rango?.fecha || limaTodayYmd()}`;
-      const cacheNote = state.fromCache ? " · caché local (sin conexión)" : "";
-      meta.textContent = `${n} pases · ${rango} · actualizado ${ts} (hora Lima)${cacheNote}`;
-    }
     if (state.fromCache) {
       if (!silent) {
         setStatus(
@@ -506,10 +590,9 @@ async function loadPases({ keepFilters = true, silent = false } = {}) {
       setStatus("", "");
     }
   } catch (err) {
-    state.loading = false;
+    if (seq !== loadSeq) return;
     const msg = err?.message || "Error al cargar pases";
     if (state.rows.length) {
-      // No borrar datos si ya hay listado (red intermitente / poll)
       if (!silent) setStatus("error", msg);
     } else {
       state.error = msg;
@@ -520,12 +603,18 @@ async function loadPases({ keepFilters = true, silent = false } = {}) {
       state.apiTopMotivo = { motivo: "", count: 0 };
       state.apiPorDia = [];
       state.apiRango = null;
+      state.dataSig = "";
       renderKpis();
       renderTable();
+      syncFechaModeButtons();
       setStatus("error", state.error);
     }
   } finally {
-    if (btn) btn.disabled = false;
+    if (seq === loadSeq) {
+      state.loading = false;
+      if (btn) btn.disabled = false;
+      syncFechaModeButtons();
+    }
   }
 }
 
@@ -564,19 +653,23 @@ function bindUi() {
 
   // Cambio de fecha → nuevo GET (hoy / día / todas)
   $("fltPaseFecha")?.addEventListener("change", () => {
+    const value = ($("fltPaseFecha")?.value || "").trim();
+    const today = limaTodayYmd();
+    if (!value) state.fechaMode = "todas";
+    else if (value === today) state.fechaMode = "hoy";
+    else state.fechaMode = "custom";
+    syncFechaModeButtons();
     loadPases({ keepFilters: true, silent: false });
   });
 
   $("btnPasesRefresh")?.addEventListener("click", () => loadPases({ keepFilters: true, silent: false }));
   $("btnPasesExport")?.addEventListener("click", () => exportExcel());
   $("btnPasesHoy")?.addEventListener("click", () => {
-    const fecha = $("fltPaseFecha");
-    if (fecha) fecha.value = limaTodayYmd();
+    setFechaMode("hoy", limaTodayYmd());
     loadPases({ keepFilters: true, silent: false });
   });
   $("btnPasesClearFecha")?.addEventListener("click", () => {
-    const fecha = $("fltPaseFecha");
-    if (fecha) fecha.value = "";
+    setFechaMode("todas", "");
     loadPases({ keepFilters: true, silent: false });
   });
 
@@ -610,8 +703,14 @@ function initPasesModule() {
   if (started) return;
   started = true;
   const fecha = $("fltPaseFecha");
-  if (fecha && !fecha.value) fecha.value = limaTodayYmd();
+  if (fecha && !fecha.value) {
+    fecha.value = limaTodayYmd();
+    state.fechaMode = "hoy";
+  } else if (fecha?.value) {
+    state.fechaMode = fecha.value === limaTodayYmd() ? "hoy" : "custom";
+  }
   bindUi();
+  syncFechaModeButtons();
 }
 
 function onRoute(route) {

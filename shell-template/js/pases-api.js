@@ -8,11 +8,11 @@
 /** Proxy oficial Q Berries (lectura segura) */
 export const PERMISOS_API_BASE = "https://pasessalida-qberries.netlify.app/api/permisos";
 
-const REQUEST_TIMEOUT_MS = 22000;
+const REQUEST_TIMEOUT_MS = 18000;
 const MAX_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 450;
-/** Reutiliza respuesta reciente (misma query) para velocidad y menos fallos en poll */
-const SOFT_CACHE_MS = 2500;
+const RETRY_DELAY_MS = 350;
+/** Reutiliza respuesta reciente (misma query) — evita GET de más en el poll */
+const SOFT_CACHE_MS = 10000;
 /** Caché durable en localStorage si falla la red (seguridad / continuidad) */
 const DURABLE_CACHE_KEY = "qb_permisos_cache_v1";
 const DURABLE_CACHE_MAX_ENTRIES = 12;
@@ -156,17 +156,18 @@ function isRetryableNetworkError(err) {
 
 /**
  * GET JSON al proxy con:
+ * - soft-cache corto (salta con force:true)
  * - dedupe in-flight
- * - soft-cache corto
  * - reintentos en fallos de red
  * - caché durable (localStorage) si se cae la conexión
  */
-export async function callPermisosApi(params = {}) {
+export async function callPermisosApi(params = {}, options = {}) {
+  const force = Boolean(options.force);
   const qs = buildQuery(params);
   const cacheKey = qs || "__ping__";
 
   const cached = softCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < SOFT_CACHE_MS) {
+  if (!force && cached && Date.now() - cached.at < SOFT_CACHE_MS) {
     return cached.data;
   }
 
@@ -360,15 +361,7 @@ export function extractPermisosKpis(payload = {}, rows = []) {
   };
 }
 
-/**
- * Listar pases.
- * - Default (sin opts): HOY Lima (el proxy filtra solo hoy).
- * - fecha=YYYY-MM-DD: un día.
- * - todas=true: todas las fechas.
- *
- * @param {{ limit?: number, dni?: string, fecha?: string, todas?: boolean }} opts
- */
-export async function listarPermisos(opts = {}) {
+function buildListarParams(opts = {}) {
   const params = { action: "listarPermisos" };
 
   if (opts.dni) params.dni = String(opts.dni).trim();
@@ -385,10 +378,11 @@ export async function listarPermisos(opts = {}) {
   } else {
     params.limit = opts.limit ?? 500;
   }
+  return params;
+}
 
-  const data = await callPermisosApi(params);
+function packListarResponse(data) {
   if (!data?.ok) throw new Error(apiErrorMessage(data, "No se pudieron listar los pases"));
-
   const rows = Array.isArray(data.data) ? data.data.map(normalizePaseRow) : [];
   const kpis = extractPermisosKpis(data, rows);
   return {
@@ -399,6 +393,46 @@ export async function listarPermisos(opts = {}) {
     fromCache: Boolean(data.fromCache),
     cachedAt: data.cachedAt || null
   };
+}
+
+/**
+ * Lee soft/durable cache sin red (pintado inmediato / stale-while-revalidate).
+ * @returns {ReturnType<typeof packListarResponse>|null}
+ */
+export function peekCachedListarPermisos(opts = {}) {
+  const params = buildListarParams(opts);
+  const cacheKey = buildQuery(params);
+  const soft = softCache.get(cacheKey);
+  if (soft?.data?.ok !== false && soft?.data) {
+    try {
+      return packListarResponse({ ...soft.data, fromCache: true, cachedAt: soft.at });
+    } catch {
+      /* ignore */
+    }
+  }
+  const durable = loadDurableCache(cacheKey);
+  if (durable?.data) {
+    try {
+      return packListarResponse({ ...durable.data, fromCache: true, cachedAt: durable.at });
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+/**
+ * Listar pases.
+ * - Default (sin opts): HOY Lima (el proxy filtra solo hoy).
+ * - fecha=YYYY-MM-DD: un día.
+ * - todas=true: todas las fechas.
+ *
+ * @param {{ limit?: number, dni?: string, fecha?: string, todas?: boolean }} opts
+ */
+export async function listarPermisos(opts = {}) {
+  const force = Boolean(opts.force);
+  const data = await callPermisosApi(buildListarParams(opts), { force });
+  return packListarResponse(data);
 }
 
 /** Fecha de hoy en America/Lima como yyyy-MM-dd */
