@@ -8,20 +8,28 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  scroll-behavior: smooth;
+  overscroll-behavior: none;
 }
 
 html,
 body {
   margin: 0;
   width: 100%;
+  max-width: 100%;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   font-family: var(--font-family-primary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
+}
+
+/* Evita que el tactil “arranque” toda la ventana; solo scrollea .main-content */
+#applicationRoot,
+.application-shell {
+  touch-action: manipulation;
 }
 
 body.is-sidebar-drawer-open {

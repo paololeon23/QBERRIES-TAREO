@@ -104,8 +104,17 @@ function textResponse(event, statusCode, text) {
   };
 }
 
+/** Fallback solo si falta la env (la URL /exec no es secreta; el token sí). */
+const FALLBACK_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbxWxRtWPycpxD3gxzD2FbUoMxErmItFLRyG5MyD2arCH8NusKMLu8kdeVLAnMpmjZpk/exec";
+
 function scriptConfig() {
-  const scriptUrl = String(process.env.PERMISOS_SCRIPT_URL || "").trim();
+  const scriptUrl = String(
+    process.env.PERMISOS_SCRIPT_URL ||
+      process.env.PERMISOS_API_URL ||
+      FALLBACK_SCRIPT_URL ||
+      ""
+  ).trim();
   const token = String(process.env.API_TOKEN || process.env.PERMISOS_API_TOKEN || "").trim();
   return { scriptUrl, token };
 }

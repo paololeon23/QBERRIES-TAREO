@@ -645,7 +645,7 @@
 
               <div class="pases-kpis" aria-label="Resumen de pases">
                 <div class="pases-kpi">
-                  <span class="pases-kpi__label">Hoy (registro)</span>
+                  <span class="pases-kpi__label">Hoy</span>
                   <span class="pases-kpi__value" id="kpiPasesHoy">0</span>
                 </div>
                 <div class="pases-kpi pases-kpi--ok">
@@ -653,12 +653,12 @@
                   <span class="pases-kpi__value" id="kpiPasesCarnetSi">0</span>
                 </div>
                 <div class="pases-kpi">
-                  <span class="pases-kpi__label">Total salidas</span>
+                  <span class="pases-kpi__label">Total</span>
                   <span class="pases-kpi__value" id="kpiPasesTotal">0</span>
                 </div>
-                <div class="pases-kpi">
+                <div class="pases-kpi pases-kpi--motivo">
                   <span class="pases-kpi__label">Motivo más pedido</span>
-                  <span class="pases-kpi__value pases-kpi__value--sm" id="kpiPasesTopMotivo">—</span>
+                  <div class="pases-kpi__motif" id="kpiPasesMotivos">—</div>
                 </div>
               </div>
 
@@ -680,7 +680,7 @@
                   </select>
                 </label>
                 <label class="field field--grow">
-                  <span>Buscar</span>
+                  <span>Buscar / DNI</span>
                   <input type="search" id="fltPaseSearch" placeholder="Nombre o DNI (trabajador / responsable)…" autocomplete="off" />
                 </label>
                 <div class="pases-filters__tools">

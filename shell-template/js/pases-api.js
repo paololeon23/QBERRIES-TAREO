@@ -1,24 +1,12 @@
 /**
  * Cliente API Pases de salida (solo lectura).
  *
- * Seguridad: el navegador NUNCA ve API_TOKEN.
- *
- * Pruebas con Live Server:
- *   1) .env en la raíz (API_TOKEN + PERMISOS_SCRIPT_URL)
- *   2) node shell-template/scripts/permisos-local-proxy.mjs
- *   3) Live Server en 5500
- *
- * En Netlify / netlify dev: /api/permisos (Function).
+ * Usa ÚNICAMENTE el proxy Netlify (token oculto en servidor).
+ * NUNCA script.google.com ni API_TOKEN en el navegador.
  */
 
-/** Ruta relativa (Netlify / netlify dev). */
-export const PERMISOS_PROXY_PATH = "/api/permisos";
-
-/** Proxy local seguro (script permisos-local-proxy.mjs). */
-export const PERMISOS_PROXY_LOCAL = "http://127.0.0.1:8787/api/permisos";
-
-/** Proxy publicado (solo tras deploy de la Function). */
-export const PERMISOS_PROXY_REMOTE = "https://qberries-produccion.netlify.app/api/permisos";
+/** Proxy oficial Q Berries */
+export const PERMISOS_API_BASE = "https://pasessalida-qberries.netlify.app/api/permisos";
 
 function buildQuery(params = {}) {
   const qs = new URLSearchParams();
@@ -32,40 +20,23 @@ function buildQuery(params = {}) {
 
 function apiErrorMessage(data, fallback) {
   if (!data || typeof data !== "object") return fallback;
+  const code = String(data.code || "").toUpperCase();
+  if (code === "UNAUTHORIZED") {
+    return "No se pudo autenticar con el servidor de pases. Revisa la configuración del proxy Netlify.";
+  }
+  if (code === "NO_CONFIG" || code === "CONFIG") {
+    return "Faltan variables de entorno en el proxy Netlify (configuración del servidor).";
+  }
   return data.message || data.error || fallback;
 }
 
-function isLocalHost() {
-  const host = window.location.hostname;
-  if (!host || host === "localhost" || host === "127.0.0.1") return true;
-  if (window.location.protocol === "file:") return true;
-  return false;
-}
-
-/** Live Server típico: no tiene Functions → no molestar con 404 de /api. */
-function isLiveServer() {
-  if (!isLocalHost()) return false;
-  const port = String(window.location.port || "");
-  return port === "5500" || port === "5501" || port === "5502";
-}
-
-function proxyCandidates() {
-  if (typeof window !== "undefined" && window.QB_PERMISOS_PROXY) {
-    return [String(window.QB_PERMISOS_PROXY)];
-  }
-  if (isLiveServer()) {
-    return [PERMISOS_PROXY_LOCAL, PERMISOS_PROXY_REMOTE];
-  }
-  if (isLocalHost()) {
-    // netlify dev u otro puerto local
-    return [PERMISOS_PROXY_PATH, PERMISOS_PROXY_LOCAL, PERMISOS_PROXY_REMOTE];
-  }
-  return [PERMISOS_PROXY_PATH];
-}
-
-async function fetchViaProxyUrl(basePath, params = {}) {
+/**
+ * GET JSON al proxy (también acepta el mismo shape si el servidor responde error).
+ */
+export async function callPermisosApi(params = {}) {
   const qs = buildQuery(params);
-  const url = qs ? `${basePath}?${qs}` : basePath;
+  const url = qs ? `${PERMISOS_API_BASE}?${qs}` : PERMISOS_API_BASE;
+
   let response;
   try {
     response = await fetch(url, {
@@ -73,65 +44,25 @@ async function fetchViaProxyUrl(basePath, params = {}) {
       headers: { Accept: "application/json" },
       cache: "no-store"
     });
-  } catch (err) {
-    const e = new Error("PROXY_UNREACHABLE");
-    e.cause = err;
-    throw e;
-  }
-
-  if (response.status === 404 || response.status === 503 || response.status >= 500) {
-    throw new Error(response.status === 404 ? "PROXY_404" : "PROXY_5XX");
+  } catch {
+    throw new Error("Sin conexión con el servidor de pases. Revisa tu red e intenta de nuevo.");
   }
 
   const text = await response.text();
-  let data;
+  let data = null;
   try {
     data = JSON.parse(text);
   } catch {
-    // Netlify a veces responde el HTML del SPA si la Function no está desplegada
-    throw new Error("PROXY_NOT_JSON");
+    throw new Error("El servidor de pases no devolvió JSON válido.");
   }
 
-  if (data?.ok === false) {
+  if (data && data.ok === false) {
     throw new Error(apiErrorMessage(data, "Error en API de permisos"));
   }
   if (!response.ok) {
-    throw new Error(`API permisos respondió ${response.status}`);
+    throw new Error(apiErrorMessage(data, `API permisos respondió ${response.status}`));
   }
   return data;
-}
-
-/**
- * Solo proxies (token never in browser).
- * Live Server → proxy local :8787 (recomendado) o Netlify si ya hay Function.
- */
-export async function callPermisosApi(params = {}) {
-  const bases = proxyCandidates();
-  let lastErr = null;
-
-  for (const base of bases) {
-    try {
-      return await fetchViaProxyUrl(base, params);
-    } catch (err) {
-      lastErr = err;
-      const code = err?.message || "";
-      if (
-        code === "PROXY_404" ||
-        code === "PROXY_UNREACHABLE" ||
-        code === "PROXY_NOT_JSON" ||
-        code === "PROXY_5XX"
-      ) {
-        continue;
-      }
-      throw err;
-    }
-  }
-
-  const hint = isLiveServer()
-    ? "En Live Server corre: node shell-template/scripts/permisos-local-proxy.mjs (con .env). El token NO va en la app."
-    : "Publica la Function en Netlify o usa netlify dev. El token solo va en variables de entorno.";
-
-  throw new Error(lastErr?.message?.startsWith("PROXY_") ? hint : lastErr?.message || hint);
 }
 
 export async function pingPermisos() {
@@ -170,11 +101,17 @@ export function toLimaYmd(value) {
   }).format(d);
 }
 
-/** Hora America/Lima → HH:mm:ss */
+/** Hora America/Lima → HH:mm:ss (o deja AM/PM del formulario si ya es hora legible) */
 export function toLimaHms(value) {
   if (value === undefined || value === null || value === "") return "";
   const raw = String(value).trim();
   if (/^\d{1,2}:\d{2}(:\d{2})?(\s*[AaPp][Mm])?$/.test(raw)) return raw;
+
+  // Sheets: tiempos serializados como 1899-12-30T HH:mm:ss.000Z → usar reloj del ISO
+  const sheetTime = raw.match(/^(\d{4})-\d{2}-\d{2}T(\d{2}):(\d{2}):(\d{2})/);
+  if (sheetTime && (sheetTime[1] === "1899" || sheetTime[1] === "1900")) {
+    return `${sheetTime[2]}:${sheetTime[3]}:${sheetTime[4]}`;
+  }
 
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return raw;
@@ -195,8 +132,10 @@ function normalizePaseRow(row) {
     fechaSalida: toLimaYmd(row.fechaSalida),
     fIngreso: toLimaYmd(row.fIngreso),
     horaRegistro: toLimaHms(row.horaRegistro),
+    horaSalida: row.horaSalida == null ? "" : String(row.horaSalida).trim(),
     dni: row.dni == null ? "" : String(row.dni),
     dniResponsable: row.dniResponsable == null ? "" : String(row.dniResponsable),
+    carnetVerificado: row.carnetVerificado == null ? "" : String(row.carnetVerificado).trim(),
     carnetDniEscaneado: row.carnetDniEscaneado == null ? "" : String(row.carnetDniEscaneado),
     carnetVerificadoAt: row.carnetVerificadoAt
       ? (() => {
@@ -209,8 +148,7 @@ function normalizePaseRow(row) {
 }
 
 /**
- * Extrae KPIs del GET:
- * { ok, count, motivos, topMotivo, porDia, data, rango }
+ * KPIs del GET: count, motivos, topMotivo, porDia, rango
  */
 export function extractPermisosKpis(payload = {}, rows = []) {
   const totalRaw = payload.count ?? payload.total ?? payload.totalSalidas;
@@ -227,11 +165,6 @@ export function extractPermisosKpis(payload = {}, rows = []) {
         return { motivo, count: Number.isFinite(count) ? count : 0 };
       })
       .filter(Boolean);
-  } else if (payload.conteoPorMotivo && typeof payload.conteoPorMotivo === "object") {
-    motivos = Object.entries(payload.conteoPorMotivo).map(([motivo, count]) => ({
-      motivo: String(motivo).trim(),
-      count: Number(count) || 0
-    }));
   }
 
   let topMotivo = null;
@@ -257,7 +190,12 @@ export function extractPermisosKpis(payload = {}, rows = []) {
       [...motivos].sort((a, b) => b.count - a.count || a.motivo.localeCompare(b.motivo, "es"))[0] || null;
   }
 
-  const porDia = Array.isArray(payload.porDia) ? payload.porDia : [];
+  const porDia = Array.isArray(payload.porDia)
+    ? payload.porDia.map((item) => ({
+        fecha: toLimaYmd(item?.fecha) || String(item?.fecha || "").trim(),
+        count: Number(item?.count) || 0
+      }))
+    : [];
 
   return {
     total,
@@ -270,27 +208,29 @@ export function extractPermisosKpis(payload = {}, rows = []) {
 }
 
 /**
- * Listado alineado con Code.gs:
- * - sin fecha → todas=1
- * - con fecha yyyy-MM-dd → filtro día
+ * Listar pases.
+ * - Default (sin opts): HOY Lima (el proxy filtra solo hoy).
+ * - fecha=YYYY-MM-DD: un día.
+ * - todas=true: todas las fechas.
  *
  * @param {{ limit?: number, dni?: string, fecha?: string, todas?: boolean }} opts
  */
 export async function listarPermisos(opts = {}) {
-  const params = {
-    action: "listarPermisos"
-  };
+  const params = { action: "listarPermisos" };
 
   if (opts.dni) params.dni = String(opts.dni).trim();
 
   const fecha = opts.fecha != null ? String(opts.fecha).trim() : "";
-  const todasExplicit = opts.todas === true || opts.todas === 1 || opts.todas === "1";
+  const todas = opts.todas === true || opts.todas === 1 || opts.todas === "1";
 
-  if (todasExplicit || !fecha) {
+  if (todas) {
     params.todas = "1";
     params.limit = opts.limit ?? 2000;
-  } else {
+  } else if (fecha) {
     params.fecha = fecha;
+    params.limit = opts.limit ?? 500;
+  } else {
+    // Sin fecha ni todas → el proxy usa HOY (America/Lima)
     params.limit = opts.limit ?? 500;
   }
 

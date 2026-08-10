@@ -11,6 +11,8 @@
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
+  position: relative;
 }
 
 .application-shell.is-sidebar-collapsed {
@@ -20,6 +22,7 @@
 .main-content {
   grid-area: main;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   min-height: 0;
   padding: 0.85rem 1rem 1rem;
@@ -27,11 +30,15 @@
   overflow-y: auto;
   background: #ffffff;
   overscroll-behavior: contain;
+  overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .main-content__inner {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .footer {

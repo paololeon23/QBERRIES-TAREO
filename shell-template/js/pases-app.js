@@ -41,7 +41,9 @@ const state = {
   loadedAt: null,
   apiTotal: 0,
   apiMotivos: [],
-  apiTopMotivo: { motivo: "", count: 0 }
+  apiTopMotivo: { motivo: "", count: 0 },
+  apiPorDia: [],
+  apiRango: null
 };
 
 const pagerState = {
@@ -93,7 +95,7 @@ function applyFilters({ resetPage = true } = {}) {
   const motivoFilter = normalizeText(f.motivo);
   const respFilter = normalizeText(f.responsable);
 
-  // Fecha se filtra en el GET (params fecha / todas=1). Aquí solo motivo / responsable / búsqueda.
+  // Fecha/todas van en el GET. Aquí: motivo, responsable, búsqueda/DNI.
   state.filtered = state.rows.filter((row) => {
     if (motivoFilter) {
       if (normalizeText(row.motivo) !== motivoFilter) return false;
@@ -158,59 +160,58 @@ function countToday(rows) {
   return rows.filter((r) => String(r.fechaRegistro || "").trim() === today).length;
 }
 
-function topMotivoFromRows(rows) {
-  const counts = new Map();
-  rows.forEach((r) => {
-    const key = String(r.motivo || "").trim();
-    if (!key) return;
-    counts.set(key, (counts.get(key) || 0) + 1);
-  });
-  let best = "";
-  let bestN = 0;
-  counts.forEach((n, key) => {
-    if (n > bestN || (n === bestN && key.localeCompare(best, "es") < 0)) {
-      best = key;
-      bestN = n;
-    }
-  });
-  return { motivo: best, count: bestN };
-}
-
 function renderKpis() {
   const source = state.rows;
-  const todayCount = countToday(source);
+  const today = limaTodayYmd();
+  const todayCount =
+    state.apiRango?.modo === "dia" && state.apiRango?.fecha === today
+      ? Number(state.apiTotal) || source.length
+      : countToday(source);
   const conCarnet = source.filter((r) => carnetIsSi(r.carnetVerificado)).length;
 
-  // Total y motivo: preferir agregados del GET (Code.gs). Fallback local si aún no vienen.
   const total = Number.isFinite(Number(state.apiTotal)) && state.apiTotal >= 0
     ? Number(state.apiTotal)
     : source.length;
 
+  const motivos =
+    Array.isArray(state.apiMotivos) && state.apiMotivos.length
+      ? [...state.apiMotivos].sort(
+          (a, b) => b.count - a.count || String(a.motivo).localeCompare(String(b.motivo), "es")
+        )
+      : (() => {
+          const map = new Map();
+          source.forEach((r) => {
+            const key = String(r.motivo || "").trim();
+            if (!key) return;
+            map.set(key, (map.get(key) || 0) + 1);
+          });
+          return [...map.entries()]
+            .map(([motivo, count]) => ({ motivo, count }))
+            .sort((a, b) => b.count - a.count || a.motivo.localeCompare(b.motivo, "es"));
+        })();
+
   const top =
     state.apiTopMotivo?.motivo
       ? state.apiTopMotivo
-      : state.apiMotivos?.length
-        ? [...state.apiMotivos].sort(
-            (a, b) => b.count - a.count || String(a.motivo).localeCompare(String(b.motivo), "es")
-          )[0]
-        : topMotivoFromRows(source);
+      : motivos[0] || null;
 
   const elHoy = $("kpiPasesHoy");
   const elSi = $("kpiPasesCarnetSi");
   const elTotal = $("kpiPasesTotal");
-  const elTop = $("kpiPasesTopMotivo");
+  const elMotivos = $("kpiPasesMotivos");
 
   if (elHoy) elHoy.textContent = String(todayCount);
   if (elSi) elSi.textContent = String(conCarnet);
   if (elTotal) elTotal.textContent = String(total);
-  if (elTop) {
-    const n = Number(top?.count) || 0;
-    const nombre = top?.motivo || "";
-    elTop.textContent = nombre
-      ? n
-        ? `${nombre} - ${n} pase${n === 1 ? "" : "s"}`
-        : nombre
-      : "—";
+  if (elMotivos) {
+    if (!top?.motivo) {
+      elMotivos.textContent = "—";
+      elMotivos.classList.add("is-empty");
+    } else {
+      const n = Number(top.count) || 0;
+      elMotivos.classList.remove("is-empty");
+      elMotivos.innerHTML = `<p class="pases-kpi__motif-name">${escapeHtml(top.motivo)} - ${n}</p>`;
+    }
   }
 }
 
@@ -452,7 +453,7 @@ async function loadPases({ keepFilters = true, silent = false } = {}) {
       if (fechaEl) fechaEl.value = fechaInput;
     }
 
-    // Code.gs: día concreto con fecha=… ; vacío → todas=1
+    // Default API = HOY. Fecha llena → día. Vacía → todas=1.
     const resp = await listarPermisos(
       fechaInput ? { fecha: fechaInput } : { todas: true }
     );
@@ -460,20 +461,21 @@ async function loadPases({ keepFilters = true, silent = false } = {}) {
     state.apiTotal = Number(resp.kpis?.total ?? resp.count ?? state.rows.length) || 0;
     state.apiMotivos = Array.isArray(resp.kpis?.motivos) ? resp.kpis.motivos : [];
     state.apiTopMotivo = resp.kpis?.topMotivo || { motivo: "", count: 0 };
+    state.apiPorDia = Array.isArray(resp.kpis?.porDia) ? resp.kpis.porDia : [];
+    state.apiRango = resp.rango || resp.kpis?.rango || null;
     state.loadedAt = new Date();
     state.loading = false;
     state.error = "";
 
-    // En auto-refresh conservar página; en carga manual/filtro resetear
     applyFilters({ resetPage: !silent });
     const meta = $("pasesMeta");
     if (meta) {
       const ts = state.loadedAt.toLocaleString("es-PE", { timeZone: "America/Lima" });
       const n = Number(resp.count ?? state.rows.length) || state.rows.length;
       const rango =
-        resp.rango?.modo === "todas" || !fechaInput
+        resp.rango?.modo === "todas" || (!fechaInput && resp.rango?.todas)
           ? "todas las fechas"
-          : `día ${fechaInput}`;
+          : `día ${fechaInput || resp.rango?.fecha || limaTodayYmd()}`;
       meta.textContent = `${n} pases · ${rango} · actualizado ${ts} (hora Lima)`;
     }
     if (!silent) {
@@ -502,6 +504,8 @@ async function loadPases({ keepFilters = true, silent = false } = {}) {
       state.apiTotal = 0;
       state.apiMotivos = [];
       state.apiTopMotivo = { motivo: "", count: 0 };
+      state.apiPorDia = [];
+      state.apiRango = null;
       renderKpis();
       renderTable();
       setStatus("error", state.error);
