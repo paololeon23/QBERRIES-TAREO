@@ -430,10 +430,10 @@ export function renderTable(state, filteredRows) {
       <th>Actividad</th>
       <th>CECO</th>
       <th>Fecha</th>
-      <th>Hora Inicio</th>
-      <th>Hora Fin</th>
-      <th>Horas Pago</th>
-      <th>Suma horas</th>
+      <th>H. Inicio</th>
+      <th>H. Fin</th>
+      <th>H. Pago</th>
+      <th>Suma h.</th>
     </tr>
   `;
 

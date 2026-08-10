@@ -1,23 +1,29 @@
 const ROUTE_TITLES = {
-  "por-hora": "Por hora",
-  validacion: "Por hora",
+  inicio: "Inicio",
+  tareo: "Tareo",
+  "por-hora": "Tareo",
+  validacion: "Tareo",
   historial: "Historial",
-  recomendaciones: "Recomendaciones"
+  recomendaciones: "Recomendaciones",
+  "pases-de-salida": "Pases de salida"
 };
 
 const ROUTE_VIEW = {
-  "por-hora": "por-hora",
-  validacion: "por-hora",
+  inicio: "inicio",
+  tareo: "tareo",
+  "por-hora": "tareo",
+  validacion: "tareo",
   historial: "historial",
-  recomendaciones: "recomendaciones"
+  recomendaciones: "recomendaciones",
+  "pases-de-salida": "pases-de-salida"
 };
 
 function normalizeHash(hash) {
-  const value = (hash || "#/por-hora").replace(/^#\/?/, "");
-  let key = value.split("/")[0] || "por-hora";
-  if (key === "" || key === "/") key = "por-hora";
-  if (key === "validacion") key = "por-hora";
-  return ROUTE_TITLES[key] ? key : "por-hora";
+  const value = (hash || "#/inicio").replace(/^#\/?/, "");
+  let key = value.split("/")[0] || "inicio";
+  if (key === "" || key === "/") key = "inicio";
+  if (key === "validacion" || key === "por-hora") key = "tareo";
+  return ROUTE_TITLES[key] ? key : "inicio";
 }
 
 export function getCurrentRoute() {
@@ -25,8 +31,8 @@ export function getCurrentRoute() {
 }
 
 export function applyRoute(routeKey) {
-  const route = ROUTE_TITLES[routeKey] ? routeKey : "por-hora";
-  const viewId = ROUTE_VIEW[route] || "por-hora";
+  const route = ROUTE_TITLES[routeKey] ? routeKey : "inicio";
+  const viewId = ROUTE_VIEW[route] || "inicio";
 
   document.querySelectorAll(".view").forEach((view) => {
     const match = view.dataset.view === viewId;
@@ -35,11 +41,12 @@ export function applyRoute(routeKey) {
   });
 
   document.querySelectorAll(".sidebar-nav-link[data-route]").forEach((link) => {
-    const linkRoute = link.dataset.route === "validacion" ? "por-hora" : link.dataset.route;
+    let linkRoute = link.dataset.route;
+    if (linkRoute === "validacion" || linkRoute === "por-hora") linkRoute = "tareo";
     link.classList.toggle("is-active", linkRoute === viewId || link.dataset.route === route);
   });
 
-  const title = ROUTE_TITLES[route];
+  const title = ROUTE_TITLES[route] || ROUTE_TITLES[viewId] || "Inicio";
   const titleEl = document.getElementById("txtPageTitle");
   const crumbEl = document.getElementById("txtBreadcrumbActive");
   if (titleEl) titleEl.textContent = title;
@@ -118,7 +125,6 @@ export function applyRoute(routeKey) {
     if (sidebar?.contains(event.target)) return;
     if (collapseBtn?.contains(event.target)) return;
     if (backdrop?.contains(event.target)) return;
-    // Si el clic fue en el contenido (no en el panel), cerrar
     if (!sidebar?.contains(event.target)) {
       setCollapsed(true);
     }
@@ -157,10 +163,14 @@ export function applyRoute(routeKey) {
   if (
     !window.location.hash ||
     window.location.hash === "#/" ||
-    window.location.hash === "#" ||
-    window.location.hash === "#/validacion"
+    window.location.hash === "#"
   ) {
-    window.location.hash = "#/por-hora";
+    window.location.hash = "#/inicio";
+  } else if (
+    window.location.hash === "#/validacion" ||
+    window.location.hash === "#/por-hora"
+  ) {
+    window.location.hash = "#/tareo";
   }
 
   applyRoute(getCurrentRoute());
@@ -198,23 +208,5 @@ export function applyRoute(routeKey) {
   liveBtn?.addEventListener("click", () => {
     liveBtn.classList.toggle("is-live");
     liveBtn.title = liveBtn.classList.contains("is-live") ? "Estado en vivo" : "Pausado";
-  });
-
-  // Buscador superior: filtra menú + enfoca búsqueda de tabla si existe
-  const topSearch = document.getElementById("txtTopbarSearch");
-  topSearch?.addEventListener("input", () => {
-    const query = topSearch.value.trim().toLowerCase();
-    document.querySelectorAll(".sidebar-nav-link").forEach((el) => {
-      if (!query) {
-        el.hidden = false;
-        return;
-      }
-      el.hidden = !(el.textContent || "").toLowerCase().includes(query);
-    });
-    const tableSearch = document.getElementById("fltSearch");
-    if (tableSearch && document.getElementById("validacionWorkspace") && !document.getElementById("validacionWorkspace").classList.contains("is-hidden")) {
-      tableSearch.value = topSearch.value;
-      tableSearch.dispatchEvent(new Event("input", { bubbles: true }));
-    }
   });
 })();

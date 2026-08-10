@@ -1,7 +1,16 @@
 # Si el Base directory de Netlify es shell-template/
+
 [build]
   publish = "."
   command = "echo Ready"
+  functions = "netlify/functions"
+
+# Proxy API Pases → función que inyecta API_TOKEN
+[[redirects]]
+  from = "/api/permisos"
+  to = "/.netlify/functions/permisos"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/*"

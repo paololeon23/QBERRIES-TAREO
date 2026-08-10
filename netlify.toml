@@ -3,6 +3,14 @@
 [build]
   publish = "shell-template"
   command = "echo Publishing shell-template"
+  functions = "shell-template/netlify/functions"
+
+# Proxy API Pases → función que inyecta API_TOKEN (no exponer token ni URL en el JS)
+[[redirects]]
+  from = "/api/permisos"
+  to = "/.netlify/functions/permisos"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/*"

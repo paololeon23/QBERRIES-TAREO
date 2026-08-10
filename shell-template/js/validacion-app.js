@@ -177,25 +177,130 @@ function writeHistory(entry) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 30)));
 }
 
+const historyPager = {
+  page: 1,
+  pageSize: 10,
+  bound: false
+};
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderHistoryPager(total) {
+  const rangeEl = $("historyPagerRange");
+  const first = $("historyPagerFirst");
+  const prev = $("historyPagerPrev");
+  const next = $("historyPagerNext");
+  const last = $("historyPagerLast");
+  const sizeSel = $("historyPagerPageSize");
+  const pager = $("historyPager");
+  if (pager) pager.hidden = false;
+
+  const size = historyPager.pageSize;
+  const totalPages = Math.max(1, Math.ceil(total / size) || 1);
+  if (historyPager.page > totalPages) historyPager.page = totalPages;
+  if (historyPager.page < 1) historyPager.page = 1;
+
+  const page = historyPager.page;
+  const from = total === 0 ? 0 : (page - 1) * size + 1;
+  const to = Math.min(page * size, total);
+  if (rangeEl) rangeEl.textContent = `${from} – ${to} of ${total}`;
+  if (sizeSel && String(sizeSel.value) !== String(size)) sizeSel.value = String(size);
+
+  const atStart = page <= 1 || total === 0;
+  const atEnd = page >= totalPages || total === 0;
+  [first, prev].forEach((btn) => {
+    if (btn) btn.disabled = atStart;
+  });
+  [next, last].forEach((btn) => {
+    if (btn) btn.disabled = atEnd;
+  });
+}
+
+function bindHistoryPager() {
+  if (historyPager.bound) return;
+  historyPager.bound = true;
+
+  $("historyPagerPageSize")?.addEventListener("change", (e) => {
+    const n = Number(e.target.value);
+    historyPager.pageSize = Number.isFinite(n) && n > 0 ? n : 10;
+    historyPager.page = 1;
+    renderHistory();
+  });
+  $("historyPagerFirst")?.addEventListener("click", () => {
+    historyPager.page = 1;
+    renderHistory();
+  });
+  $("historyPagerPrev")?.addEventListener("click", () => {
+    historyPager.page = Math.max(1, historyPager.page - 1);
+    renderHistory();
+  });
+  $("historyPagerNext")?.addEventListener("click", () => {
+    const total = readHistory().length;
+    const totalPages = Math.max(1, Math.ceil(total / historyPager.pageSize) || 1);
+    historyPager.page = Math.min(totalPages, historyPager.page + 1);
+    renderHistory();
+  });
+  $("historyPagerLast")?.addEventListener("click", () => {
+    const total = readHistory().length;
+    historyPager.page = Math.max(1, Math.ceil(total / historyPager.pageSize) || 1);
+    renderHistory();
+  });
+}
+
 function renderHistory() {
   const host = $("historyList");
   if (!host) return;
+  bindHistoryPager();
+
   const list = readHistory();
+  const meta = $("historyMeta");
+  if (meta) meta.textContent = `${list.length} registro${list.length === 1 ? "" : "s"}`;
+
+  renderHistoryPager(list.length);
+
   if (!list.length) {
-    host.innerHTML = `<p class="panel__subtitle">Aún no hay validaciones en este dispositivo.</p>`;
+    host.innerHTML = `<p class="history-empty">Aún no hay validaciones en este dispositivo.</p>`;
     return;
   }
-  host.innerHTML = list
-    .map(
-      (item) => `
-      <div class="history-item">
+
+  const start = (historyPager.page - 1) * historyPager.pageSize;
+  const pageItems = list.slice(start, start + historyPager.pageSize);
+
+  host.innerHTML = pageItems
+    .map((item) => {
+      const rojo = Number(item.rojo) || 0;
+      const aviso = Number(item.aviso) || 0;
+      const badges = [
+        rojo > 0
+          ? `<span class="history-badge history-badge--rojo">Rojo ${rojo}</span>`
+          : `<span class="history-badge history-badge--ok">Sin rojo</span>`,
+        aviso > 0
+          ? `<span class="history-badge history-badge--aviso">Aviso ${aviso}</span>`
+          : ""
+      ]
+        .filter(Boolean)
+        .join("");
+
+      return `
+      <article class="history-item">
         <div>
-          <strong>${item.fileName}</strong>
-          <div>${item.sheetName} · ${item.rows} filas · rojo ${item.rojo} · aviso ${item.aviso}</div>
+          <p class="history-item__name">${escapeHtml(item.fileName || "Archivo")}</p>
+          <div class="history-item__meta">
+            <span>${escapeHtml(item.sheetName || "Hoja")}</span>
+            <span>·</span>
+            <span>${escapeHtml(item.rows ?? 0)} filas</span>
+          </div>
+          <div class="history-item__badges">${badges}</div>
         </div>
-        <time>${item.at}</time>
-      </div>`
-    )
+        <time>${escapeHtml(item.at || "")}</time>
+      </article>`;
+    })
     .join("");
 }
 
