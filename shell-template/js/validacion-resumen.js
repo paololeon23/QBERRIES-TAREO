@@ -201,7 +201,22 @@ export function syncResumenFiltersFromMain(validated) {
   };
   copy("fltSupervisor", "resumenFltSupervisor");
   copy("fltFundo", "resumenFltFundo");
-  copy("fltMacro", "resumenFltMacro");
+
+  const macroSel = document.getElementById("resumenFltMacro");
+  if (macroSel) {
+    const prev = macroSel.value;
+    const macros = [
+      ...new Set(
+        (validated?.rows || [])
+          .map((r) => String(r.macroPartida || "").trim())
+          .filter(Boolean)
+      )
+    ].sort((a, b) => a.localeCompare(b, "es"));
+    macroSel.innerHTML = `<option value="">Todas</option>${macros
+      .map((v) => `<option value="${escapeAttr(v)}">${escapeAttr(v)}</option>`)
+      .join("")}`;
+    macroSel.value = macros.includes(prev) ? prev : "";
+  }
 
   const supervisor = document.getElementById("resumenFltSupervisor")?.value || "";
   const fundo = document.getElementById("resumenFltFundo")?.value || "";

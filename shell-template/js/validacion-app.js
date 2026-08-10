@@ -12,6 +12,8 @@ import {
   resetPager,
   countTotalErrors,
   countTotalWarnings,
+  countTotalPosibleSalidas,
+  countTotalDuplicados,
   clearAllFilterControls
 } from "./validacion-table.js";
 import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js";
@@ -33,8 +35,12 @@ const state = {
   fileName: "",
   errorFocusMode: false,
   warnFocusMode: false,
+  paseFocusMode: false,
+  dupFocusMode: false,
   savedFiltersBeforeErrorFocus: null,
-  savedFiltersBeforeWarnFocus: null
+  savedFiltersBeforeWarnFocus: null,
+  savedFiltersBeforePaseFocus: null,
+  savedFiltersBeforeDupFocus: null
 };
 
 function $(id) {
@@ -101,13 +107,14 @@ const KPI_HELP = {
         <li>No es error: el tope es 12 h. Solo &gt; 12 sale en rojo.</li>
       </ul>`
   },
-  dup: {
-    title: "DNI duplicado",
-    tone: "info",
+  pase: {
+    title: "Posible pase de salida",
+    tone: "pase",
     html: `
-      <p>Turno duplicado: mismo Documento + fecha + misma hora de inicio.</p>
+      <p>Suma de horas <strong>menor a 9.6</strong> en <strong>COSTO DE COSECHA</strong>.</p>
       <ul>
-        <li>Dos turnos el mismo día es normal (inicio/fin flexibles).</li>
+        <li>Puede indicar salida anticipada: conviene cruzar con <strong>Pases de salida</strong>.</li>
+        <li>Usa la barra «Posibles salidas» o el filtro Estado horas.</li>
       </ul>`
   }
 };
@@ -159,7 +166,7 @@ function renderKpis(rows) {
     kpiCard("cosecha", "Cosecha", k.cosecha),
     kpiCard("error", "Error ≠ exacto", k.rojo, "danger"),
     kpiCard("extra", "Advertencia ≤12", k.aviso, "warn"),
-    kpiCard("dup", "DNI dup.", k.duplicados)
+    kpiCard("pase", "Posible pase <9.6", k.posibleSalida || 0, "pase")
   ].join("");
 }
 
@@ -335,6 +342,7 @@ function buildKpisFromRows(rows) {
     cosecha,
     rojo: [...dayStatus.values()].filter((s) => s === "rojo").length,
     aviso: [...dayStatus.values()].filter((s) => s === "aviso").length,
+    posibleSalida: [...dayStatus.values()].filter((s) => s === "posible-salida").length,
     duplicados: new Set(
       costoRows
         .filter((r) => (r.flags || []).includes("duplicado"))
@@ -385,20 +393,16 @@ function syncFilterTips(filteredCount) {
         : `Filtra por fecha del tareo. Ahora ves ${living}.`
     ],
     [
-      "fltMacro",
-      f.macro
-        ? `Activo: ${f.macro}. ${living}. En costo de cosecha se validan horas exactas.`
-        : `Filtra por Macro Partida. Ahora ves ${living}.`
-    ],
-    [
       "fltEstado",
       f.estado === "ok"
-        ? `Mostrando solo OK (suma ≤ 9.6). ${living}.`
-        : f.estado === "aviso"
-          ? `Mostrando advertencias (suma > 9.6 hasta 12). ${living}.`
-          : f.estado === "rojo"
-            ? `Mostrando errores (suma > 12 u horario incompleto). ${living}.`
-            : `Filtra OK, Advertencia o Error. Ahora ves ${living}.`
+        ? `Mostrando solo OK (suma = 9.6). ${living}.`
+        : f.estado === "posible-salida"
+          ? `Mostrando posibles pases (suma < 9.6). ${living}.`
+          : f.estado === "aviso"
+            ? `Mostrando advertencias (suma > 9.6 hasta 12). ${living}.`
+            : f.estado === "rojo"
+              ? `Mostrando errores (suma > 12 u horario incompleto). ${living}.`
+              : `Filtra OK, Posible pase, Advertencia o Error. Ahora ves ${living}.`
     ],
     [
       "fltSearch",
@@ -424,7 +428,6 @@ function applyFiltersObject(filters) {
   setVal("fltSupervisor", filters.supervisor);
   setVal("fltFundo", filters.fundo);
   setVal("fltFecha", filters.fecha);
-  setVal("fltMacro", filters.macro);
   setVal("fltEstado", filters.estado);
   setVal("fltTipoLote", filters.tipo);
   const search = $("fltSearch");
@@ -471,6 +474,45 @@ function syncWarnFocusUi(totalWarnings) {
   btnBack?.classList.toggle("is-hidden", !state.warnFocusMode);
 }
 
+function syncPaseFocusUi(totalPases) {
+  const countEl = $("paseFocusCount");
+  const bar = $("paseFocusBar");
+  const btnVer = $("btnVerPases");
+  const btnBack = $("btnRegresarPases");
+
+  if (countEl) {
+    countEl.textContent =
+      totalPases === 1 ? "1 posible salida" : `${totalPases} posibles salidas`;
+  }
+  bar?.classList.toggle("is-active", state.paseFocusMode);
+  bar?.classList.toggle("has-pases", totalPases > 0);
+
+  if (btnVer) {
+    btnVer.classList.toggle("is-hidden", state.paseFocusMode);
+    btnVer.disabled = totalPases === 0;
+  }
+  btnBack?.classList.toggle("is-hidden", !state.paseFocusMode);
+}
+
+function syncDupFocusUi(totalDups) {
+  const countEl = $("dupFocusCount");
+  const bar = $("dupFocusBar");
+  const btnVer = $("btnVerDups");
+  const btnBack = $("btnRegresarDups");
+
+  if (countEl) {
+    countEl.textContent = totalDups === 1 ? "1 duplicado" : `${totalDups} duplicados`;
+  }
+  bar?.classList.toggle("is-active", state.dupFocusMode);
+  bar?.classList.toggle("has-dups", totalDups > 0);
+
+  if (btnVer) {
+    btnVer.classList.toggle("is-hidden", state.dupFocusMode);
+    btnVer.disabled = totalDups === 0;
+  }
+  btnBack?.classList.toggle("is-hidden", !state.dupFocusMode);
+}
+
 function enterErrorFocusMode() {
   if (!state.validated) return;
   const total = countTotalErrors(state.validated.rows);
@@ -479,6 +521,8 @@ function enterErrorFocusMode() {
     return;
   }
   if (state.warnFocusMode) exitWarnFocusMode({ restoreSaved: false });
+  if (state.paseFocusMode) exitPaseFocusMode({ restoreSaved: false });
+  if (state.dupFocusMode) exitDupFocusMode({ restoreSaved: false });
   state.savedFiltersBeforeErrorFocus = readFilters();
   state.errorFocusMode = true;
   clearAllFilterControls();
@@ -511,6 +555,8 @@ function enterWarnFocusMode() {
     return;
   }
   if (state.errorFocusMode) exitErrorFocusMode({ restoreSaved: false });
+  if (state.paseFocusMode) exitPaseFocusMode({ restoreSaved: false });
+  if (state.dupFocusMode) exitDupFocusMode({ restoreSaved: false });
   state.savedFiltersBeforeWarnFocus = readFilters();
   state.warnFocusMode = true;
   clearAllFilterControls();
@@ -529,7 +575,68 @@ function exitWarnFocusMode({ restoreSaved = true } = {}) {
   const saved = state.savedFiltersBeforeWarnFocus;
   state.warnFocusMode = false;
   state.savedFiltersBeforeWarnFocus = null;
-  populateFilters(state, { errorOnly: false, warnOnly: false });
+  populateFilters(state, { errorOnly: false, warnOnly: false, paseOnly: false, dupOnly: false });
+  if (restoreSaved && saved) applyFiltersObject(saved);
+  else clearAllFilterControls();
+  refreshView();
+}
+
+function enterPaseFocusMode() {
+  if (!state.validated) return;
+  const total = countTotalPosibleSalidas(state.validated.rows);
+  if (!total) {
+    window.alert("No hay registros con posible pase de salida (< 9.6 h).");
+    return;
+  }
+  if (state.errorFocusMode) exitErrorFocusMode({ restoreSaved: false });
+  if (state.warnFocusMode) exitWarnFocusMode({ restoreSaved: false });
+  if (state.dupFocusMode) exitDupFocusMode({ restoreSaved: false });
+  state.savedFiltersBeforePaseFocus = readFilters();
+  state.paseFocusMode = true;
+  clearAllFilterControls();
+  populateFilters(state, { paseOnly: true });
+  const estado = $("fltEstado");
+  if (estado) {
+    estado.disabled = false;
+    estado.innerHTML = `<option value="posible-salida">Posible pase &lt; 9.6</option>`;
+    estado.value = "posible-salida";
+    estado.disabled = true;
+  }
+  refreshView();
+}
+
+function exitPaseFocusMode({ restoreSaved = true } = {}) {
+  const saved = state.savedFiltersBeforePaseFocus;
+  state.paseFocusMode = false;
+  state.savedFiltersBeforePaseFocus = null;
+  populateFilters(state, { errorOnly: false, warnOnly: false, paseOnly: false, dupOnly: false });
+  if (restoreSaved && saved) applyFiltersObject(saved);
+  else clearAllFilterControls();
+  refreshView();
+}
+
+function enterDupFocusMode() {
+  if (!state.validated) return;
+  const total = countTotalDuplicados(state.validated.rows);
+  if (!total) {
+    window.alert("No hay turnos duplicados (mismo DNI + fecha + hora de inicio).");
+    return;
+  }
+  if (state.errorFocusMode) exitErrorFocusMode({ restoreSaved: false });
+  if (state.warnFocusMode) exitWarnFocusMode({ restoreSaved: false });
+  if (state.paseFocusMode) exitPaseFocusMode({ restoreSaved: false });
+  state.savedFiltersBeforeDupFocus = readFilters();
+  state.dupFocusMode = true;
+  clearAllFilterControls();
+  populateFilters(state, { dupOnly: true });
+  refreshView();
+}
+
+function exitDupFocusMode({ restoreSaved = true } = {}) {
+  const saved = state.savedFiltersBeforeDupFocus;
+  state.dupFocusMode = false;
+  state.savedFiltersBeforeDupFocus = null;
+  populateFilters(state, { errorOnly: false, warnOnly: false, paseOnly: false, dupOnly: false });
   if (restoreSaved && saved) applyFiltersObject(saved);
   else clearAllFilterControls();
   refreshView();
@@ -538,9 +645,13 @@ function exitWarnFocusMode({ restoreSaved = true } = {}) {
 function restoreAllFilters() {
   state.errorFocusMode = false;
   state.warnFocusMode = false;
+  state.paseFocusMode = false;
+  state.dupFocusMode = false;
   state.savedFiltersBeforeErrorFocus = null;
   state.savedFiltersBeforeWarnFocus = null;
-  populateFilters(state, { errorOnly: false, warnOnly: false });
+  state.savedFiltersBeforePaseFocus = null;
+  state.savedFiltersBeforeDupFocus = null;
+  populateFilters(state, { errorOnly: false, warnOnly: false, paseOnly: false, dupOnly: false });
   clearAllFilterControls();
   refreshView();
 }
@@ -573,20 +684,40 @@ function refreshView({ keepPage = false } = {}) {
     }
   }
 
+  if (state.paseFocusMode) {
+    const estado = $("fltEstado");
+    if (estado) {
+      if (estado.value !== "posible-salida") {
+        estado.disabled = false;
+        estado.innerHTML = `<option value="posible-salida">Posible pase &lt; 9.6</option>`;
+        estado.value = "posible-salida";
+        estado.disabled = true;
+      }
+    }
+  }
+
   const filters = readFilters();
+  if (state.dupFocusMode) filters.soloDuplicados = true;
   const filtered = filterRows(state.validated.rows, filters);
   renderFechaMeta(state.validated.rows);
   renderKpis(filtered);
-  renderTable(state, filtered);
+  renderTable(state, filtered, { expandDuplicates: state.dupFocusMode });
   syncFilterTips(filtered.length);
   syncErrorFocusUi(countTotalErrors(state.validated.rows));
   syncWarnFocusUi(countTotalWarnings(state.validated.rows));
+  syncPaseFocusUi(countTotalPosibleSalidas(state.validated.rows));
+  syncDupFocusUi(countTotalDuplicados(state.validated.rows));
 }
 
 function revalidate() {
   if (!state.parsed) return;
   state.validated = validateDataset(state.parsed);
-  populateFilters(state, { errorOnly: state.errorFocusMode });
+  populateFilters(state, {
+    errorOnly: state.errorFocusMode,
+    warnOnly: state.warnFocusMode,
+    paseOnly: state.paseFocusMode,
+    dupOnly: state.dupFocusMode
+  });
   refreshView();
 }
 
@@ -643,7 +774,7 @@ function formatHourExport(value) {
   if (value == null || value === "") return "";
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);
-  return String(Math.round(n * 1e6) / 1e6);
+  return String(Math.round(n * 1e3) / 1e3);
 }
 
 function stackExportHtml(times) {
@@ -654,6 +785,7 @@ function stackExportHtml(times) {
 function estadoLabel(status) {
   if (status === "rojo") return "error";
   if (status === "aviso") return "aviso";
+  if (status === "posible-salida") return "posible pase";
   return "ok";
 }
 
@@ -683,9 +815,11 @@ function downloadHtmlExcel({ filename, sheetName, headers, rows }) {
   const toneCss = {
     danger: "background:#fecaca !important;color:#991b1b;font-weight:700;",
     warn: "background:#fde68a !important;color:#92400e;font-weight:600;",
+    pase: "background:#bae6fd !important;color:#075985;font-weight:600;",
     ok: "background:#dcfce7 !important;color:#166534;font-weight:600;",
     softDanger: "background:#fff5f5 !important;",
-    softWarn: "background:#fffaf0 !important;"
+    softWarn: "background:#fffaf0 !important;",
+    softPase: "background:#f0f9ff !important;"
   };
 
   const bodyHtml = rows
@@ -764,7 +898,14 @@ function downloadDetalleLikeFrontend() {
     const sumaFlag = resolveSumaFlag(row, total);
     const iniFlag = row.dayFlags?.horaInicio;
     const finFlag = row.dayFlags?.horaFin;
-    const rowTone = row.status === "rojo" ? "softDanger" : row.status === "aviso" ? "softWarn" : "";
+    const rowTone =
+      row.status === "rojo"
+        ? "softDanger"
+        : row.status === "aviso"
+          ? "softWarn"
+          : row.status === "posible-salida"
+            ? "softPase"
+            : "";
 
     return {
       rowTone,
@@ -800,12 +941,21 @@ function downloadDetalleLikeFrontend() {
               ? "danger"
               : sumaFlag === "aviso" || sumaFlag === "aviso-hora"
                 ? "warn"
-                : "",
+                : sumaFlag === "posible-salida"
+                  ? "pase"
+                  : "",
           tip: row.tipHoras || ""
         },
         {
           value: estadoLabel(row.status),
-          tone: row.status === "rojo" ? "danger" : row.status === "aviso" ? "warn" : "ok"
+          tone:
+            row.status === "rojo"
+              ? "danger"
+              : row.status === "aviso"
+                ? "warn"
+                : row.status === "posible-salida"
+                  ? "pase"
+                  : "ok"
         }
       ]
     };
@@ -1015,8 +1165,12 @@ async function handleFile(file) {
   state.selectedRowIndexes = [];
   state.errorFocusMode = false;
   state.warnFocusMode = false;
+  state.paseFocusMode = false;
+  state.dupFocusMode = false;
   state.savedFiltersBeforeErrorFocus = null;
   state.savedFiltersBeforeWarnFocus = null;
+  state.savedFiltersBeforePaseFocus = null;
+  state.savedFiltersBeforeDupFocus = null;
   state.validated = validateDataset(parsed);
 
   $("uploadZone")?.classList.add("is-hidden");
@@ -1078,7 +1232,6 @@ function bindUi() {
     "fltSupervisor",
     "fltFundo",
     "fltFecha",
-    "fltMacro",
     "fltEstado",
     "fltTipoLote",
     "fltSearch"
@@ -1108,8 +1261,12 @@ function bindUi() {
     state.selectedRowIndexes = [];
     state.errorFocusMode = false;
     state.warnFocusMode = false;
+    state.paseFocusMode = false;
+    state.dupFocusMode = false;
     state.savedFiltersBeforeErrorFocus = null;
     state.savedFiltersBeforeWarnFocus = null;
+    state.savedFiltersBeforePaseFocus = null;
+    state.savedFiltersBeforeDupFocus = null;
     closeResumenModal();
     $("validacionWorkspace")?.classList.add("is-hidden");
     $("uploadZone")?.classList.remove("is-hidden");
@@ -1119,6 +1276,10 @@ function bindUi() {
   $("btnRegresarErrores")?.addEventListener("click", () => exitErrorFocusMode({ restoreSaved: true }));
   $("btnVerAvisos")?.addEventListener("click", () => enterWarnFocusMode());
   $("btnRegresarAvisos")?.addEventListener("click", () => exitWarnFocusMode({ restoreSaved: true }));
+  $("btnVerPases")?.addEventListener("click", () => enterPaseFocusMode());
+  $("btnRegresarPases")?.addEventListener("click", () => exitPaseFocusMode({ restoreSaved: true }));
+  $("btnVerDups")?.addEventListener("click", () => enterDupFocusMode());
+  $("btnRegresarDups")?.addEventListener("click", () => exitDupFocusMode({ restoreSaved: true }));
   $("btnRestaurarTodo")?.addEventListener("click", () => restoreAllFilters());
 
   $("btnCloseSuccessModal")?.addEventListener("click", hideSuccessModal);

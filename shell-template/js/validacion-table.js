@@ -10,12 +10,12 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
+/** Hasta 3 decimales (5.5 → 5.5, 7.333333 → 7.333). */
 function formatHour(value) {
   if (value == null || value === "") return "";
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);
-  const fixed = Math.round(n * 1e6) / 1e6;
-  return String(fixed);
+  return String(Math.round(n * 1e3) / 1e3);
 }
 
 function fillSelect(select, values, blankLabel) {
@@ -87,6 +87,13 @@ export function collapseToDayRows(rows) {
     }
     if (row.status === "rojo") agg.status = "rojo";
     else if (row.status === "aviso" && agg.status !== "rojo") agg.status = "aviso";
+    else if (
+      row.status === "posible-salida" &&
+      agg.status !== "rojo" &&
+      agg.status !== "aviso"
+    ) {
+      agg.status = "posible-salida";
+    }
     if (row.dayFlags) {
       agg.dayFlags = { ...agg.dayFlags, ...row.dayFlags };
     }
@@ -100,6 +107,7 @@ export function collapseToDayRows(rows) {
     if (row.flags?.length) {
       agg.flags = [...new Set([...(agg.flags || []), ...row.flags])];
     }
+    if (row.tipDuplicado) agg.tipDuplicado = row.tipDuplicado;
     if (row.actividad) {
       if (!agg.actividad) agg.actividad = row.actividad;
       else if (agg.actividad !== row.actividad && !String(agg.actividad).includes(row.actividad)) {
@@ -119,22 +127,21 @@ export function collapseToDayRows(rows) {
   });
 
   return [...map.values()].map((agg) => {
-    // Un turno por hora de inicio (mismo día) — NO sumar dos fechas
+    // Todos los turnos (incluye inicio repetido si hay registro doble)
+    const allTurns = (agg._turnHours || []).slice().sort((a, b) => a.ini - b.ini);
+    // Para sumar: un turno por hora de inicio (mismo día)
     const seen = new Set();
-    const turns = (agg._turnHours || [])
-      .slice()
-      .sort((a, b) => a.ini - b.ini)
-      .filter((t) => {
-        const k = String(t.iniKey || t.iniTxt || t.hours);
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
+    const turns = allTurns.filter((t) => {
+      const k = String(t.iniKey || t.iniTxt || t.hours);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
 
     const turnos = turns.map((t) => t.hours);
     // Suma de turnos del mismo día (5.5 + 4.6 = 10.1)
     let sum = Math.round(turnos.reduce((s, n) => s + n, 0) * 1e10) / 1e10;
-    let detalle = turnos.map((n) => String(Math.round(n * 1e10) / 1e10)).join(" + ");
+    let detalle = turnos.map((n) => formatHour(n)).join(" + ");
 
     // Si el Excel trae el TOTAL del día (9.6/10.1/10.6) repetido en cada turno, no sumar dos veces
     if (
@@ -143,7 +150,7 @@ export function collapseToDayRows(rows) {
       turnos.every((h) => Math.abs(h - turnos[0]) <= 0.02)
     ) {
       sum = turnos[0];
-      detalle = String(Math.round(sum * 1e10) / 1e10);
+      detalle = formatHour(sum);
     }
 
     // Mantener dayFlags de horas alineado a la suma recalculada
@@ -151,10 +158,23 @@ export function collapseToDayRows(rows) {
     if (agg.esCostoCosecha) {
       const classified = classifyDayHours(sum);
       sumaFlag = classified.flag === "na" ? "na" : classified.flag;
-      if (!agg.tipHoras && classified.tip) agg.tipHoras = classified.tip;
+      if (classified.tip) agg.tipHoras = classified.tip;
+      if (sumaFlag === "rojo") agg.status = "rojo";
+      else if (
+        (sumaFlag === "aviso" || sumaFlag === "aviso-hora") &&
+        agg.status !== "rojo"
+      ) {
+        agg.status = "aviso";
+      } else if (
+        sumaFlag === "posible-salida" &&
+        agg.status !== "rojo" &&
+        agg.status !== "aviso"
+      ) {
+        agg.status = "posible-salida";
+      }
     }
-    const inicios = turns.map((t) => t.iniTxt).filter(Boolean);
-    const fines = turns.map((t) => t.finTxt).filter(Boolean);
+    const inicios = allTurns.map((t) => t.iniTxt).filter(Boolean);
+    const fines = allTurns.map((t) => t.finTxt).filter(Boolean);
     const iniFlag = turns.some((t) => t.iniFlag === "rojo")
       ? "rojo"
       : turns.some((t) => t.iniFlag === "aviso")
@@ -210,12 +230,18 @@ export function collapseToDayRows(rows) {
 export function populateFilters(state, options = {}) {
   const errorOnly = Boolean(options.errorOnly);
   const warnOnly = Boolean(options.warnOnly);
+  const paseOnly = Boolean(options.paseOnly);
+  const dupOnly = Boolean(options.dupOnly);
   const allRows = state?.validated?.rows || [];
   const rows = errorOnly
     ? allRows.filter((r) => r.status === "rojo")
     : warnOnly
       ? allRows.filter((r) => r.status === "aviso")
-      : allRows;
+      : paseOnly
+        ? allRows.filter((r) => r.status === "posible-salida")
+        : dupOnly
+          ? allRows.filter((r) => (r.flags || []).includes("duplicado"))
+          : allRows;
 
   fillSelect(
     document.getElementById("fltSupervisor"),
@@ -236,11 +262,6 @@ export function populateFilters(state, options = {}) {
     }),
     "Todas"
   );
-  fillSelect(
-    document.getElementById("fltMacro"),
-    [...new Set(rows.map((r) => r.macroPartida).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
-    "Todas"
-  );
 
   const estado = document.getElementById("fltEstado");
   if (estado && errorOnly) {
@@ -251,16 +272,21 @@ export function populateFilters(state, options = {}) {
     estado.innerHTML = `<option value="aviso">Advertencia ≤ 12</option>`;
     estado.value = "aviso";
     estado.disabled = true;
+  } else if (estado && paseOnly) {
+    estado.innerHTML = `<option value="posible-salida">Posible pase &lt; 9.6</option>`;
+    estado.value = "posible-salida";
+    estado.disabled = true;
   } else if (estado) {
     const prev = estado.value;
     estado.disabled = false;
     estado.innerHTML = `
       <option value="">Todos</option>
-      <option value="ok">OK ≤ 9.6</option>
+      <option value="ok">OK = 9.6</option>
+      <option value="posible-salida">Posible pase &lt; 9.6</option>
       <option value="aviso">Advertencia ≤ 12</option>
       <option value="rojo">Error &gt; 12</option>
     `;
-    if (["", "ok", "aviso", "rojo"].includes(prev)) estado.value = prev;
+    if (["", "ok", "posible-salida", "aviso", "rojo"].includes(prev)) estado.value = prev;
     else estado.value = "";
   }
 }
@@ -270,7 +296,7 @@ export function readFilters() {
     supervisor: document.getElementById("fltSupervisor")?.value || "",
     fundo: document.getElementById("fltFundo")?.value || "",
     fecha: document.getElementById("fltFecha")?.value || "",
-    macro: document.getElementById("fltMacro")?.value || "",
+    macro: "",
     actividad: "",
     dia: "",
     estado: document.getElementById("fltEstado")?.value || "",
@@ -288,8 +314,49 @@ export function countTotalWarnings(rows) {
   return collapseToDayRows(rows || []).filter((r) => r.status === "aviso").length;
 }
 
+export function countTotalPosibleSalidas(rows) {
+  return collapseToDayRows(rows || []).filter((r) => r.status === "posible-salida").length;
+}
+
+export function countTotalDuplicados(rows) {
+  // Cada fila del Excel marcada como duplicada (para ver los 2+ registros)
+  return (rows || []).filter((r) => (r.flags || []).includes("duplicado")).length;
+}
+
+/** Vista sin agrupar: una fila por registro Excel (para revisar duplicados). */
+export function expandDuplicateRows(rows) {
+  return (rows || [])
+    .filter((r) => (r.flags || []).includes("duplicado"))
+    .slice()
+    .sort((a, b) => {
+      const da = String(a.documento || "").localeCompare(String(b.documento || ""), "es");
+      if (da) return da;
+      const fa = String(a.fecha || "").localeCompare(String(b.fecha || ""), "es");
+      if (fa) return fa;
+      const ia = (a.horaInicioMin ?? 0) - (b.horaInicioMin ?? 0);
+      if (ia) return ia;
+      return (a.excelRow || a.rowIndex || 0) - (b.excelRow || b.rowIndex || 0);
+    })
+    .map((row) => {
+      const horas = Number(row.horasTurno);
+      const hoursOk = Number.isFinite(horas) ? horas : null;
+      return {
+        ...row,
+        horasInicioDetalle: row.horaInicioTexto ? [row.horaInicioTexto] : [],
+        horasFinDetalle: row.horaFinTexto ? [row.horaFinTexto] : [],
+        turnosDetalle: hoursOk != null ? formatHour(hoursOk) : "",
+        sumaHorasPago: hoursOk,
+        totalDia: hoursOk,
+        horas: hoursOk,
+        tipDuplicado:
+          row.tipDuplicado ||
+          `Registro duplicado${row.excelRow ? ` (fila Excel ${row.excelRow})` : ""}: mismo DNI + fecha + hora de inicio.`
+      };
+    });
+}
+
 export function clearAllFilterControls() {
-  ["fltSupervisor", "fltFundo", "fltFecha", "fltMacro", "fltTipoLote"].forEach((id) => {
+  ["fltSupervisor", "fltFundo", "fltFecha", "fltTipoLote"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -306,6 +373,7 @@ export function filterRows(rows, filters) {
     if (filters.fecha && row.fecha !== filters.fecha) return false;
     if (filters.macro && row.macroPartida !== filters.macro) return false;
     if (filters.estado && row.status !== filters.estado) return false;
+    if (filters.soloDuplicados && !(row.flags || []).includes("duplicado")) return false;
     if (filters.tipo) {
       const bucket = (row.tipoBucket || row.sessionTipo || "").toLowerCase();
       if (bucket !== filters.tipo) return false;
@@ -405,13 +473,16 @@ export function bindTablePager(onChange) {
   });
 }
 
-export function renderTable(state, filteredRows) {
+export function renderTable(state, filteredRows, options = {}) {
   const head = document.getElementById("tblValidacionHead");
   const body = document.getElementById("tblValidacionBody");
   if (!head || !body) return;
 
   const hourKey = state?.parsed?.dayLabels?.[0] || "Suma de Horas Pago";
-  const dayRows = collapseToDayRows(filteredRows);
+  const expandDups = Boolean(options.expandDuplicates);
+  const dayRows = expandDups
+    ? expandDuplicateRows(filteredRows)
+    : collapseToDayRows(filteredRows);
 
   pagerState.total = dayRows.length;
   const totalPages = Math.max(1, Math.ceil(pagerState.total / pagerState.pageSize) || 1);
@@ -440,8 +511,17 @@ export function renderTable(state, filteredRows) {
   body.innerHTML = pageRows
     .map((row, i) => {
       const band = (start + i) % 2 === 1 ? "is-band" : "";
+      const isDup = (row.flags || []).includes("duplicado");
       const rowClass =
-        row.status === "rojo" ? `is-row-danger ${band}` : row.status === "aviso" ? `is-row-warn ${band}` : band;
+        row.status === "rojo"
+          ? `is-row-danger ${band}`
+          : row.status === "aviso"
+            ? `is-row-warn ${band}`
+            : row.status === "posible-salida"
+              ? `is-row-pase ${band}`
+              : isDup
+                ? `is-row-dup ${band}`
+                : band;
 
       const total = row.sumaHorasPago ?? row.hoursByDay?.[hourKey] ?? row.totalDia ?? row.horas;
       const flag = row.dayFlags?.[hourKey];
@@ -450,7 +530,9 @@ export function renderTable(state, filteredRows) {
           ? "is-cell-danger"
           : flag === "aviso" || flag === "aviso-hora"
             ? "is-cell-warn"
-            : "";
+            : flag === "posible-salida"
+              ? "is-cell-pase"
+              : "";
 
       const detalle = row.turnosDetalle
         ? escapeHtml(row.turnosDetalle)
@@ -462,7 +544,16 @@ export function renderTable(state, filteredRows) {
           ? "Error: la suma supera el tope de 12 h."
           : flag === "aviso" || flag === "aviso-hora"
             ? "Aviso: suma sobre 9.6 h (máximo 12 h)."
-            : "");
+            : flag === "posible-salida"
+              ? "Posible pase de salida: suma menor a 9.6 h. Verificar pase registrado."
+              : "");
+
+      const tipDup =
+        row.tipDuplicado ||
+        (isDup
+          ? "Turno duplicado: mismo DNI + fecha + hora de inicio registrado más de una vez."
+          : "");
+      const docClass = isDup ? "is-cell-dup has-tip has-tip--cell" : "";
 
       const cecoEmpty = !String(row.ceco || "").trim() || row.dayFlags?.ceco === "rojo";
       const tipCeco =
@@ -477,7 +568,7 @@ export function renderTable(state, filteredRows) {
 
       return `
         <tr class="${rowClass}" data-row-index="${row.rowIndex}">
-          <td>${escapeHtml(row.documento)}</td>
+          <td class="${docClass}"${isDup ? tipAttr(tipDup) : ""}>${escapeHtml(row.documento)}</td>
           <td>${escapeHtml(row.trabajador)}</td>
           <td>${escapeHtml(row.supervisor)}</td>
           <td>${escapeHtml(row.fundo)}</td>

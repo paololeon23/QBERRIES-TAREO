@@ -63,6 +63,7 @@ export function validateDataset(parsed) {
   const findings = {
     overHours: [],
     overBase: [],
+    posibleSalida: [],
     nonCosecha: [],
     duplicates: [],
     naFails: [],
@@ -83,14 +84,21 @@ export function validateDataset(parsed) {
   });
   byShift.forEach((group) => {
     if (group.length <= 1) return;
-    group.forEach((row) => {
+    group.forEach((row, idx) => {
       if (!row.flags.includes("duplicado")) row.flags.push("duplicado");
+      const excelRef = row.excelRow ? ` fila Excel ${row.excelRow}` : "";
+      row.tipDuplicado = `Duplicado ${idx + 1} de ${group.length}${excelRef}: mismo DNI + fecha + hora inicio ${
+        row.horaInicioTexto || ""
+      }. Fin: ${row.horaFinTexto || "—"}. Revisar registro doble.`;
     });
     findings.duplicates.push({
       documento: group[0].documento,
       count: group.length,
       trabajadores: [...new Set(group.map((r) => r.trabajador).filter(Boolean))],
       fecha: group[0].fecha || "",
+      horaInicio: group[0].horaInicioTexto || "",
+      horasFin: group.map((r) => r.horaFinTexto).filter(Boolean),
+      excelRows: group.map((r) => r.excelRow).filter(Boolean),
       macroPartida: group[0].macroPartida || "",
       supervisor: group[0].supervisor,
       rowIndex: group[0].rowIndex
@@ -98,7 +106,7 @@ export function validateDataset(parsed) {
   });
 
   // Validación de horas por DÍA (suma de turnos), solo COSTO DE COSECHA.
-  // OK ≤ 9.6 · aviso >9.6 hasta 12 (incl. 11.6) · error solo si > 12.
+  // Posible pase < 9.6 · OK ≈ 9.6 · aviso >9.6 hasta 12 · error > 12.
   const dayGroups = new Map();
   rows.forEach((row) => {
     if (!row.esCostoCosecha) {
@@ -171,8 +179,26 @@ export function validateDataset(parsed) {
       row.dayFlags[HOURS_LABEL] = classified.flag;
       row.tipHoras = classified.tip;
       if (classified.flag === "ok") return;
+      if (classified.flag === "posible-salida") {
+        if (!row.flags.includes("posible-salida")) row.flags.push("posible-salida");
+        return;
+      }
       if (!row.flags.includes("aviso")) row.flags.push("aviso");
     });
+
+    if (classified.flag === "posible-salida") {
+      findings.posibleSalida = findings.posibleSalida || [];
+      findings.posibleSalida.push({
+        documento: sample.documento,
+        trabajador: sample.trabajador,
+        supervisor: sample.supervisor,
+        day: HOURS_LABEL,
+        hours: rounded,
+        reason: "menor_9_6",
+        rowIndex: sample.rowIndex
+      });
+      return;
+    }
 
     if (classified.flag !== "ok") {
       findings.overBase.push({
@@ -324,7 +350,9 @@ export function validateDataset(parsed) {
       ? "rojo"
       : row.flags.includes("aviso")
         ? "aviso"
-        : "ok";
+        : row.flags.includes("posible-salida")
+          ? "posible-salida"
+          : "ok";
   });
 
   const bySupervisor = new Map();
@@ -408,6 +436,7 @@ export function validateDataset(parsed) {
       ).size,
       rojo: [...dayStatus.values()].filter((s) => s === "rojo").length,
       aviso: [...dayStatus.values()].filter((s) => s === "aviso").length,
+      posibleSalida: [...dayStatus.values()].filter((s) => s === "posible-salida").length,
       duplicados: new Set(findings.duplicates.map((d) => d.documento)).size,
       nonCosecha: 0,
       cesados: findings.cesados.length,

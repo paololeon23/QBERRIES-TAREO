@@ -672,6 +672,14 @@ table.data-table.data-table--excel {
   background: #fffdf7;
 }
 
+.data-table--excel tbody tr.is-row-pase td {
+  background: #f0f9ff;
+}
+
+.data-table--excel tbody tr.is-row-dup td {
+  background: #f8fafc;
+}
+
 .data-table--excel td.is-cell-danger {
   background: #f8d7da !important;
   color: #842029;
@@ -683,6 +691,20 @@ table.data-table.data-table--excel {
   background: #fff3cd !important;
   color: #664d03;
   font-weight: 600;
+  cursor: help;
+}
+
+.data-table--excel td.is-cell-pase {
+  background: #bae6fd !important;
+  color: #075985;
+  font-weight: 600;
+  cursor: help;
+}
+
+.data-table--excel td.is-cell-dup {
+  background: #e2e8f0 !important;
+  color: #1e293b;
+  font-weight: 700;
   cursor: help;
 }
 
@@ -937,19 +959,23 @@ table.data-table.data-table--excel {
   flex-wrap: nowrap;
   align-items: flex-end;
   justify-content: flex-start;
-  gap: 0.55rem 0.65rem;
+  gap: 0.45rem 0.5rem;
   width: 100%;
   max-width: 100%;
   margin: 0;
   padding: 0;
   min-width: 0;
   box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .toolbar--filters .toolbar__filters .field {
-  flex: 1 1 0;
-  min-width: 7rem;
-  max-width: 11rem;
+  flex: 1 1 6.5rem;
+  min-width: 6.25rem;
+  max-width: 9.5rem;
   margin: 0;
 }
 
@@ -971,24 +997,37 @@ table.data-table.data-table--excel {
 .toolbar--filters .toolbar__actions {
   margin-left: auto;
   justify-content: flex-end;
+  align-self: flex-end;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  width: 100%;
+  display: flex;
 }
 
-/* Compacto, mismo alto que los selects — ancho al contenido (cantidad completa) */
+/* Misma fila que los filtros; no se parten a otra línea */
+.toolbar--filters .toolbar__filters .focus-bars,
 .focus-bars {
   display: inline-flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: 0.4rem;
   flex: 0 0 auto;
+  width: max-content;
+  max-width: none;
+  margin: 0;
+  min-width: 0;
 }
 
-.error-focus {
+.error-focus,
+.warn-focus,
+.pase-focus,
+.dup-focus {
   display: inline-flex;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.35rem;
+  gap: 0.45rem;
   flex: 0 0 auto;
   width: max-content;
   max-width: none;
@@ -997,11 +1036,15 @@ table.data-table.data-table--excel {
   min-height: 2.2rem;
   max-height: 2.2rem;
   margin: 0;
-  padding: 0 0.45rem;
-  border: 1px solid #f1aeb5;
+  padding: 0 0.5rem 0 0.6rem;
   border-radius: 0.5rem;
-  background: #fff8f8;
   box-sizing: border-box;
+  overflow: visible;
+}
+
+.error-focus {
+  border: 1px solid #f1aeb5;
+  background: #fff8f8;
 }
 
 .error-focus.has-errors {
@@ -1014,55 +1057,62 @@ table.data-table.data-table--excel {
   box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.08);
 }
 
-.error-focus__count {
-  flex: 0 0 auto;
-  min-width: max-content;
-  font-size: 0.72rem;
+.error-focus__count,
+.warn-focus__count,
+.pase-focus__count,
+.dup-focus__count {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 0.74rem;
   font-weight: 700;
-  color: #991b1b;
-  line-height: 1.1;
+  line-height: 1.2;
   white-space: nowrap;
-  overflow: visible;
-  text-overflow: clip;
 }
 
-.error-focus__btns {
+.error-focus__count {
+  color: #991b1b;
+}
+
+.warn-focus__count {
+  color: #92400e;
+}
+
+.pase-focus__count {
+  color: #075985;
+}
+
+.dup-focus__count {
+  color: #334155;
+}
+
+.error-focus__btns,
+.warn-focus__btns,
+.pase-focus__btns,
+.dup-focus__btns {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 0.2rem;
-  margin-left: 0;
+  gap: 0.3rem;
   flex-shrink: 0;
+  margin-left: 0;
 }
 
 .error-focus .btn,
-.warn-focus .btn {
-  height: 1.55rem;
-  min-height: 1.55rem;
-  padding: 0 0.35rem;
-  font-size: 0.65rem;
+.warn-focus .btn,
+.pase-focus .btn,
+.dup-focus .btn {
+  height: 1.7rem;
+  min-height: 1.7rem;
+  padding: 0 0.6rem;
+  font-size: 0.68rem;
+  line-height: 1;
   box-sizing: border-box;
   white-space: nowrap;
 }
 
 .warn-focus {
-  display: inline-flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.35rem;
-  flex: 0 0 auto;
-  width: max-content;
-  height: 2.2rem;
-  min-height: 2.2rem;
-  max-height: 2.2rem;
-  margin: 0;
-  padding: 0 0.45rem;
   border: 1px solid #ffe69c;
-  border-radius: 0.5rem;
   background: #fffbeb;
-  box-sizing: border-box;
 }
 
 .warn-focus.has-warnings {
@@ -1075,22 +1125,19 @@ table.data-table.data-table--excel {
   box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.1);
 }
 
-.warn-focus__count {
-  flex: 0 0 auto;
-  min-width: max-content;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #92400e;
-  line-height: 1.1;
-  white-space: nowrap;
+.pase-focus {
+  border: 1px solid #7dd3fc;
+  background: #f0f9ff;
 }
 
-.warn-focus__btns {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 0.2rem;
-  flex-shrink: 0;
+.pase-focus.has-pases {
+  border-color: #38bdf8;
+}
+
+.pase-focus.is-active {
+  border-color: #0284c7;
+  background: #e0f2fe;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12);
 }
 
 .btn--danger-soft {
@@ -1129,27 +1176,79 @@ table.data-table.data-table--excel {
   cursor: not-allowed;
 }
 
+.btn--pase-soft {
+  border: 1px solid #7dd3fc;
+  background: #e0f2fe;
+  color: #075985;
+  font-weight: 700;
+}
+
+.btn--pase-soft:hover:not(:disabled) {
+  background: #bae6fd;
+  border-color: #38bdf8;
+  color: #0c4a6e;
+}
+
+.btn--pase-soft:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dup-focus {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+}
+
+.dup-focus.has-dups {
+  border-color: #94a3b8;
+}
+
+.dup-focus.is-active {
+  border-color: #475569;
+  background: #f1f5f9;
+  box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.12);
+}
+
+.btn--dup-soft {
+  border: 1px solid #cbd5e1;
+  background: #e2e8f0;
+  color: #334155;
+  font-weight: 700;
+}
+
+.btn--dup-soft:hover:not(:disabled) {
+  background: #cbd5e1;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.btn--dup-soft:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .error-focus .is-hidden,
-.warn-focus .is-hidden {
+.warn-focus .is-hidden,
+.pase-focus .is-hidden,
+.dup-focus .is-hidden {
   display: none !important;
 }
 
 @media (max-width: 1100px) {
   .toolbar--filters .toolbar__filters {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
   }
 
   .toolbar--filters .toolbar__filters .field {
-    flex: 1 1 7.5rem;
-    max-width: 11rem;
+    flex: 0 0 7rem;
+    max-width: 8.5rem;
   }
 
-  .error-focus {
-    flex: 0 0 auto;
+  .toolbar--filters .toolbar__filters .focus-bars,
+  .focus-bars {
+    flex-wrap: nowrap;
     width: max-content;
-    max-width: none;
-    height: 2.2rem;
-    max-height: 2.2rem;
   }
 }
 
@@ -1323,6 +1422,12 @@ table.data-table.data-table--excel {
   border-top-color: transparent;
 }
 
+.data-table--excel td.has-tip--cell.is-cell-pase:nth-child(n+8):hover::before,
+.data-table--excel td.has-tip--cell.is-cell-pase:nth-child(n+8):focus-within::before {
+  border-bottom-color: #7dd3fc;
+  border-top-color: transparent;
+}
+
 /* Primera fila: tip forzado abajo y por encima del scroll pero bajo el thead sticky */
 .data-table--excel tbody tr:first-child td.has-tip--cell:hover,
 .data-table--excel tbody tr:first-child td.has-tip--cell:focus-within {
@@ -1360,6 +1465,26 @@ table.data-table.data-table--excel {
 
 .data-table--excel td.has-tip--cell.is-cell-warn:hover::before {
   border-bottom-color: #ffe69c;
+}
+
+.data-table--excel td.has-tip--cell.is-cell-pase:hover::after {
+  background: #e0f2fe;
+  border: 1px solid #7dd3fc;
+  color: #075985;
+}
+
+.data-table--excel td.has-tip--cell.is-cell-pase:hover::before {
+  border-bottom-color: #7dd3fc;
+}
+
+.data-table--excel td.has-tip--cell.is-cell-dup:hover::after {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+}
+
+.data-table--excel td.has-tip--cell.is-cell-dup:hover::before {
+  border-bottom-color: #cbd5e1;
 }
 
 .toolbar__actions .has-tip::after,
@@ -1587,6 +1712,10 @@ table.data-table.data-table--excel {
   color: #c77800;
 }
 
+.kpi--pase .kpi__value {
+  color: #0284c7;
+}
+
 .findings-panel {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
@@ -1762,6 +1891,14 @@ table.data-table.data-table--excel {
   background: #fffdf7;
 }
 
+.data-table tr.is-row-pase {
+  background: #f0f9ff;
+}
+
+.data-table tr.is-row-dup {
+  background: #f8fafc;
+}
+
 .data-table td.is-cell-danger {
   background: #f8d7da;
   color: #842029;
@@ -1771,6 +1908,18 @@ table.data-table.data-table--excel {
 .data-table td.is-cell-warn {
   background: #fff3cd;
   color: #664d03;
+}
+
+.data-table td.is-cell-pase {
+  background: #bae6fd;
+  color: #075985;
+  font-weight: 600;
+}
+
+.data-table td.is-cell-dup {
+  background: #e2e8f0;
+  color: #1e293b;
+  font-weight: 700;
 }
 
 .data-table td.is-selected {
@@ -2121,6 +2270,12 @@ table.data-table.data-table--excel {
   border-color: #ffe69c;
 }
 
+.modal__help-icon--pase {
+  background: #e0f2fe;
+  color: #075985;
+  border-color: #7dd3fc;
+}
+
 .modal__help-body {
   margin: 0 0 1.15rem;
   color: #4b5563;
@@ -2359,6 +2514,10 @@ table.data-table.data-table--excel {
   background: #fffaf0;
 }
 
+.resumen-table tr.is-row-pase td {
+  background: #f0f9ff;
+}
+
 .resumen-table td.is-cell-danger {
   background: #fecaca !important;
   color: #991b1b;
@@ -2368,6 +2527,12 @@ table.data-table.data-table--excel {
 .resumen-table td.is-cell-warn {
   background: #fde68a !important;
   color: #92400e;
+  font-weight: 600;
+}
+
+.resumen-table td.is-cell-pase {
+  background: #bae6fd !important;
+  color: #075985;
   font-weight: 600;
 }
 
@@ -2605,42 +2770,51 @@ table.data-table.data-table--excel {
   }
 
   .toolbar--filters .toolbar__filters {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.55rem;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 0.4rem;
     width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .toolbar--filters .toolbar__filters .field {
-    flex: none;
-    max-width: none;
-    width: 100%;
-    text-align: center;
+    flex: 0 0 6.75rem;
+    min-width: 6.5rem;
+    max-width: 7.5rem;
+    width: auto;
+    text-align: left;
   }
 
   .toolbar--filters .toolbar__filters .field span {
-    text-align: center;
-    width: 100%;
+    text-align: left;
+    width: auto;
   }
 
   .toolbar--filters .toolbar__filters .field select {
     width: 100%;
-    text-align: center;
-    text-align-last: center;
+    text-align: left;
+    text-align-last: left;
   }
 
+  .toolbar--filters .toolbar__filters .focus-bars,
   .focus-bars {
-    width: 100%;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.45rem;
+    width: max-content;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 0.35rem;
   }
 
   .error-focus,
-  .warn-focus {
-    justify-content: center;
-    width: 100%;
-    max-width: 100%;
+  .warn-focus,
+  .pase-focus,
+  .dup-focus {
+    width: max-content;
+    max-width: none;
+    justify-content: flex-start;
   }
 
   .toolbar--filters .toolbar__actions {

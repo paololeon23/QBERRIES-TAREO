@@ -26,11 +26,17 @@ export function matchExactHourStep(hours) {
 }
 
 /**
- * Clasifica suma del día:
- * - ok: ≤ 9.6 (jornada normal / incompleta permitida)
- * - aviso: > 9.6 y ≤ 12 (extra / 11.6 / 12, etc.)
+ * Clasifica suma del día (COSTO DE COSECHA):
+ * - posible-salida: > 0 y < 9.6 (jornada incompleta → revisar pase)
+ * - ok: ≈ 9.6
+ * - aviso: > 9.6 y ≤ 12
  * - rojo: > 12
  */
+function formatHoursDisplay(hours) {
+  if (hours == null || !Number.isFinite(hours)) return "";
+  return String(Math.round(hours * 1e3) / 1e3);
+}
+
 export function classifyDayHours(hours) {
   if (hours == null || !Number.isFinite(hours) || hours <= 0) {
     return { flag: "na", tip: "Sin horas de pago para sumar. ¿Falta dato en el Excel?" };
@@ -39,7 +45,13 @@ export function classifyDayHours(hours) {
   if (rounded > HOUR_DAY_CAP + HOUR_EXACT_EPS) {
     return {
       flag: "rojo",
-      tip: `Error: suma ${rounded} h supera el tope de 12 h.`
+      tip: `Error: suma ${formatHoursDisplay(rounded)} h supera el tope de 12 h.`
+    };
+  }
+  if (rounded < HOUR_BASE - HOUR_EXACT_EPS) {
+    return {
+      flag: "posible-salida",
+      tip: `Posible pase de salida: suma ${formatHoursDisplay(rounded)} h (menor a 9.6). Verificar si hay pase registrado.`
     };
   }
   if (rounded <= HOUR_BASE + HOUR_EXACT_EPS) {
@@ -56,7 +68,7 @@ export function classifyDayHours(hours) {
           : "dentro del tope 12 h";
   return {
     flag: exact === HOUR_MAX || exact === HOUR_DAY_CAP || rounded >= HOUR_MAX ? "aviso-hora" : "aviso",
-    tip: `Aviso: ${rounded} h = ${label} (sobre 9.6, máx 12).`
+    tip: `Aviso: ${formatHoursDisplay(rounded)} h = ${label} (sobre 9.6, máx 12).`
   };
 }
 
@@ -792,7 +804,7 @@ export function parseExcelBuffer(buffer, fileName = "archivo.xlsx") {
       .filter((n) => Number.isFinite(n));
     let total = turnos.reduce((sum, n) => sum + n, 0);
     let rounded = Math.round(total * 1e10) / 1e10;
-    let detalle = turnos.map((n) => String(Math.round(n * 1e10) / 1e10)).join(" + ");
+    let detalle = turnos.map((n) => formatHoursDisplay(n)).join(" + ");
 
     // Si Horas Pago ya trae el total del día repetido en cada turno, no duplicar
     if (
@@ -801,7 +813,7 @@ export function parseExcelBuffer(buffer, fileName = "archivo.xlsx") {
       turnos.every((h) => Math.abs(h - turnos[0]) <= HOUR_EXACT_EPS)
     ) {
       rounded = turnos[0];
-      detalle = String(Math.round(rounded * 1e10) / 1e10);
+      detalle = formatHoursDisplay(rounded);
       turnos = [rounded];
     }
 

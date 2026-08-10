@@ -418,15 +418,12 @@
                       <span>Fecha <i class="tip-dot" aria-hidden="true">i</i></span>
                       <select id="fltFecha"><option value="">Todas</option></select>
                     </label>
-                    <label class="field has-tip" data-tip="Filtra por Macro Partida (ej. COSTO DE COSECHA). La regla de horas exactas aplica a costo de cosecha.">
-                      <span>Macro Partida <i class="tip-dot" aria-hidden="true">i</i></span>
-                      <select id="fltMacro"><option value="">Todas</option></select>
-                    </label>
-                    <label class="field has-tip" data-tip="Filtra por resultado: OK ≤ 9.6, Advertencia hasta 12 h, o Error si supera 12.">
+                    <label class="field has-tip" data-tip="Filtra por resultado: OK = 9.6, Posible pase &lt; 9.6, Advertencia hasta 12 h, o Error si supera 12.">
                       <span>Estado horas <i class="tip-dot" aria-hidden="true">i</i></span>
                       <select id="fltEstado">
                         <option value="">Todos</option>
-                        <option value="ok">OK ≤ 9.6</option>
+                        <option value="ok">OK = 9.6</option>
+                        <option value="posible-salida">Posible pase &lt; 9.6</option>
                         <option value="aviso">Advertencia ≤ 12</option>
                         <option value="rojo">Error &gt; 12</option>
                       </select>
@@ -455,6 +452,30 @@
                             Ver
                           </button>
                           <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarAvisos" title="Volver a filtros previos">
+                            Atrás
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="pase-focus" id="paseFocusBar" aria-live="polite">
+                        <span class="pase-focus__count" id="paseFocusCount">0 posibles salidas</span>
+                        <div class="pase-focus__btns">
+                          <button type="button" class="btn btn--pase-soft btn--sm" id="btnVerPases" title="Solo registros con suma menor a 9.6 h">
+                            Ver
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarPases" title="Volver a filtros previos">
+                            Atrás
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="dup-focus" id="dupFocusBar" aria-live="polite">
+                        <span class="dup-focus__count" id="dupFocusCount">0 duplicados</span>
+                        <div class="dup-focus__btns">
+                          <button type="button" class="btn btn--dup-soft btn--sm" id="btnVerDups" title="Solo turnos duplicados (mismo DNI + fecha + hora inicio)">
+                            Ver
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarDups" title="Volver a filtros previos">
                             Atrás
                           </button>
                         </div>
