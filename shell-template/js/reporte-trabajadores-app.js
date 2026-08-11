@@ -1,0 +1,725 @@
+/**
+ * Reporte de Trabajadores:
+ * 1) Supervisor (col. W, múltiple) → 2) Actividad (col. M, múltiple) → lista Trabajador (col. D)
+ */
+
+import { parseExcelBuffer } from "./excel-parser.js";
+
+const state = {
+  fileName: "",
+  rows: [],
+  workers: [],
+  filtered: [],
+  allSupervisores: [],
+  availableActividades: [],
+  selectedActividades: [],
+  selectedSupervisores: []
+};
+
+const pager = {
+  page: 1,
+  pageSize: 20,
+  bound: false
+};
+
+/** Modal draft for multi-select filters */
+const filterModal = {
+  kind: null, // "supervisor" | "actividad"
+  options: [],
+  draft: new Set(),
+  bound: false
+};
+
+function $(id) {
+  return document.getElementById(id);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function setStatus(kind, text) {
+  const el = $("rtStatus");
+  if (!el) return;
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    el.removeAttribute("data-kind");
+    return;
+  }
+  el.hidden = false;
+  el.dataset.kind = kind || "";
+  el.textContent = text;
+}
+
+function uniqueSorted(values) {
+  return [...new Set(values.map((v) => String(v || "").trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "es")
+  );
+}
+
+function formatMultiLabel(selected, placeholder, singular, plural) {
+  if (!selected.length) return placeholder;
+  if (selected.length === 1) return selected[0];
+  return `${selected.length} ${plural}`;
+}
+
+function syncFilterButtons() {
+  const btnSup = $("rtBtnSupervisor");
+  const txtSup = $("rtBtnSupervisorText");
+  const btnAct = $("rtBtnActividad");
+  const txtAct = $("rtBtnActividadText");
+  const search = $("rtFltSearch");
+
+  const hasRows = state.rows.length > 0;
+  const hasSup = state.selectedSupervisores.length > 0;
+  const hasAct = state.selectedActividades.length > 0;
+
+  if (btnSup) btnSup.disabled = !hasRows;
+  if (txtSup) {
+    txtSup.textContent = formatMultiLabel(
+      state.selectedSupervisores,
+      btnSup?.dataset.placeholder || "Selecciona supervisor(es)…",
+      "supervisor",
+      "supervisores"
+    );
+  }
+  btnSup?.classList.toggle("has-value", hasSup);
+
+  if (btnAct) {
+    btnAct.disabled = !hasSup;
+    btnAct.dataset.placeholder = hasSup ? "Selecciona actividad(es)…" : "Primero elige supervisor…";
+  }
+  if (txtAct) {
+    txtAct.textContent = formatMultiLabel(
+      state.selectedActividades,
+      btnAct?.dataset.placeholder || "Primero elige supervisor…",
+      "actividad",
+      "actividades"
+    );
+  }
+  btnAct?.classList.toggle("has-value", hasAct);
+
+  if (search) {
+    search.disabled = !(hasSup && hasAct);
+    if (search.disabled) search.value = "";
+  }
+}
+
+function refreshSupervisorOptions() {
+  state.allSupervisores = uniqueSorted(state.rows.map((r) => r.supervisor));
+  state.availableActividades = [];
+  state.selectedSupervisores = [];
+  state.selectedActividades = [];
+  syncFilterButtons();
+}
+
+function refreshActividadOptions({ selectAll = true } = {}) {
+  const supervisores = state.selectedSupervisores;
+  if (!supervisores.length) {
+    state.availableActividades = [];
+    state.selectedActividades = [];
+    syncFilterButtons();
+    return;
+  }
+
+  const supSet = new Set(supervisores);
+  state.availableActividades = uniqueSorted(
+    state.rows.filter((r) => supSet.has(String(r.supervisor || "").trim())).map((r) => r.actividad)
+  );
+
+  if (selectAll) {
+    state.selectedActividades = [...state.availableActividades];
+  } else {
+    const allowed = new Set(state.availableActividades);
+    state.selectedActividades = state.selectedActividades.filter((a) => allowed.has(a));
+  }
+  syncFilterButtons();
+}
+
+function updateFilterCount() {
+  const el = $("rtFilterCount");
+  if (!el) return;
+  const n = filterModal.draft.size;
+  const noun =
+    filterModal.kind === "actividad"
+      ? n === 1
+        ? "actividad"
+        : "actividades"
+      : n === 1
+        ? "supervisor"
+        : "supervisores";
+  const ending =
+    filterModal.kind === "actividad" ? (n === 1 ? "a" : "as") : n === 1 ? "o" : "os";
+  el.textContent = `${n} ${noun} seleccionad${ending}`;
+}
+
+function renderFilterList(query = "") {
+  const list = $("rtFilterList");
+  if (!list) return;
+
+  const q = String(query || "")
+    .trim()
+    .toLowerCase();
+  const options = filterModal.options.filter((v) => !q || v.toLowerCase().includes(q));
+
+  if (!options.length) {
+    list.innerHTML = `<p class="rt-filter-modal__empty">${
+      filterModal.options.length ? "Sin coincidencias" : "Sin opciones"
+    }</p>`;
+    return;
+  }
+
+  list.innerHTML = options
+    .map((v) => {
+      const isOn = filterModal.draft.has(v);
+      const safe = escapeHtml(v);
+      return `<label class="rt-filter-modal__option${isOn ? " is-checked" : ""}">
+        <input type="checkbox" class="rt-filter-modal__check" value="${safe}" ${isOn ? "checked" : ""} />
+        <span class="rt-filter-modal__box" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"></polyline>
+          </svg>
+        </span>
+        <span class="rt-filter-modal__label">${safe}</span>
+      </label>`;
+    })
+    .join("");
+}
+
+function openFilterModal(kind) {
+  const modal = $("modalRtFilter");
+  if (!modal) return;
+
+  filterModal.kind = kind;
+  if (kind === "supervisor") {
+    filterModal.options = [...state.allSupervisores];
+    filterModal.draft = new Set(state.selectedSupervisores);
+    $("rtFilterEyebrow").textContent = "Paso 1";
+    $("rtFilterTitle").textContent = "Supervisor";
+    $("rtFilterHint").textContent = "Marca uno o varios supervisores (columna W).";
+    $("btnRtFilterAll").textContent = "Todos";
+    $("btnRtFilterNone").textContent = "Ninguno";
+  } else {
+    filterModal.options = [...state.availableActividades];
+    filterModal.draft = new Set(state.selectedActividades);
+    $("rtFilterEyebrow").textContent = "Paso 2";
+    $("rtFilterTitle").textContent = "Actividad";
+    $("rtFilterHint").textContent = "Marca una o varias actividades del supervisor elegido (columna M).";
+    $("btnRtFilterAll").textContent = "Todas";
+    $("btnRtFilterNone").textContent = "Ninguna";
+  }
+
+  const search = $("rtFilterSearch");
+  if (search) search.value = "";
+  renderFilterList("");
+  updateFilterCount();
+  modal.hidden = false;
+  window.setTimeout(() => search?.focus(), 40);
+}
+
+function closeFilterModal() {
+  const modal = $("modalRtFilter");
+  if (modal) modal.hidden = true;
+  filterModal.kind = null;
+  filterModal.options = [];
+  filterModal.draft = new Set();
+}
+
+function applyFilterModal() {
+  const kind = filterModal.kind;
+  const selected = [...filterModal.draft].sort((a, b) => a.localeCompare(b, "es"));
+
+  if (kind === "supervisor") {
+    const prev = state.selectedSupervisores.join("\0");
+    state.selectedSupervisores = selected;
+    const changed = prev !== selected.join("\0");
+    refreshActividadOptions({ selectAll: changed || !state.selectedActividades.length });
+  } else if (kind === "actividad") {
+    state.selectedActividades = selected;
+    syncFilterButtons();
+  }
+
+  closeFilterModal();
+  applyReportFilters({ resetPage: true });
+}
+
+/** Personas únicas por DNI dentro de los filtros (soporta múltiples). */
+function buildWorkers(rows, { actividades = [], supervisores = [] } = {}) {
+  const actSet = new Set(actividades);
+  const supSet = new Set(supervisores);
+  const map = new Map();
+
+  rows.forEach((row) => {
+    const act = String(row.actividad || "").trim();
+    const sup = String(row.supervisor || "").trim();
+    if (actSet.size && !actSet.has(act)) return;
+    if (supSet.size && !supSet.has(sup)) return;
+
+    const doc = String(row.documento || "").trim();
+    const name = String(row.trabajador || "").trim();
+    if (!doc && !name) return;
+
+    const key = doc || `nombre:${name.toLowerCase()}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        documento: doc,
+        trabajador: name,
+        actividades: new Set(),
+        supervisores: new Set(),
+        fundos: new Set(),
+        registros: 0,
+        fechas: new Set()
+      });
+    }
+    const w = map.get(key);
+    w.registros += 1;
+    if (row.fecha) w.fechas.add(String(row.fecha));
+    if (!w.trabajador && name) w.trabajador = name;
+    if (act) w.actividades.add(act);
+    if (sup) w.supervisores.add(sup);
+    if (row.fundo) w.fundos.add(String(row.fundo).trim());
+  });
+
+  return [...map.values()]
+    .map((w) => ({
+      documento: w.documento,
+      trabajador: w.trabajador,
+      actividad: [...w.actividades].sort((a, b) => a.localeCompare(b, "es")).join(" · "),
+      supervisor: [...w.supervisores].sort((a, b) => a.localeCompare(b, "es")).join(" · "),
+      fundo: [...w.fundos].sort((a, b) => a.localeCompare(b, "es")).join(" · "),
+      registros: w.registros,
+      dias: w.fechas.size
+    }))
+    .sort((a, b) => {
+      const byName = String(a.trabajador || "").localeCompare(String(b.trabajador || ""), "es");
+      if (byName) return byName;
+      return String(a.documento || "").localeCompare(String(b.documento || ""), "es");
+    });
+}
+
+function applyReportFilters({ resetPage = true } = {}) {
+  const actividades = state.selectedActividades;
+  const supervisores = state.selectedSupervisores;
+  const search = ($("rtFltSearch")?.value || "").trim().toLowerCase();
+
+  if (actividades.length && supervisores.length) {
+    state.workers = buildWorkers(state.rows, { actividades, supervisores });
+  } else {
+    state.workers = [];
+  }
+
+  state.filtered = state.workers.filter((w) => {
+    if (!search) return true;
+    const blob = `${w.documento} ${w.trabajador}`.toLowerCase();
+    return blob.includes(search);
+  });
+
+  if (resetPage) pager.page = 1;
+  syncFilterButtons();
+  renderKpis();
+  renderMeta();
+  renderTable();
+  syncExportButton();
+}
+
+function renderKpis() {
+  const fileEl = $("rtKpiFile");
+  const actEl = $("rtKpiActividades");
+  const supEl = $("rtKpiSupervisores");
+  const trabEl = $("rtKpiTrabajadores");
+
+  if (fileEl) fileEl.textContent = state.fileName || "—";
+  if (supEl) supEl.textContent = String(state.allSupervisores.length || uniqueSorted(state.rows.map((r) => r.supervisor)).length);
+  if (actEl) {
+    const count = state.selectedSupervisores.length
+      ? state.availableActividades.length
+      : uniqueSorted(state.rows.map((r) => r.actividad)).length;
+    actEl.textContent = String(count);
+  }
+  if (trabEl) trabEl.textContent = String(state.filtered.length);
+}
+
+function summarizeList(list, emptyLabel) {
+  if (!list.length) return emptyLabel;
+  if (list.length <= 2) return list.join(", ");
+  return `${list.slice(0, 2).join(", ")} +${list.length - 2}`;
+}
+
+function renderMeta() {
+  const meta = $("rtMeta");
+  if (!meta) return;
+  const actividades = state.selectedActividades;
+  const supervisores = state.selectedSupervisores;
+
+  if (!state.rows.length) {
+    meta.textContent = "Sube un Excel para comenzar.";
+    return;
+  }
+  if (!supervisores.length) {
+    meta.textContent = `${state.rows.length} filas leídas · elige uno o varios supervisores.`;
+    return;
+  }
+  if (!actividades.length) {
+    meta.textContent = `Supervisor: ${summarizeList(supervisores, "—")} · elige una o varias actividades.`;
+    return;
+  }
+  meta.textContent = `${state.filtered.length} trabajador${
+    state.filtered.length === 1 ? "" : "es"
+  } · ${summarizeList(supervisores, "—")} · ${summarizeList(actividades, "—")}`;
+}
+
+function renderPagerControls() {
+  const rangeEl = $("rtPagerRange");
+  const first = $("rtPagerFirst");
+  const prev = $("rtPagerPrev");
+  const next = $("rtPagerNext");
+  const last = $("rtPagerLast");
+  const sizeSel = $("rtPagerPageSize");
+
+  const total = state.filtered.length;
+  const size = pager.pageSize;
+  const totalPages = Math.max(1, Math.ceil(total / size) || 1);
+  if (pager.page > totalPages) pager.page = totalPages;
+  if (pager.page < 1) pager.page = 1;
+
+  const page = pager.page;
+  const from = total === 0 ? 0 : (page - 1) * size + 1;
+  const to = Math.min(page * size, total);
+  if (rangeEl) rangeEl.textContent = `${from} – ${to} of ${total}`;
+  if (sizeSel && String(sizeSel.value) !== String(size)) sizeSel.value = String(size);
+
+  const atStart = page <= 1 || total === 0;
+  const atEnd = page >= totalPages || total === 0;
+  [first, prev].forEach((btn) => {
+    if (btn) btn.disabled = atStart;
+  });
+  [next, last].forEach((btn) => {
+    if (btn) btn.disabled = atEnd;
+  });
+}
+
+function renderTable() {
+  const body = $("rtTableBody");
+  const empty = $("rtEmpty");
+  if (!body) return;
+
+  renderPagerControls();
+  const total = state.filtered.length;
+  const start = (pager.page - 1) * pager.pageSize;
+  const pageRows = state.filtered.slice(start, start + pager.pageSize);
+
+  const actividades = state.selectedActividades;
+  const supervisores = state.selectedSupervisores;
+
+  if (!pageRows.length) {
+    body.innerHTML = "";
+    if (empty) {
+      empty.hidden = false;
+      const title = empty.querySelector(".rt-empty__title");
+      const text = empty.querySelector(".rt-empty__text");
+      if (!state.rows.length) {
+        if (title) title.textContent = "Aún no hay data clasificada";
+        if (text) text.textContent = "Sube un Excel para comenzar el reporte.";
+      } else if (!supervisores.length) {
+        if (title) title.textContent = "Aún no hay data clasificada";
+        if (text)
+          text.textContent =
+            "Los datos ya se leyeron. Paso 1: toca Supervisor y marca uno o varios para clasificar la lista.";
+      } else if (!actividades.length) {
+        if (title) title.textContent = "Aún no hay data clasificada";
+        if (text)
+          text.textContent =
+            "Paso 2: toca Actividad y marca las del supervisor para ver los trabajadores.";
+      } else {
+        if (title) title.textContent = "Sin trabajadores";
+        if (text) text.textContent = "No hay trabajadores para esa combinación de filtros.";
+      }
+    }
+    return;
+  }
+
+  if (empty) empty.hidden = true;
+  body.innerHTML = pageRows
+    .map((row, i) => {
+      const n = start + i + 1;
+      return `<tr>
+        <td class="rt-table__num">${n}</td>
+        <td class="rt-table__doc">${escapeHtml(row.documento || "—")}</td>
+        <td>
+          <div class="rt-table__primary">${escapeHtml(row.trabajador || "—")}</div>
+        </td>
+        <td><span class="rt-pill" title="${escapeHtml(row.actividad || "")}">${escapeHtml(
+          row.actividad || "—"
+        )}</span></td>
+        <td title="${escapeHtml(row.supervisor || "")}">${escapeHtml(row.supervisor || "—")}</td>
+        <td>${escapeHtml(row.fundo || "—")}</td>
+        <td class="rt-table__num">${row.registros}</td>
+      </tr>`;
+    })
+    .join("");
+}
+
+function syncExportButton() {
+  const btn = $("btnRtExport");
+  if (btn) btn.disabled = !state.filtered.length;
+}
+
+function showWorkspace(show) {
+  $("rtUploadZone")?.classList.toggle("is-hidden", show);
+  $("rtWorkspace")?.classList.toggle("is-hidden", !show);
+  const newBtn = $("btnRtNewFile");
+  if (newBtn) newBtn.hidden = !show;
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  try {
+    setStatus("loading", "Leyendo Excel…");
+    const buffer = await file.arrayBuffer();
+    const parsed = parseExcelBuffer(buffer, file.name);
+    state.fileName = file.name;
+    state.rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
+    state.workers = [];
+    state.filtered = [];
+    state.selectedActividades = [];
+    state.selectedSupervisores = [];
+    pager.page = 1;
+
+    showWorkspace(true);
+    refreshSupervisorOptions();
+    applyReportFilters({ resetPage: true });
+    if (!state.rows.length) setStatus("empty", "No se encontraron filas en el Excel.");
+    else setStatus("", "");
+  } catch (err) {
+    console.error("[reporte-trabajadores]", err);
+    setStatus("error", err?.message || "No se pudo leer el Excel.");
+  }
+}
+
+function exportExcel() {
+  if (!state.filtered.length) {
+    setStatus("empty", "No hay trabajadores para exportar. Elige supervisor y actividad.");
+    return;
+  }
+  const XLSX = window.XLSX;
+  if (!XLSX?.utils || typeof XLSX.write !== "function") {
+    setStatus("error", "No se pudo cargar el exportador Excel (XLSX).");
+    return;
+  }
+
+  try {
+    const rows = state.filtered.map((w, i) => ({
+      "#": i + 1,
+      Documento: w.documento || "",
+      Trabajador: w.trabajador || "",
+      Actividad: w.actividad || "",
+      Supervisor: w.supervisor || "",
+      Fundo: w.fundo || "",
+      Registros: w.registros
+    }));
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    sheet["!cols"] = [
+      { wch: 5 },
+      { wch: 14 },
+      { wch: 36 },
+      { wch: 28 },
+      { wch: 34 },
+      { wch: 16 },
+      { wch: 10 }
+    ];
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Trabajadores");
+
+    const safeAct =
+      state.selectedActividades.length === 1
+        ? state.selectedActividades[0].replace(/[^\wÀ-ÿ\-]+/gi, "_").slice(0, 24)
+        : `${state.selectedActividades.length}actividades`;
+    const safeSup =
+      state.selectedSupervisores.length === 1
+        ? state.selectedSupervisores[0].replace(/[^\wÀ-ÿ\-]+/gi, "_").slice(0, 24)
+        : `${state.selectedSupervisores.length}supervisores`;
+    const stamp = new Date().toISOString().slice(0, 10);
+    const fileName = `reporte-trabajadores-${safeAct}-${safeSup}-${stamp}.xlsx`;
+
+    const buffer = XLSX.write(book, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    setStatus("", "");
+  } catch (err) {
+    console.error("[reporte-trabajadores] export", err);
+    setStatus("error", err?.message || "Error al exportar Excel.");
+  }
+}
+
+function bindPager() {
+  if (pager.bound) return;
+  pager.bound = true;
+
+  $("rtPagerPageSize")?.addEventListener("change", (e) => {
+    const n = Number(e.target.value);
+    pager.pageSize = Number.isFinite(n) && n > 0 ? n : 20;
+    pager.page = 1;
+    renderTable();
+  });
+  $("rtPagerFirst")?.addEventListener("click", () => {
+    pager.page = 1;
+    renderTable();
+  });
+  $("rtPagerPrev")?.addEventListener("click", () => {
+    pager.page = Math.max(1, pager.page - 1);
+    renderTable();
+  });
+  $("rtPagerNext")?.addEventListener("click", () => {
+    const totalPages = Math.max(1, Math.ceil(state.filtered.length / pager.pageSize) || 1);
+    pager.page = Math.min(totalPages, pager.page + 1);
+    renderTable();
+  });
+  $("rtPagerLast")?.addEventListener("click", () => {
+    pager.page = Math.max(1, Math.ceil(state.filtered.length / pager.pageSize) || 1);
+    renderTable();
+  });
+}
+
+function bindUpload() {
+  const input = $("rtInputExcel");
+  const pick = $("btnRtPickExcel");
+  const card = $("rtDropCard");
+
+  pick?.addEventListener("click", () => input?.click());
+  input?.addEventListener("change", () => {
+    const file = input.files?.[0];
+    handleFile(file);
+    input.value = "";
+  });
+
+  ["dragenter", "dragover"].forEach((evt) => {
+    card?.addEventListener(evt, (e) => {
+      e.preventDefault();
+      card.classList.add("is-dragover");
+    });
+  });
+  ["dragleave", "drop"].forEach((evt) => {
+    card?.addEventListener(evt, (e) => {
+      e.preventDefault();
+      card.classList.remove("is-dragover");
+    });
+  });
+  card?.addEventListener("drop", (e) => {
+    const file = e.dataTransfer?.files?.[0];
+    handleFile(file);
+  });
+}
+
+function bindFilterModal() {
+  if (filterModal.bound) return;
+  filterModal.bound = true;
+
+  $("rtBtnSupervisor")?.addEventListener("click", () => {
+    if (!state.rows.length) return;
+    openFilterModal("supervisor");
+  });
+  $("rtBtnActividad")?.addEventListener("click", () => {
+    if (!state.selectedSupervisores.length) return;
+    openFilterModal("actividad");
+  });
+
+  $("btnCloseRtFilter")?.addEventListener("click", closeFilterModal);
+  $("btnRtFilterCancel")?.addEventListener("click", closeFilterModal);
+  $("btnRtFilterApply")?.addEventListener("click", applyFilterModal);
+
+  document.querySelectorAll('[data-close-modal="rt-filter"]').forEach((el) => {
+    el.addEventListener("click", closeFilterModal);
+  });
+
+  $("rtFilterSearch")?.addEventListener("input", (e) => {
+    renderFilterList(e.target.value);
+  });
+
+  $("btnRtFilterAll")?.addEventListener("click", () => {
+    filterModal.options.forEach((v) => filterModal.draft.add(v));
+    renderFilterList($("rtFilterSearch")?.value || "");
+    updateFilterCount();
+  });
+  $("btnRtFilterNone")?.addEventListener("click", () => {
+    filterModal.draft.clear();
+    renderFilterList($("rtFilterSearch")?.value || "");
+    updateFilterCount();
+  });
+
+  $("rtFilterList")?.addEventListener("change", (e) => {
+    const input = e.target;
+    if (!(input instanceof HTMLInputElement) || !input.classList.contains("rt-filter-modal__check")) return;
+    if (input.checked) filterModal.draft.add(input.value);
+    else filterModal.draft.delete(input.value);
+    const option = input.closest(".rt-filter-modal__option");
+    option?.classList.toggle("is-checked", input.checked);
+    updateFilterCount();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const modal = $("modalRtFilter");
+    if (modal && !modal.hidden) closeFilterModal();
+  });
+}
+
+function resetModule() {
+  state.fileName = "";
+  state.rows = [];
+  state.workers = [];
+  state.filtered = [];
+  state.allSupervisores = [];
+  state.availableActividades = [];
+  state.selectedActividades = [];
+  state.selectedSupervisores = [];
+  pager.page = 1;
+  closeFilterModal();
+  showWorkspace(false);
+  setStatus("", "");
+  syncFilterButtons();
+  syncExportButton();
+  const meta = $("rtMeta");
+  if (meta) meta.textContent = "Sube un Excel para comenzar.";
+}
+
+function bindUi() {
+  bindUpload();
+  bindPager();
+  bindFilterModal();
+
+  $("rtFltSearch")?.addEventListener("input", () => applyReportFilters({ resetPage: true }));
+  $("btnRtExport")?.addEventListener("click", () => exportExcel());
+  $("btnRtNewFile")?.addEventListener("click", () => resetModule());
+}
+
+let started = false;
+
+function init() {
+  if (started) return;
+  started = true;
+  bindUi();
+}
+
+window.addEventListener("qb:route-changed", (evt) => {
+  if (evt.detail?.route === "reporte-trabajadores") init();
+});
+
+if (window.location.hash.replace(/^#\/?/, "").split("/")[0] === "reporte-trabajadores") {
+  init();
+}

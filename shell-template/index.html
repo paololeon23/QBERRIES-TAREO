@@ -18,6 +18,8 @@
     <link rel="stylesheet" href="css/shell-brand.css" />
     <link rel="stylesheet" href="css/validacion.css" />
     <link rel="stylesheet" href="css/pases.css" />
+    <link rel="stylesheet" href="css/tarjetas.css" />
+    <link rel="stylesheet" href="css/reporte-trabajadores.css" />
     <link rel="stylesheet" href="css/inicio.css" />
   </head>
   <body>
@@ -82,11 +84,26 @@
           </div>
 
           <div class="sidebar__secondary-panel">
+            <a class="sidebar-nav-link" href="#/reporte-trabajadores" data-route="reporte-trabajadores" data-sidebar-tooltip="Reporte de Trabajadores">
+              <span class="sidebar-nav-link__icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </span>
+              <span class="sidebar-nav-link__text">Reporte de Trabajadores</span>
+            </a>
+          </div>
+
+          <div class="sidebar__secondary-panel">
             <a class="sidebar-nav-link" href="#/pases-de-salida" data-route="pases-de-salida" data-sidebar-tooltip="Pases de salida">
               <span class="sidebar-nav-link__icon">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               </span>
               <span class="sidebar-nav-link__text">Pases de salida</span>
+            </a>
+            <a class="sidebar-nav-link" href="#/tarjeta-pallet" data-route="tarjeta-pallet" data-sidebar-tooltip="Tarjeta Pallet">
+              <span class="sidebar-nav-link__icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6M7 16h8"/></svg>
+              </span>
+              <span class="sidebar-nav-link__text">Tarjeta Pallet</span>
             </a>
           </div>
         </nav>
@@ -683,7 +700,7 @@
                 </div>
               </div>
 
-              <div class="pases-filters" role="search">
+              <div class="qb-filters" role="search">
                 <label class="field">
                   <span>Fecha registro</span>
                   <input type="date" id="fltPaseFecha" />
@@ -704,9 +721,12 @@
                   <span>Buscar / DNI</span>
                   <input type="search" id="fltPaseSearch" placeholder="Nombre o DNI (trabajador / responsable)…" autocomplete="off" />
                 </label>
-                <div class="pases-filters__tools">
-                  <button type="button" class="btn btn--secondary btn--sm" id="btnPasesHoy">Hoy</button>
-                  <button type="button" class="btn btn--ghost btn--sm" id="btnPasesClearFecha">Todas las fechas</button>
+                <div class="field qb-filters__tools-field">
+                  <span>Rango</span>
+                  <div class="qb-filters__tools">
+                    <button type="button" class="btn btn--secondary btn--sm" id="btnPasesHoy">Hoy</button>
+                    <button type="button" class="btn btn--ghost btn--sm" id="btnPasesClearFecha">Todas</button>
+                  </div>
                 </div>
               </div>
 
@@ -759,6 +779,267 @@
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
                     </button>
                     <button type="button" class="table-pager__btn" id="pasesPagerLast" aria-label="Última página" title="Última">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5.59 7.41 10.18 12l-4.59 4.59L7 18l6-6-6-6zM16 6h2v12h-2z"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TARJETA PALLET -->
+          <section class="view" id="viewTarjetaPallet" data-view="tarjeta-pallet" hidden>
+            <div class="tarjetas-module">
+              <div class="tarjetas-header">
+                <div class="tarjetas-header__copy">
+                  <p class="tarjetas-header__eyebrow">QBerries · Consulta</p>
+                  <h2 class="tarjetas-header__title">Tarjeta Pallet</h2>
+                  <p class="tarjetas-header__sub">
+                    Listado de guías / jarras registradas. Solo lectura · zona horaria America/Lima · API proxy segura.
+                  </p>
+                </div>
+                <div class="tarjetas-header__actions">
+                  <button type="button" class="btn btn--ghost" id="btnTarjetasExport">Exportar Excel</button>
+                  <button type="button" class="btn btn--primary" id="btnTarjetasRefresh">Actualizar</button>
+                </div>
+              </div>
+
+              <div class="tarjetas-kpis" aria-label="Resumen de tarjetas">
+                <div class="tarjetas-kpi tarjetas-kpi--accent">
+                  <span class="tarjetas-kpi__label">Guías</span>
+                  <span class="tarjetas-kpi__value" id="kpiTarjetasGuias">0</span>
+                </div>
+                <div class="tarjetas-kpi">
+                  <span class="tarjetas-kpi__label">Jarras</span>
+                  <span class="tarjetas-kpi__value" id="kpiTarjetasJarras">0</span>
+                </div>
+                <div class="tarjetas-kpi">
+                  <span class="tarjetas-kpi__label">Jabas</span>
+                  <span class="tarjetas-kpi__value" id="kpiTarjetasJabas">0</span>
+                </div>
+                <div class="tarjetas-kpi tarjetas-kpi--peso">
+                  <span class="tarjetas-kpi__label">Peso bruto · neto</span>
+                  <div class="tarjetas-kpi__peso" id="kpiTarjetasPeso">
+                    <span class="tarjetas-kpi__peso-item">
+                      <em>Bruto</em>
+                      <strong id="kpiTarjetasPesoBruto">0</strong>
+                    </span>
+                    <span class="tarjetas-kpi__peso-sep" aria-hidden="true">·</span>
+                    <span class="tarjetas-kpi__peso-item">
+                      <em>Neto</em>
+                      <strong id="kpiTarjetasPesoNeto">0</strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="qb-filters" role="search">
+                <label class="field">
+                  <span>Fecha</span>
+                  <input type="date" id="fltTarjetaFecha" />
+                </label>
+                <label class="field">
+                  <span>Placa</span>
+                  <select id="fltTarjetaPlaca">
+                    <option value="">Todas</option>
+                  </select>
+                </label>
+                <label class="field field--grow">
+                  <span>Buscar</span>
+                  <input type="search" id="fltTarjetaSearch" placeholder="Guía, correlativo, placa, DNI…" autocomplete="off" />
+                </label>
+                <div class="field qb-filters__tools-field">
+                  <span>Rango</span>
+                  <div class="qb-filters__tools">
+                    <button type="button" class="btn btn--ghost btn--sm" id="btnTarjetasResumen">Resumen</button>
+                    <button type="button" class="btn btn--secondary btn--sm" id="btnTarjetasHoy">Hoy</button>
+                    <button type="button" class="btn btn--ghost btn--sm" id="btnTarjetasClearFecha">Todas</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tarjetas-meta-row">
+                <p class="tarjetas-meta" id="tarjetasMeta">Sin datos cargados</p>
+              </div>
+              <p class="tarjetas-status" id="tarjetasStatus" hidden></p>
+
+              <div class="tarjetas-table-shell">
+                <div class="tarjetas-table-wrap">
+                  <table class="tarjetas-table">
+                    <thead>
+                      <tr>
+                        <th>Guía / Correlativo</th>
+                        <th>Fecha</th>
+                        <th>Placa</th>
+                        <th>Lugar · Variedad</th>
+                        <th>Módulo · Lote</th>
+                        <th>Jarras</th>
+                        <th>Jabas</th>
+                        <th>Peso neto</th>
+                        <th>DNI</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tarjetasTableBody"></tbody>
+                  </table>
+                  <p class="tarjetas-empty" id="tarjetasEmpty" hidden>
+                    <span class="tarjetas-empty__title">Sin tarjetas</span>
+                    <span class="tarjetas-empty__text">No hay tarjetas para mostrar.</span>
+                  </p>
+                </div>
+
+                <div class="table-pager" id="tarjetasTablePager" aria-label="Paginación de tarjetas">
+                  <label class="table-pager__per-page">
+                    <span>Items per page:</span>
+                    <select id="tarjetasPagerPageSize" aria-label="Filas por página">
+                      <option value="10">10</option>
+                      <option value="20" selected>20</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
+                  </label>
+                  <span class="table-pager__range" id="tarjetasPagerRange">0 – 0 of 0</span>
+                  <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
+                    <button type="button" class="table-pager__btn" id="tarjetasPagerFirst" aria-label="Primera página" title="Primera">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="tarjetasPagerPrev" aria-label="Página anterior" title="Anterior">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="tarjetasPagerNext" aria-label="Página siguiente" title="Siguiente">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="tarjetasPagerLast" aria-label="Última página" title="Última">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5.59 7.41 10.18 12l-4.59 4.59L7 18l6-6-6-6zM16 6h2v12h-2z"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- REPORTE DE TRABAJADORES -->
+          <section class="view" id="viewReporteTrabajadores" data-view="reporte-trabajadores" hidden>
+            <div class="rt-module">
+              <div class="rt-header">
+                <div class="rt-header__copy">
+                  <p class="rt-header__eyebrow">QBerries · Reportes</p>
+                  <h2 class="rt-header__title">Reporte de Trabajadores</h2>
+                  <p class="rt-header__sub">
+                    Primero elige uno o varios <strong>Supervisores</strong> (col. W); eso habilita las <strong>Actividades</strong> (col. M) de esos supervisores. Luego ves los trabajadores (col. D) y puedes exportar todo.
+                  </p>
+                </div>
+                <div class="rt-header__actions">
+                  <button type="button" class="btn btn--ghost" id="btnRtNewFile" hidden>Otro Excel</button>
+                  <button type="button" class="btn btn--primary" id="btnRtExport" disabled>Exportar Excel</button>
+                </div>
+              </div>
+
+              <div class="rt-upload" id="rtUploadZone">
+                <div class="rt-upload__card" id="rtDropCard">
+                  <div class="rt-upload__icon" aria-hidden="true">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <path d="M12 18v-6"/>
+                      <path d="m9 15 3-3 3 3"/>
+                    </svg>
+                  </div>
+                  <h3 class="rt-upload__title">Sube tu Excel de tareo</h3>
+                  <p class="rt-upload__text">Arrastra el archivo o selecciónalo. Se leen Actividad (M), Supervisor (W) y Trabajador (D).</p>
+                  <button type="button" class="btn btn--primary" id="btnRtPickExcel">Elegir Excel</button>
+                  <input type="file" id="rtInputExcel" accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden />
+                </div>
+              </div>
+
+              <div class="rt-workspace is-hidden" id="rtWorkspace">
+                <div class="rt-kpis" aria-label="Resumen del reporte">
+                  <div class="rt-kpi">
+                    <span class="rt-kpi__label">Archivo</span>
+                    <span class="rt-kpi__value rt-kpi__value--file" id="rtKpiFile">—</span>
+                  </div>
+                  <div class="rt-kpi">
+                    <span class="rt-kpi__label">Actividades</span>
+                    <span class="rt-kpi__value" id="rtKpiActividades">0</span>
+                  </div>
+                  <div class="rt-kpi">
+                    <span class="rt-kpi__label">Supervisores</span>
+                    <span class="rt-kpi__value" id="rtKpiSupervisores">0</span>
+                  </div>
+                  <div class="rt-kpi rt-kpi--accent">
+                    <span class="rt-kpi__label">Trabajadores</span>
+                    <span class="rt-kpi__value" id="rtKpiTrabajadores">0</span>
+                  </div>
+                </div>
+
+                <div class="rt-filters" role="search">
+                  <div class="field">
+                    <span>1. Supervisor <em>(col. W · múltiple)</em></span>
+                    <button type="button" class="rt-filter-btn" id="rtBtnSupervisor" data-placeholder="Selecciona supervisor(es)…">
+                      <span class="rt-filter-btn__text" id="rtBtnSupervisorText">Selecciona supervisor(es)…</span>
+                      <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
+                    </button>
+                  </div>
+                  <div class="field">
+                    <span>2. Actividad <em>(col. M · múltiple)</em></span>
+                    <button type="button" class="rt-filter-btn" id="rtBtnActividad" data-placeholder="Primero elige supervisor…" disabled>
+                      <span class="rt-filter-btn__text" id="rtBtnActividadText">Primero elige supervisor…</span>
+                      <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
+                    </button>
+                  </div>
+                  <label class="field field--grow">
+                    <span>Buscar trabajador / DNI</span>
+                    <input type="search" id="rtFltSearch" placeholder="Nombre o documento…" autocomplete="off" disabled />
+                  </label>
+                </div>
+
+                <p class="rt-meta" id="rtMeta">Sube un Excel para comenzar.</p>
+                <p class="rt-status" id="rtStatus" hidden></p>
+
+                <div class="rt-table-shell">
+                  <div class="rt-table-wrap">
+                    <table class="rt-table" id="rtTable">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Documento</th>
+                          <th>Trabajador</th>
+                          <th>Actividad</th>
+                          <th>Supervisor</th>
+                          <th>Fundo</th>
+                          <th>Registros</th>
+                        </tr>
+                      </thead>
+                      <tbody id="rtTableBody"></tbody>
+                    </table>
+                    <div class="rt-empty" id="rtEmpty">
+                      <div class="rt-empty__title">Aún no hay data clasificada</div>
+                      <p class="rt-empty__text">Elige supervisor y actividad para armar la lista de trabajadores.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="table-pager" id="rtPager" aria-label="Paginación reporte trabajadores">
+                  <label class="table-pager__per-page">
+                    <span>Items per page:</span>
+                    <select id="rtPagerPageSize" aria-label="Filas por página">
+                      <option value="10">10</option>
+                      <option value="20" selected>20</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
+                  </label>
+                  <span class="table-pager__range" id="rtPagerRange">0 – 0 of 0</span>
+                  <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
+                    <button type="button" class="table-pager__btn" id="rtPagerFirst" aria-label="Primera página" title="Primera">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="rtPagerPrev" aria-label="Página anterior" title="Anterior">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="rtPagerNext" aria-label="Página siguiente" title="Siguiente">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="rtPagerLast" aria-label="Última página" title="Última">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5.59 7.41 10.18 12l-4.59 4.59L7 18l6-6-6-6zM16 6h2v12h-2z"/></svg>
                     </button>
                   </div>
@@ -892,11 +1173,109 @@
       </div>
     </div>
 
+    <div class="modal" id="modalTarjetaDetail" hidden>
+      <div class="modal__backdrop" data-close-modal="tarjeta"></div>
+      <div class="modal__dialog modal__dialog--tarjeta" role="dialog" aria-modal="true" aria-labelledby="tarjetaDetailTitle">
+        <button type="button" class="modal__close" id="btnCloseTarjetaDetail" aria-label="Cerrar">×</button>
+
+        <header class="tarjeta-sheet__head">
+          <div class="tarjeta-sheet__head-copy">
+            <p class="tarjeta-sheet__eyebrow">Detalle de tarjeta</p>
+            <h2 class="tarjeta-sheet__title" id="tarjetaDetailTitle">Tarjeta</h2>
+            <p class="tarjeta-sheet__sub" id="tarjetaDetailSub"></p>
+          </div>
+          <div class="tarjeta-sheet__head-side" id="tarjetaDetailBadges"></div>
+        </header>
+
+        <div class="tarjeta-sheet__metrics" id="tarjetaDetailMetrics" aria-label="Resumen de carga"></div>
+        <div class="tarjeta-sheet__body" id="tarjetaDetailBody"></div>
+      </div>
+    </div>
+
+    <div class="modal modal--tarjetas-resumen" id="modalTarjetasResumen" hidden>
+      <div class="modal__backdrop" data-close-modal="tarjeta-resumen"></div>
+      <div class="modal__dialog modal__dialog--tarjetas-resumen" role="dialog" aria-modal="true" aria-labelledby="tarjetasResumenTitle">
+        <div class="tj-resumen">
+          <header class="tj-resumen__head">
+            <div>
+              <p class="tj-resumen__eyebrow">QBerries · Gerencia</p>
+              <h2 class="tj-resumen__title" id="tarjetasResumenTitle">Resumen Tarjeta Pallet</h2>
+              <p class="tj-resumen__sub" id="tarjetasResumenSub">Vista ejecutiva de guías, jarras y placas</p>
+            </div>
+            <button type="button" class="btn btn--ghost" id="btnCloseTarjetasResumen">Cerrar</button>
+          </header>
+
+          <div class="tj-resumen__kpis" id="tarjetasResumenKpis" aria-label="Indicadores"></div>
+
+          <div class="tj-resumen__grid">
+            <section class="tj-resumen__card tj-resumen__card--wide">
+              <h3 class="tj-resumen__card-title">Top guías con más jarras</h3>
+              <p class="tj-resumen__card-hint">Qué guía concentra más carga (jarras) en el rango actual</p>
+              <div class="tj-resumen__chart-wrap">
+                <canvas id="chartTarjetasGuias"></canvas>
+              </div>
+            </section>
+            <section class="tj-resumen__card">
+              <h3 class="tj-resumen__card-title">Jarras por módulo</h3>
+              <p class="tj-resumen__card-hint">Dónde se concentra la producción</p>
+              <div class="tj-resumen__chart-wrap">
+                <canvas id="chartTarjetasModulo"></canvas>
+              </div>
+            </section>
+            <section class="tj-resumen__card">
+              <h3 class="tj-resumen__card-title">Jarras por variedad</h3>
+              <p class="tj-resumen__card-hint">Mix de producto</p>
+              <div class="tj-resumen__chart-wrap tj-resumen__chart-wrap--donut">
+                <canvas id="chartTarjetasVariedad"></canvas>
+              </div>
+            </section>
+            <section class="tj-resumen__card tj-resumen__card--wide">
+              <h3 class="tj-resumen__card-title">Jarras, jabas y peso neto por día</h3>
+              <p class="tj-resumen__card-hint">Tendencia diaria · útil para gerencia</p>
+              <div class="tj-resumen__chart-wrap tj-resumen__chart-wrap--tall">
+                <canvas id="chartTarjetasDia"></canvas>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="modalRtFilter" hidden>
+      <div class="modal__backdrop" data-close-modal="rt-filter"></div>
+      <div class="modal__dialog modal__dialog--rt-filter" role="dialog" aria-modal="true" aria-labelledby="rtFilterTitle">
+        <button type="button" class="modal__close" id="btnCloseRtFilter" aria-label="Cerrar">×</button>
+        <p class="rt-filter-modal__eyebrow" id="rtFilterEyebrow">Filtro</p>
+        <h2 class="modal__title" id="rtFilterTitle">Seleccionar</h2>
+        <p class="rt-filter-modal__hint" id="rtFilterHint">Marca una o varias opciones.</p>
+
+        <div class="rt-filter-modal__toolbar">
+          <input type="search" id="rtFilterSearch" class="rt-filter-modal__search" placeholder="Buscar…" autocomplete="off" />
+          <div class="rt-filter-modal__bulk">
+            <button type="button" class="rt-filter-modal__link" id="btnRtFilterAll">Todos</button>
+            <button type="button" class="rt-filter-modal__link" id="btnRtFilterNone">Ninguno</button>
+          </div>
+        </div>
+
+        <div class="rt-filter-modal__list" id="rtFilterList" role="listbox" aria-multiselectable="true"></div>
+
+        <div class="rt-filter-modal__footer">
+          <span class="rt-filter-modal__count" id="rtFilterCount">0 seleccionados</span>
+          <div class="rt-filter-modal__actions">
+            <button type="button" class="btn btn--ghost" id="btnRtFilterCancel">Cancelar</button>
+            <button type="button" class="btn btn--primary" id="btnRtFilterApply">Aplicar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="vendor/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script type="module" src="js/shell.js"></script>
     <script type="module" src="js/validacion-app.js"></script>
     <script type="module" src="js/pases-app.js"></script>
+    <script type="module" src="js/tarjetas-app.js"></script>
+    <script type="module" src="js/reporte-trabajadores-app.js"></script>
     <script type="module" src="js/inicio-app.js"></script>
   </body>
 </html>

@@ -5,7 +5,9 @@ const ROUTE_TITLES = {
   validacion: "Tareo",
   historial: "Historial",
   recomendaciones: "Recomendaciones",
-  "pases-de-salida": "Pases de salida"
+  "pases-de-salida": "Pases de salida",
+  "tarjeta-pallet": "Tarjeta Pallet",
+  "reporte-trabajadores": "Reporte de Trabajadores"
 };
 
 const ROUTE_VIEW = {
@@ -15,7 +17,9 @@ const ROUTE_VIEW = {
   validacion: "tareo",
   historial: "historial",
   recomendaciones: "recomendaciones",
-  "pases-de-salida": "pases-de-salida"
+  "pases-de-salida": "pases-de-salida",
+  "tarjeta-pallet": "tarjeta-pallet",
+  "reporte-trabajadores": "reporte-trabajadores"
 };
 
 function normalizeHash(hash) {

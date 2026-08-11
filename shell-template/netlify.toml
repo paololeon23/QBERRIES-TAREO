@@ -12,6 +12,13 @@
   status = 200
   force = true
 
+# Proxy API Tarjeta Pallet → función que inyecta API_TOKEN
+[[redirects]]
+  from = "/api/tarjetas"
+  to = "/.netlify/functions/tarjetas"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
