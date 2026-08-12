@@ -297,7 +297,7 @@
                   <ul class="hero-panel__checks">
                     <li>Se muestran <strong>todas</strong> las macro partidas</li>
                     <li>Regla de horas solo en <strong>costo de cosecha</strong></li>
-                    <li>Tope del día: <strong>9.6 · 10.1 · 10.6 · 12</strong> h</li>
+                    <li>Tope del día: <strong>9.6 · 10.1 · 10.6 · 11.6 · 12</strong> h</li>
                   </ul>
                 </div>
                 <div class="hero-panel__visual" aria-hidden="true">
@@ -328,6 +328,12 @@
                   <strong class="rule-tile__value">10.6 h</strong>
                   <span class="rule-tile__label">1 h extra</span>
                   <span class="rule-tile__note">Solo este valor · aviso</span>
+                </article>
+                <article class="rule-tile">
+                  <span class="rule-tile__badge">Exacto</span>
+                  <strong class="rule-tile__value">11.6 h</strong>
+                  <span class="rule-tile__label">2 h extra</span>
+                  <span class="rule-tile__note">Solo este valor · OK</span>
                 </article>
                 <article class="rule-tile">
                   <span class="rule-tile__badge">Exacto</span>
@@ -445,11 +451,11 @@
                       <span>Fecha <i class="tip-dot" aria-hidden="true">i</i></span>
                       <select id="fltFecha"><option value="">Todas</option></select>
                     </label>
-                    <label class="field has-tip" data-tip="Filtra por resultado: OK = 9.6 exacto, Posible pase &lt; 9.6, Advertencia = 10.1 / 10.6 / 12 exactos, Error ≠ exacto (ej. 11.37).">
+                    <label class="field has-tip" data-tip="Filtra por resultado: OK = 9.6 o 11.6 exacto, Posible pase &lt; 9.6, Advertencia = 10.1 / 10.6 / 12 exactos, Error ≠ exacto (ej. 11.37).">
                       <span>Estado horas <i class="tip-dot" aria-hidden="true">i</i></span>
                       <select id="fltEstado">
                         <option value="">Todos</option>
-                        <option value="ok">OK = 9.6</option>
+                        <option value="ok">OK = 9.6 / 11.6</option>
                         <option value="posible-salida">Posible pase &lt; 9.6</option>
                         <option value="aviso">Advertencia ≤ 12</option>
                         <option value="rojo">Error &gt; 12</option>
@@ -653,7 +659,7 @@
                 <article class="rules-card">
                   <span class="rules-card__tag">Horas</span>
                   <h3 class="rules-card__title">Total del día</h3>
-                  <p class="rules-card__text">Se valida el <strong>total del día</strong> (suma de turnos, ej. 5.5+4.6=10.1). Exactos: 9.6 / 10.1 / 10.6 / 12 solo en Macro COSTO DE COSECHA.</p>
+                  <p class="rules-card__text">Se valida el <strong>total del día</strong> (suma de turnos, ej. 5.5+4.6=10.1). Exactos: 9.6 / 10.1 / 10.6 / 11.6 / 12 solo en Macro COSTO DE COSECHA.</p>
                 </article>
                 <article class="rules-card">
                   <span class="rules-card__tag">Horarios</span>
@@ -1487,7 +1493,7 @@
     <script src="vendor/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script type="module" src="js/shell.js?v=20260812a"></script>
-    <script type="module" src="js/validacion-app.js?v=20260812a"></script>
+    <script type="module" src="js/validacion-app.js?v=20260812b"></script>
     <script type="module" src="js/pases-app.js?v=20260812a"></script>
     <script type="module" src="js/tarjetas-app.js?v=20260812a"></script>
     <script type="module" src="js/reporte-trabajadores-app.js?v=20260812a"></script>

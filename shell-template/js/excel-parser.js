@@ -3,9 +3,10 @@
 const HOUR_BASE = 9.6;
 const HOUR_HALF = 10.1;
 const HOUR_MAX = 10.6;
+const HOUR_EXTRA_2 = 11.6;
 const HOUR_DAY_CAP = 12;
 
-const HOUR_STEPS = [HOUR_BASE, HOUR_HALF, HOUR_MAX, HOUR_DAY_CAP];
+const HOUR_STEPS = [HOUR_BASE, HOUR_HALF, HOUR_MAX, HOUR_EXTRA_2, HOUR_DAY_CAP];
 const HOUR_EXACT_EPS = 0.02;
 
 const HOURS_LABEL = "Suma de Horas Pago";
@@ -28,7 +29,7 @@ export function matchExactHourStep(hours) {
 /**
  * Clasifica suma del día (COSTO DE COSECHA) — solo valores exactos:
  * - posible-salida: > 0 y < 9.6 (ej. 5.5 primera pasada → revisar pase)
- * - ok: exacto 9.6
+ * - ok: exacto 9.6 o 11.6
  * - aviso: exacto 10.1
  * - aviso-hora: exacto 10.6 o 12
  * - rojo: cualquier otro (ej. 9.63, 11.37) o > 12
@@ -52,7 +53,7 @@ export function classifyDayHours(hours) {
   }
 
   const exact = matchExactHourStep(rounded);
-  if (exact === HOUR_BASE) {
+  if (exact === HOUR_BASE || exact === HOUR_EXTRA_2) {
     return { flag: "ok", tip: "" };
   }
   if (exact === HOUR_HALF) {
@@ -82,7 +83,7 @@ export function classifyDayHours(hours) {
   }
   return {
     flag: "rojo",
-    tip: `Error: suma ${formatHoursDisplay(rounded)} h ≠ exacto (solo 9.6 / 10.1 / 10.6 / 12).`
+    tip: `Error: suma ${formatHoursDisplay(rounded)} h ≠ exacto (solo 9.6 / 10.1 / 10.6 / 11.6 / 12).`
   };
 }
 
@@ -894,4 +895,4 @@ export function parseExcelBuffer(buffer, fileName = "archivo.xlsx") {
   };
 }
 
-export { HOUR_BASE, HOUR_HALF, HOUR_MAX, HOUR_DAY_CAP, HOUR_STEPS, HOURS_LABEL, FALLBACK };
+export { HOUR_BASE, HOUR_HALF, HOUR_MAX, HOUR_EXTRA_2, HOUR_DAY_CAP, HOUR_STEPS, HOURS_LABEL, FALLBACK };

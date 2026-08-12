@@ -1,6 +1,6 @@
 /** Motor de reglas: valida suma del día (turnos) solo en COSTO DE COSECHA. */
 
-import { HOUR_BASE, HOURS_LABEL, classifyDayHours } from "./excel-parser.js";
+import { HOUR_BASE, HOURS_LABEL, classifyDayHours } from "./excel-parser.js?v=20260812b";
 import { countSupervisoresCosto } from "./validacion-kpi.js";
 
 /** Horarios flexibles: no marcar rojo por hora de inicio/fin mientras la suma ≤ 12 h. */
@@ -108,7 +108,7 @@ export function validateDataset(parsed) {
   });
 
   // Validación de horas por DÍA (suma de turnos), solo COSTO DE COSECHA.
-  // < 9.6 posible pase · exacto 9.6 OK · 10.1/10.6/12 aviso · resto ≠ exacto error.
+  // < 9.6 posible pase · exacto 9.6/11.6 OK · 10.1/10.6/12 aviso · resto ≠ exacto error.
   const dayGroups = new Map();
   rows.forEach((row) => {
     if (!row.esCostoCosecha) {

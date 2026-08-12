@@ -1,7 +1,7 @@
 /** Orquestación: upload, modal, reportes, historial. */
 
-import { parseExcelBuffer, matchExactHourStep, classifyDayHours } from "./excel-parser.js";
-import { validateDataset } from "./validacion-rules.js";
+import { parseExcelBuffer, matchExactHourStep, classifyDayHours } from "./excel-parser.js?v=20260812b";
+import { validateDataset } from "./validacion-rules.js?v=20260812b";
 import {
   populateFilters,
   readFilters,
@@ -15,7 +15,7 @@ import {
   countTotalPosibleSalidas,
   countTotalDuplicados,
   clearAllFilterControls
-} from "./validacion-table.js";
+} from "./validacion-table.js?v=20260812b";
 import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js";
 import {
   openResumenModal,
@@ -94,7 +94,7 @@ const KPI_HELP = {
     title: "Error ≠ exacto",
     tone: "danger",
     html: `
-      <p>Personas-día en <strong>error</strong> dentro de <strong>COSTO DE COSECHA</strong>: suma distinta de <strong>9.6 / 10.1 / 10.6 / 12</strong> (ej. 9.63, 11.37), suma &gt; 12 h, horario incompleto/inválido, CECO vacío, <strong>Documento vacío</strong> o <strong>Trabajador vacío</strong>.</p>
+      <p>Personas-día en <strong>error</strong> dentro de <strong>COSTO DE COSECHA</strong>: suma distinta de <strong>9.6 / 10.1 / 10.6 / 11.6 / 12</strong> (ej. 9.63, 11.37), suma &gt; 12 h, horario incompleto/inválido, CECO vacío, <strong>Documento vacío</strong> o <strong>Trabajador vacío</strong>.</p>
       <ul>
         <li>Pasa el mouse sobre celdas rojas para ver el detalle.</li>
       </ul>`
@@ -396,7 +396,7 @@ function syncFilterTips(filteredCount) {
     [
       "fltEstado",
       f.estado === "ok"
-        ? `Mostrando solo OK (suma = 9.6). ${living}.`
+        ? `Mostrando solo OK (suma = 9.6 o 11.6). ${living}.`
         : f.estado === "posible-salida"
           ? `Mostrando posibles pases (suma < 9.6). ${living}.`
           : f.estado === "aviso"

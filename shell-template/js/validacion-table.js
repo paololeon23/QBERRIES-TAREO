@@ -1,6 +1,6 @@
 /** Tabla: una fila por persona/día con Suma de Horas Pago + reloj turnos. */
 
-import { matchExactHourStep, classifyDayHours, HOURS_LABEL, HOUR_BASE } from "./excel-parser.js";
+import { matchExactHourStep, classifyDayHours, HOURS_LABEL, HOUR_BASE } from "./excel-parser.js?v=20260812b";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -302,7 +302,7 @@ export function populateFilters(state, options = {}) {
     estado.disabled = false;
     estado.innerHTML = `
       <option value="">Todos</option>
-      <option value="ok">OK = 9.6</option>
+      <option value="ok">OK = 9.6 / 11.6</option>
       <option value="posible-salida">Posible pase &lt; 9.6</option>
       <option value="aviso">Advertencia ≤ 12</option>
       <option value="rojo">Error &gt; 12</option>
@@ -562,11 +562,11 @@ export function renderTable(state, filteredRows, options = {}) {
       const tipSuma =
         row.tipHoras ||
         (flag === "rojo"
-          ? "Error: suma ≠ exacto (solo 9.6 / 10.1 / 10.6 / 12) o supera 12 h."
+          ? "Error: suma ≠ exacto (solo 9.6 / 10.1 / 10.6 / 11.6 / 12) o supera 12 h."
           : flag === "aviso" || flag === "aviso-hora"
             ? "Aviso: solo valores exactos 10.1 / 10.6 / 12."
             : flag === "posible-salida"
-              ? "Posible pase de salida: suma menor a 9.6 h. Verificar pase registrado."
+              ? "Posible pase de salida: suma menor a 9.6 h. Verificar si hay pase registrado."
               : "");
 
       const tipDup =
