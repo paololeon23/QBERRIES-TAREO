@@ -7,7 +7,7 @@ import {
   parseListadoBuffer,
   parseProduccionBuffer,
   aggregateWorkers
-} from "./produccion-parser.js";
+} from "./produccion-parser.js?v=20260812a";
 
 const LISTADO_KEY = "qb-produccion-listado-v1";
 const LISTADO_JSON_URL = "./data/listado-trabajadores.json";

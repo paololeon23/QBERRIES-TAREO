@@ -61,12 +61,50 @@ export function applyRoute(routeKey) {
   window.dispatchEvent(new CustomEvent("qb:route-changed", { detail: { route: viewId } }));
 }
 
+function ensureProduccionNav() {
+  if (document.querySelector('.sidebar-nav-link[data-route="produccion"]')) return;
+  const panel = document.querySelector(".sidebar__secondary-panel");
+  if (!panel) return;
+  const link = document.createElement("a");
+  link.className = "sidebar-nav-link";
+  link.href = "#/produccion";
+  link.dataset.route = "produccion";
+  link.dataset.sidebarTooltip = "Producción";
+  link.innerHTML = `
+    <span class="sidebar-nav-link__icon" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14v4"/><path d="M12 10v8"/><path d="M17 6v12"/></svg>
+    </span>
+    <span class="sidebar-nav-link__text">Producción</span>`;
+  panel.appendChild(link);
+}
+
 (() => {
   const shell = document.getElementById("applicationRoot");
   const collapseBtn = document.getElementById("btnSidebarCollapse");
   const searchInput = document.getElementById("txtSidebarSearch");
   const backdrop = document.getElementById("sidebarDrawerBackdrop");
   const mobileMq = window.matchMedia("(max-width: 768px)");
+
+  ensureProduccionNav();
+
+  // Evita HTML/JS viejos del Service Worker de AGV-MI en el mismo origen
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations?.().then((regs) => {
+      regs.forEach((reg) => {
+        const scope = String(reg.scope || "");
+        if (scope.includes("shell-template") || scope.endsWith("/QA-MI/") || scope.endsWith("/QA-MI")) {
+          reg.unregister().catch(() => {});
+        }
+      });
+    });
+  }
+
+  function clearSidebarSearchFilter() {
+    if (searchInput) searchInput.value = "";
+    document.querySelectorAll(".sidebar-nav-link").forEach((el) => {
+      el.hidden = false;
+    });
+  }
 
   function isMobile() {
     return mobileMq.matches;
@@ -164,7 +202,15 @@ export function applyRoute(routeKey) {
     }
   });
 
-  window.addEventListener("hashchange", () => applyRoute(getCurrentRoute()));
+  window.addEventListener("hashchange", () => {
+    clearSidebarSearchFilter();
+    applyRoute(getCurrentRoute());
+  });
+
+  window.addEventListener("pageshow", () => {
+    ensureProduccionNav();
+    clearSidebarSearchFilter();
+  });
 
   if (
     !window.location.hash ||
