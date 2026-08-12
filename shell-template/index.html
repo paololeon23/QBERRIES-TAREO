@@ -7,6 +7,42 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>QBerries</title>
+    <script>
+      /* QBerries no debe quedar atrapado por el Service Worker de AGV-MI (caché vieja sin Producción). */
+      (function () {
+        var KEY = "qb-shell-cleared-sw-20260812";
+        try {
+          if (sessionStorage.getItem(KEY)) return;
+          sessionStorage.setItem(KEY, "1");
+        } catch (e) {}
+        if (!("serviceWorker" in navigator)) return;
+        var hadController = Boolean(navigator.serviceWorker.controller);
+        Promise.all([
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            return Promise.all(
+              regs.map(function (reg) {
+                return reg.unregister();
+              })
+            );
+          }),
+          caches.keys().then(function (keys) {
+            return Promise.all(
+              keys
+                .filter(function (k) {
+                  return String(k).indexOf("agv-mi-") === 0;
+                })
+                .map(function (k) {
+                  return caches.delete(k);
+                })
+            );
+          })
+        ])
+          .then(function () {
+            if (hadController) location.reload();
+          })
+          .catch(function () {});
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -85,6 +121,12 @@
               </span>
               <span class="sidebar-nav-link__text">Tareo</span>
             </a>
+            <a class="sidebar-nav-link" href="#/produccion" data-route="produccion" data-sidebar-tooltip="Producción">
+              <span class="sidebar-nav-link__icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14v4"/><path d="M12 10v8"/><path d="M17 6v12"/></svg>
+              </span>
+              <span class="sidebar-nav-link__text">Producción</span>
+            </a>
           </div>
 
           <div class="sidebar__secondary-panel">
@@ -108,12 +150,6 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6M7 16h8"/></svg>
               </span>
               <span class="sidebar-nav-link__text">Tarjeta Pallet</span>
-            </a>
-            <a class="sidebar-nav-link" href="#/produccion" data-route="produccion" data-sidebar-tooltip="Producción">
-              <span class="sidebar-nav-link__icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14v4"/><path d="M12 10v8"/><path d="M17 6v12"/></svg>
-              </span>
-              <span class="sidebar-nav-link__text">Producción</span>
             </a>
           </div>
         </nav>
@@ -1492,7 +1528,7 @@
 
     <script src="vendor/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script type="module" src="js/shell.js?v=20260812a"></script>
+    <script type="module" src="js/shell.js?v=20260812c"></script>
     <script type="module" src="js/validacion-app.js?v=20260812b"></script>
     <script type="module" src="js/pases-app.js?v=20260812a"></script>
     <script type="module" src="js/tarjetas-app.js?v=20260812a"></script>

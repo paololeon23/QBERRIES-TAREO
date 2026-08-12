@@ -63,7 +63,8 @@ export function applyRoute(routeKey) {
 
 function ensureProduccionNav() {
   if (document.querySelector('.sidebar-nav-link[data-route="produccion"]')) return;
-  const panel = document.querySelector(".sidebar__secondary-panel");
+  const tareo = document.querySelector('.sidebar-nav-link[data-route="tareo"]');
+  const panel = tareo?.closest(".sidebar__secondary-panel") || document.querySelector(".sidebar__secondary-panel");
   if (!panel) return;
   const link = document.createElement("a");
   link.className = "sidebar-nav-link";
@@ -75,7 +76,8 @@ function ensureProduccionNav() {
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14v4"/><path d="M12 10v8"/><path d="M17 6v12"/></svg>
     </span>
     <span class="sidebar-nav-link__text">Producción</span>`;
-  panel.appendChild(link);
+  if (tareo?.nextSibling) panel.insertBefore(link, tareo.nextSibling);
+  else panel.appendChild(link);
 }
 
 (() => {
@@ -87,15 +89,17 @@ function ensureProduccionNav() {
 
   ensureProduccionNav();
 
-  // Evita HTML/JS viejos del Service Worker de AGV-MI en el mismo origen
+  // QBerries: quitar cualquier Service Worker del origen (AGV cacheaba HTML viejo)
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.getRegistrations?.().then((regs) => {
       regs.forEach((reg) => {
-        const scope = String(reg.scope || "");
-        if (scope.includes("shell-template") || scope.endsWith("/QA-MI/") || scope.endsWith("/QA-MI")) {
-          reg.unregister().catch(() => {});
-        }
+        reg.unregister().catch(() => {});
       });
+    });
+    caches.keys?.().then((keys) => {
+      keys
+        .filter((k) => String(k).startsWith("agv-mi-"))
+        .forEach((k) => caches.delete(k).catch(() => {}));
     });
   }
 

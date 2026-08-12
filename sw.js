@@ -6,7 +6,7 @@
  */
 /* eslint-disable no-restricted-globals */
 
-const CACHE_VERSION = "2026080502";
+const CACHE_VERSION = "2026081201";
 const SHELL_CACHE = `agv-mi-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `agv-mi-runtime-${CACHE_VERSION}`;
 
@@ -61,8 +61,14 @@ function shouldBypass(url) {
   return BYPASS_HOSTS.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
 }
 
+/** QBerries shell-template: nunca cachear (si no, Producción “desaparece” hasta Ctrl+F5). */
+function isShellTemplate(url) {
+  return String(url.pathname || "").includes("/shell-template/");
+}
+
 function isSameOriginAsset(url) {
   if (url.origin !== self.location.origin) return false;
+  if (isShellTemplate(url)) return false;
   const p = url.pathname;
   return (
     p.startsWith("/presentation/") ||
@@ -203,8 +209,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (shouldBypass(url)) return;
+  if (isShellTemplate(url)) return;
 
   if (request.mode === "navigate") {
+    // No usar la caché de AGV para otras apps (p.ej. shell-template)
+    if (isShellTemplate(url)) return;
     event.respondWith(networkFirstNavigation(request));
     return;
   }
