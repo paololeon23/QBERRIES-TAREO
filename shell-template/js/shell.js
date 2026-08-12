@@ -7,6 +7,7 @@ const ROUTE_TITLES = {
   recomendaciones: "Recomendaciones",
   "pases-de-salida": "Pases de salida",
   "tarjeta-pallet": "Tarjeta Pallet",
+  produccion: "Producción",
   "reporte-trabajadores": "Reporte de Trabajadores"
 };
 
@@ -19,6 +20,7 @@ const ROUTE_VIEW = {
   recomendaciones: "recomendaciones",
   "pases-de-salida": "pases-de-salida",
   "tarjeta-pallet": "tarjeta-pallet",
+  produccion: "produccion",
   "reporte-trabajadores": "reporte-trabajadores"
 };
 

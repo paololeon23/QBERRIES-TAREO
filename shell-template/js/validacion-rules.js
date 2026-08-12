@@ -71,6 +71,8 @@ export function validateDataset(parsed) {
     minoritaria: [],
     horario: [],
     cecoVacio: [],
+    documentoVacio: [],
+    trabajadorVacio: [],
     supervisorAlerts: []
   };
 
@@ -106,7 +108,7 @@ export function validateDataset(parsed) {
   });
 
   // Validación de horas por DÍA (suma de turnos), solo COSTO DE COSECHA.
-  // Posible pase < 9.6 · OK ≈ 9.6 · aviso >9.6 hasta 12 · error > 12.
+  // < 9.6 posible pase · exacto 9.6 OK · 10.1/10.6/12 aviso · resto ≠ exacto error.
   const dayGroups = new Map();
   rows.forEach((row) => {
     if (!row.esCostoCosecha) {
@@ -164,7 +166,7 @@ export function validateDataset(parsed) {
         macroPartida: sample.macroPartida,
         day: HOURS_LABEL,
         hours: rounded,
-        reason: "sobre_12",
+        reason: rounded > 12 ? "sobre_12" : "no_exacto",
         rowIndex: sample.rowIndex
       });
       return;
@@ -343,6 +345,58 @@ export function validateDataset(parsed) {
     } else {
       row.dayFlags.ceco = "ok";
       row.tipCeco = "";
+    }
+
+    // Documento vacío con Código Trabajador (= Documento) → error
+    // Trabajador vacío con identidad (Documento o Código) → error
+    const codigoOk = String(row.codigoTrabajador || "").trim();
+    const docCellOk = String(row.documentoCell || "").trim();
+    const docOk = String(row.documento || "").trim(); // ya con fallback al código
+    const trabOk = String(row.trabajador || "").trim();
+    const docVacio = Boolean(row.documentoVacio) || (Boolean(codigoOk || docOk) && !docCellOk);
+
+    if (row.esCostoCosecha && docVacio && (codigoOk || docOk)) {
+      row.dayFlags.documento = "rojo";
+      row.tipDocumento = codigoOk
+        ? `Error: Documento vacío. Código Trabajador ${codigoOk} actúa como Documento.`
+        : "Error: Documento vacío.";
+      if (!row.flags.includes("rojo")) row.flags.push("rojo");
+      if (!row.flags.includes("sin-documento")) row.flags.push("sin-documento");
+      findings.documentoVacio.push({
+        documento: docOk,
+        codigoTrabajador: codigoOk,
+        trabajador: row.trabajador || "",
+        supervisor: row.supervisor,
+        macroPartida: row.macroPartida,
+        actividad: row.actividad || "",
+        fecha: row.fecha || "",
+        rowIndex: row.rowIndex
+      });
+    } else {
+      row.dayFlags.documento = row.dayFlags.documento || "ok";
+      if (!row.tipDocumento) row.tipDocumento = "";
+    }
+
+    if (row.esCostoCosecha && docOk && !trabOk) {
+      row.dayFlags.trabajador = "rojo";
+      row.tipTrabajador = codigoOk
+        ? `Error: hay Código/Documento (${docOk}) pero Trabajador está vacío.`
+        : "Error: hay Documento pero Trabajador está vacío. Completa el nombre del trabajador.";
+      if (!row.flags.includes("rojo")) row.flags.push("rojo");
+      if (!row.flags.includes("sin-trabajador")) row.flags.push("sin-trabajador");
+      findings.trabajadorVacio.push({
+        documento: row.documento,
+        codigoTrabajador: codigoOk,
+        trabajador: "",
+        supervisor: row.supervisor,
+        macroPartida: row.macroPartida,
+        actividad: row.actividad || "",
+        fecha: row.fecha || "",
+        rowIndex: row.rowIndex
+      });
+    } else {
+      row.dayFlags.trabajador = row.dayFlags.trabajador || "ok";
+      if (!row.tipTrabajador) row.tipTrabajador = "";
     }
 
     row.tipoBucket = detectTipoBucket(row);

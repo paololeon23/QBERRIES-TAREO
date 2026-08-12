@@ -124,6 +124,20 @@ export function collapseToDayRows(rows) {
       agg.dayFlags = { ...(agg.dayFlags || {}), ceco: "rojo" };
       if (row.tipCeco) agg.tipCeco = row.tipCeco;
     }
+    if (row.dayFlags?.documento === "rojo" || row.documentoVacio) {
+      agg.dayFlags = { ...(agg.dayFlags || {}), documento: "rojo" };
+      if (row.tipDocumento) agg.tipDocumento = row.tipDocumento;
+      if (row.codigoTrabajador) agg.codigoTrabajador = row.codigoTrabajador;
+      agg.documentoVacio = true;
+    }
+    if (row.dayFlags?.trabajador === "rojo") {
+      agg.dayFlags = { ...(agg.dayFlags || {}), trabajador: "rojo" };
+      if (row.tipTrabajador) agg.tipTrabajador = row.tipTrabajador;
+      if (!String(agg.trabajador || "").trim()) agg.trabajador = "";
+    }
+    if (row.codigoTrabajador && !agg.codigoTrabajador) {
+      agg.codigoTrabajador = row.codigoTrabajador;
+    }
   });
 
   return [...map.values()].map((agg) => {
@@ -159,18 +173,25 @@ export function collapseToDayRows(rows) {
       const classified = classifyDayHours(sum);
       sumaFlag = classified.flag === "na" ? "na" : classified.flag;
       if (classified.tip) agg.tipHoras = classified.tip;
-      if (sumaFlag === "rojo") agg.status = "rojo";
-      else if (
+      if (sumaFlag === "rojo") {
+        agg.status = "rojo";
+        if (!Array.isArray(agg.flags)) agg.flags = [];
+        if (!agg.flags.includes("rojo")) agg.flags.push("rojo");
+      } else if (
         (sumaFlag === "aviso" || sumaFlag === "aviso-hora") &&
         agg.status !== "rojo"
       ) {
         agg.status = "aviso";
+        if (!Array.isArray(agg.flags)) agg.flags = [];
+        if (!agg.flags.includes("aviso")) agg.flags.push("aviso");
       } else if (
         sumaFlag === "posible-salida" &&
         agg.status !== "rojo" &&
         agg.status !== "aviso"
       ) {
         agg.status = "posible-salida";
+        if (!Array.isArray(agg.flags)) agg.flags = [];
+        if (!agg.flags.includes("posible-salida")) agg.flags.push("posible-salida");
       }
     }
     const inicios = allTurns.map((t) => t.iniTxt).filter(Boolean);
@@ -541,9 +562,9 @@ export function renderTable(state, filteredRows, options = {}) {
       const tipSuma =
         row.tipHoras ||
         (flag === "rojo"
-          ? "Error: la suma supera el tope de 12 h."
+          ? "Error: suma ≠ exacto (solo 9.6 / 10.1 / 10.6 / 12) o supera 12 h."
           : flag === "aviso" || flag === "aviso-hora"
-            ? "Aviso: suma sobre 9.6 h (máximo 12 h)."
+            ? "Aviso: solo valores exactos 10.1 / 10.6 / 12."
             : flag === "posible-salida"
               ? "Posible pase de salida: suma menor a 9.6 h. Verificar pase registrado."
               : "");
@@ -553,7 +574,31 @@ export function renderTable(state, filteredRows, options = {}) {
         (isDup
           ? "Turno duplicado: mismo DNI + fecha + hora de inicio registrado más de una vez."
           : "");
-      const docClass = isDup ? "is-cell-dup has-tip has-tip--cell" : "";
+      const docEmpty =
+        Boolean(row.documentoVacio) ||
+        row.dayFlags?.documento === "rojo" ||
+        (Boolean(String(row.codigoTrabajador || "").trim()) &&
+          !String(row.documentoCell || "").trim() &&
+          row.dayFlags?.documento === "rojo");
+      const tipDocumento =
+        row.tipDocumento ||
+        (docEmpty
+          ? `Error: Documento vacío.${
+              row.codigoTrabajador ? ` Código Trabajador ${row.codigoTrabajador}.` : ""
+            }`
+          : "");
+      const docDanger = docEmpty || row.dayFlags?.documento === "rojo";
+      const docClass = [
+        isDup ? "is-cell-dup" : "",
+        docDanger ? "is-cell-danger" : "",
+        isDup || docDanger ? "has-tip has-tip--cell" : ""
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const docTip = tipDocumento || tipDup;
+      const docText = docDanger
+        ? `(vacío)${row.codigoTrabajador ? ` · ${escapeHtml(row.codigoTrabajador)}` : ""}`
+        : escapeHtml(row.documento);
 
       const cecoEmpty = !String(row.ceco || "").trim() || row.dayFlags?.ceco === "rojo";
       const tipCeco =
@@ -564,12 +609,26 @@ export function renderTable(state, filteredRows, options = {}) {
         : "";
       const cecoText = cecoEmpty ? "(vacío)" : escapeHtml(row.ceco);
 
+      const hasDocumento = Boolean(
+        String(row.documento || "").trim() || String(row.codigoTrabajador || "").trim()
+      );
+      const trabEmpty =
+        hasDocumento &&
+        (!String(row.trabajador || "").trim() || row.dayFlags?.trabajador === "rojo");
+      const tipTrabajador =
+        row.tipTrabajador ||
+        (trabEmpty
+          ? "Error: hay Código/Documento pero Trabajador está vacío. Completa el nombre del trabajador."
+          : "");
+      const trabClass = trabEmpty ? "is-cell-danger has-tip has-tip--cell" : "";
+      const trabText = trabEmpty ? "(vacío)" : escapeHtml(row.trabajador);
+
       const sumaClass = `cell-suma${cellClass ? ` ${cellClass} has-tip has-tip--cell` : ""}`;
 
       return `
         <tr class="${rowClass}" data-row-index="${row.rowIndex}">
-          <td class="${docClass}"${isDup ? tipAttr(tipDup) : ""}>${escapeHtml(row.documento)}</td>
-          <td>${escapeHtml(row.trabajador)}</td>
+          <td class="${docClass}"${docTip ? tipAttr(docTip) : ""}>${docText}</td>
+          <td class="${trabClass}"${trabEmpty ? tipAttr(tipTrabajador) : ""}>${trabText}</td>
           <td>${escapeHtml(row.supervisor)}</td>
           <td>${escapeHtml(row.fundo)}</td>
           <td>${escapeHtml(row.macroPartida)}</td>

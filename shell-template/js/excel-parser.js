@@ -26,11 +26,12 @@ export function matchExactHourStep(hours) {
 }
 
 /**
- * Clasifica suma del día (COSTO DE COSECHA):
- * - posible-salida: > 0 y < 9.6 (jornada incompleta → revisar pase)
- * - ok: ≈ 9.6
- * - aviso: > 9.6 y ≤ 12
- * - rojo: > 12
+ * Clasifica suma del día (COSTO DE COSECHA) — solo valores exactos:
+ * - posible-salida: > 0 y < 9.6 (ej. 5.5 primera pasada → revisar pase)
+ * - ok: exacto 9.6
+ * - aviso: exacto 10.1
+ * - aviso-hora: exacto 10.6 o 12
+ * - rojo: cualquier otro (ej. 9.63, 11.37) o > 12
  */
 function formatHoursDisplay(hours) {
   if (hours == null || !Number.isFinite(hours)) return "";
@@ -42,33 +43,46 @@ export function classifyDayHours(hours) {
     return { flag: "na", tip: "Sin horas de pago para sumar. ¿Falta dato en el Excel?" };
   }
   const rounded = Math.round(hours * 1e6) / 1e6;
-  if (rounded > HOUR_DAY_CAP + HOUR_EXACT_EPS) {
-    return {
-      flag: "rojo",
-      tip: `Error: suma ${formatHoursDisplay(rounded)} h supera el tope de 12 h.`
-    };
-  }
+
   if (rounded < HOUR_BASE - HOUR_EXACT_EPS) {
     return {
       flag: "posible-salida",
       tip: `Posible pase de salida: suma ${formatHoursDisplay(rounded)} h (menor a 9.6). Verificar si hay pase registrado.`
     };
   }
-  if (rounded <= HOUR_BASE + HOUR_EXACT_EPS) {
+
+  const exact = matchExactHourStep(rounded);
+  if (exact === HOUR_BASE) {
     return { flag: "ok", tip: "" };
   }
-  const exact = matchExactHourStep(rounded);
-  const label =
-    exact === HOUR_HALF
-      ? "media hora extra"
-      : exact === HOUR_MAX
-        ? "1 h extra"
-        : exact === HOUR_DAY_CAP
-          ? "tope 12 h"
-          : "dentro del tope 12 h";
+  if (exact === HOUR_HALF) {
+    return {
+      flag: "aviso",
+      tip: `Aviso: ${formatHoursDisplay(rounded)} h = media hora extra (exacto 10.1).`
+    };
+  }
+  if (exact === HOUR_MAX) {
+    return {
+      flag: "aviso-hora",
+      tip: `Aviso: ${formatHoursDisplay(rounded)} h = 1 h extra (exacto 10.6).`
+    };
+  }
+  if (exact === HOUR_DAY_CAP) {
+    return {
+      flag: "aviso-hora",
+      tip: `Aviso: ${formatHoursDisplay(rounded)} h = tope jornada (exacto 12).`
+    };
+  }
+
+  if (rounded > HOUR_DAY_CAP + HOUR_EXACT_EPS) {
+    return {
+      flag: "rojo",
+      tip: `Error: suma ${formatHoursDisplay(rounded)} h supera el tope de 12 h.`
+    };
+  }
   return {
-    flag: exact === HOUR_MAX || exact === HOUR_DAY_CAP || rounded >= HOUR_MAX ? "aviso-hora" : "aviso",
-    tip: `Aviso: ${formatHoursDisplay(rounded)} h = ${label} (sobre 9.6, máx 12).`
+    flag: "rojo",
+    tip: `Error: suma ${formatHoursDisplay(rounded)} h ≠ exacto (solo 9.6 / 10.1 / 10.6 / 12).`
   };
 }
 
@@ -78,6 +92,7 @@ export function isExactAllowedHour(hours) {
 
 /** Fallbacks 0-based: C, D, I, M, U, V/W, Y, AB/AC/AD/AE */
 const FALLBACK = {
+  codigoTrabajador: 1, // B
   documento: 2,
   trabajador: 3,
   macroPartida: 8,
@@ -362,6 +377,7 @@ function findHeaderRow(sheet, range) {
  */
 function mapHeaders(headerRow) {
   const mapping = {
+    codigoTrabajador: -1,
     documento: -1,
     trabajador: -1,
     supervisor: -1,
@@ -406,13 +422,27 @@ function mapHeaders(headerRow) {
     const h = normHeader(header);
     if (!h) return;
 
+    // Código Trabajador (= Documento de referencia cuando Documento viene vacío)
+    if (
+      mapping.codigoTrabajador < 0 &&
+      scoreMatch(
+        h,
+        ["codigo trabajador", "cod trabajador", "codigo del trabajador", "cod. trabajador"],
+        ["codigo trabajador", "cod trabajador"],
+        ["supervisor"]
+      )
+    ) {
+      mapping.codigoTrabajador = index;
+      return;
+    }
+
     // Documento / DNI
     if (
       mapping.documento < 0 &&
       scoreMatch(h, ["documento", "dni", "nro documento", "numero documento", "n documento"], [
         "documento",
         "dni"
-      ], ["tipo documento"])
+      ], ["tipo documento", "codigo", "cod "])
     ) {
       mapping.documento = index;
       return;
@@ -599,6 +629,7 @@ function mapHeaders(headerRow) {
   }
 
   // Fallbacks solo si el título no existe
+  if (mapping.codigoTrabajador < 0) mapping.codigoTrabajador = FALLBACK.codigoTrabajador;
   if (mapping.documento < 0) mapping.documento = FALLBACK.documento;
   if (mapping.trabajador < 0) mapping.trabajador = FALLBACK.trabajador;
   if (mapping.macroPartida < 0) mapping.macroPartida = FALLBACK.macroPartida;
@@ -619,6 +650,7 @@ function mapHeaders(headerRow) {
 
 function rowHasAnyMappedData(sheet, r, mapping) {
   const cols = [
+    mapping.codigoTrabajador,
     mapping.documento,
     mapping.trabajador,
     mapping.supervisor,
@@ -704,7 +736,11 @@ export function parseExcelBuffer(buffer, fileName = "archivo.xlsx") {
     if (esCostoCosecha) costoCosechaCount += 1;
     else otherMacroCount += 1;
 
-    const documento = formatDni(readSheetCell(sheet, r, mapping.documento));
+    const codigoTrabajador = formatDni(readSheetCell(sheet, r, mapping.codigoTrabajador));
+    const documentoCell = formatDni(readSheetCell(sheet, r, mapping.documento));
+    // Código Trabajador = Documento: si Documento viene vacío, usar el código
+    const documento = documentoCell || codigoTrabajador;
+    const documentoVacio = Boolean(codigoTrabajador || documentoCell) && !documentoCell;
     const trabajador = cleanText(readSheetCell(sheet, r, mapping.trabajador));
     const horaInicioDisplay = readSheetCell(sheet, r, mapping.horaInicio, true);
     const horaFinDisplay = readSheetCell(sheet, r, mapping.horaFin, true);
@@ -742,7 +778,10 @@ export function parseExcelBuffer(buffer, fileName = "archivo.xlsx") {
     rows.push({
       rowIndex: r + 1,
       excelRow: r + 1,
+      codigoTrabajador,
       documento,
+      documentoCell,
+      documentoVacio,
       trabajador,
       supervisor: cleanText(readSheetCell(sheet, r, mapping.supervisor)),
       codSupervisor: formatDni(readSheetCell(sheet, r, mapping.codSupervisor)),

@@ -1,6 +1,6 @@
 /**
  * Reporte de Trabajadores:
- * 1) Supervisor (col. W, múltiple) → 2) Actividad (col. M, múltiple) → lista Trabajador (col. D)
+ * 1) Fundo (múltiple) → 2) Supervisor (col. W) → 3) Actividad (col. M) → Trabajador (col. D)
  */
 
 import { parseExcelBuffer } from "./excel-parser.js";
@@ -10,8 +10,10 @@ const state = {
   rows: [],
   workers: [],
   filtered: [],
-  allSupervisores: [],
+  allFundos: [],
+  availableSupervisores: [],
   availableActividades: [],
+  selectedFundos: [],
   selectedActividades: [],
   selectedSupervisores: []
 };
@@ -24,7 +26,7 @@ const pager = {
 
 /** Modal draft for multi-select filters */
 const filterModal = {
-  kind: null, // "supervisor" | "actividad"
+  kind: null, // "fundo" | "supervisor" | "actividad"
   options: [],
   draft: new Set(),
   bound: false
@@ -68,7 +70,29 @@ function formatMultiLabel(selected, placeholder, singular, plural) {
   return `${selected.length} ${plural}`;
 }
 
+function rowsForSelectedFundos() {
+  const fundos = state.selectedFundos;
+  if (!fundos.length) return [];
+  const fundoSet = new Set(fundos);
+  return state.rows.filter((r) => fundoSet.has(String(r.fundo || "").trim()));
+}
+
+function rowsForSelectedFundoSupervisor() {
+  const fundos = state.selectedFundos;
+  const supervisores = state.selectedSupervisores;
+  if (!fundos.length || !supervisores.length) return [];
+  const fundoSet = new Set(fundos);
+  const supSet = new Set(supervisores);
+  return state.rows.filter(
+    (r) =>
+      fundoSet.has(String(r.fundo || "").trim()) &&
+      supSet.has(String(r.supervisor || "").trim())
+  );
+}
+
 function syncFilterButtons() {
+  const btnFundo = $("rtBtnFundo");
+  const txtFundo = $("rtBtnFundoText");
   const btnSup = $("rtBtnSupervisor");
   const txtSup = $("rtBtnSupervisorText");
   const btnAct = $("rtBtnActividad");
@@ -76,14 +100,31 @@ function syncFilterButtons() {
   const search = $("rtFltSearch");
 
   const hasRows = state.rows.length > 0;
+  const hasFundo = state.selectedFundos.length > 0;
   const hasSup = state.selectedSupervisores.length > 0;
   const hasAct = state.selectedActividades.length > 0;
 
-  if (btnSup) btnSup.disabled = !hasRows;
+  if (btnFundo) btnFundo.disabled = !hasRows;
+  if (txtFundo) {
+    txtFundo.textContent = formatMultiLabel(
+      state.selectedFundos,
+      btnFundo?.dataset.placeholder || "Selecciona fundo(s)…",
+      "fundo",
+      "fundos"
+    );
+  }
+  btnFundo?.classList.toggle("has-value", hasFundo);
+
+  if (btnSup) {
+    btnSup.disabled = !hasFundo;
+    btnSup.dataset.placeholder = hasFundo
+      ? "Selecciona supervisor(es)…"
+      : "Primero elige fundo…";
+  }
   if (txtSup) {
     txtSup.textContent = formatMultiLabel(
       state.selectedSupervisores,
-      btnSup?.dataset.placeholder || "Selecciona supervisor(es)…",
+      btnSup?.dataset.placeholder || "Primero elige fundo…",
       "supervisor",
       "supervisores"
     );
@@ -92,7 +133,9 @@ function syncFilterButtons() {
 
   if (btnAct) {
     btnAct.disabled = !hasSup;
-    btnAct.dataset.placeholder = hasSup ? "Selecciona actividad(es)…" : "Primero elige supervisor…";
+    btnAct.dataset.placeholder = hasSup
+      ? "Selecciona actividad(es)…"
+      : "Primero elige supervisor…";
   }
   if (txtAct) {
     txtAct.textContent = formatMultiLabel(
@@ -105,32 +148,52 @@ function syncFilterButtons() {
   btnAct?.classList.toggle("has-value", hasAct);
 
   if (search) {
-    search.disabled = !(hasSup && hasAct);
+    search.disabled = !(hasFundo && hasSup && hasAct);
     if (search.disabled) search.value = "";
   }
 }
 
-function refreshSupervisorOptions() {
-  state.allSupervisores = uniqueSorted(state.rows.map((r) => r.supervisor));
+function refreshFundoOptions() {
+  state.allFundos = uniqueSorted(state.rows.map((r) => r.fundo));
+  state.availableSupervisores = [];
   state.availableActividades = [];
+  state.selectedFundos = [];
   state.selectedSupervisores = [];
   state.selectedActividades = [];
   syncFilterButtons();
 }
 
+function refreshSupervisorOptions({ selectAll = true } = {}) {
+  const scoped = rowsForSelectedFundos();
+  if (!scoped.length) {
+    state.availableSupervisores = [];
+    state.availableActividades = [];
+    state.selectedSupervisores = [];
+    state.selectedActividades = [];
+    syncFilterButtons();
+    return;
+  }
+
+  state.availableSupervisores = uniqueSorted(scoped.map((r) => r.supervisor));
+  if (selectAll) {
+    state.selectedSupervisores = [...state.availableSupervisores];
+  } else {
+    const allowed = new Set(state.availableSupervisores);
+    state.selectedSupervisores = state.selectedSupervisores.filter((s) => allowed.has(s));
+  }
+  refreshActividadOptions({ selectAll: true });
+}
+
 function refreshActividadOptions({ selectAll = true } = {}) {
-  const supervisores = state.selectedSupervisores;
-  if (!supervisores.length) {
+  const scoped = rowsForSelectedFundoSupervisor();
+  if (!scoped.length) {
     state.availableActividades = [];
     state.selectedActividades = [];
     syncFilterButtons();
     return;
   }
 
-  const supSet = new Set(supervisores);
-  state.availableActividades = uniqueSorted(
-    state.rows.filter((r) => supSet.has(String(r.supervisor || "").trim())).map((r) => r.actividad)
-  );
+  state.availableActividades = uniqueSorted(scoped.map((r) => r.actividad));
 
   if (selectAll) {
     state.selectedActividades = [...state.availableActividades];
@@ -145,16 +208,16 @@ function updateFilterCount() {
   const el = $("rtFilterCount");
   if (!el) return;
   const n = filterModal.draft.size;
-  const noun =
-    filterModal.kind === "actividad"
-      ? n === 1
-        ? "actividad"
-        : "actividades"
-      : n === 1
-        ? "supervisor"
-        : "supervisores";
-  const ending =
-    filterModal.kind === "actividad" ? (n === 1 ? "a" : "as") : n === 1 ? "o" : "os";
+  let noun = "items";
+  let ending = n === 1 ? "o" : "os";
+  if (filterModal.kind === "fundo") {
+    noun = n === 1 ? "fundo" : "fundos";
+  } else if (filterModal.kind === "actividad") {
+    noun = n === 1 ? "actividad" : "actividades";
+    ending = n === 1 ? "a" : "as";
+  } else {
+    noun = n === 1 ? "supervisor" : "supervisores";
+  }
   el.textContent = `${n} ${noun} seleccionad${ending}`;
 }
 
@@ -196,20 +259,28 @@ function openFilterModal(kind) {
   if (!modal) return;
 
   filterModal.kind = kind;
-  if (kind === "supervisor") {
-    filterModal.options = [...state.allSupervisores];
-    filterModal.draft = new Set(state.selectedSupervisores);
+  if (kind === "fundo") {
+    filterModal.options = [...state.allFundos];
+    filterModal.draft = new Set(state.selectedFundos);
     $("rtFilterEyebrow").textContent = "Paso 1";
+    $("rtFilterTitle").textContent = "Fundo";
+    $("rtFilterHint").textContent = "Marca uno o varios fundos.";
+    $("btnRtFilterAll").textContent = "Todos";
+    $("btnRtFilterNone").textContent = "Ninguno";
+  } else if (kind === "supervisor") {
+    filterModal.options = [...state.availableSupervisores];
+    filterModal.draft = new Set(state.selectedSupervisores);
+    $("rtFilterEyebrow").textContent = "Paso 2";
     $("rtFilterTitle").textContent = "Supervisor";
-    $("rtFilterHint").textContent = "Marca uno o varios supervisores (columna W).";
+    $("rtFilterHint").textContent = "Marca uno o varios supervisores del fundo elegido (columna W).";
     $("btnRtFilterAll").textContent = "Todos";
     $("btnRtFilterNone").textContent = "Ninguno";
   } else {
     filterModal.options = [...state.availableActividades];
     filterModal.draft = new Set(state.selectedActividades);
-    $("rtFilterEyebrow").textContent = "Paso 2";
+    $("rtFilterEyebrow").textContent = "Paso 3";
     $("rtFilterTitle").textContent = "Actividad";
-    $("rtFilterHint").textContent = "Marca una o varias actividades del supervisor elegido (columna M).";
+    $("rtFilterHint").textContent = "Marca una o varias actividades (columna M).";
     $("btnRtFilterAll").textContent = "Todas";
     $("btnRtFilterNone").textContent = "Ninguna";
   }
@@ -234,7 +305,12 @@ function applyFilterModal() {
   const kind = filterModal.kind;
   const selected = [...filterModal.draft].sort((a, b) => a.localeCompare(b, "es"));
 
-  if (kind === "supervisor") {
+  if (kind === "fundo") {
+    const prev = state.selectedFundos.join("\0");
+    state.selectedFundos = selected;
+    const changed = prev !== selected.join("\0");
+    refreshSupervisorOptions({ selectAll: changed || !state.selectedSupervisores.length });
+  } else if (kind === "supervisor") {
     const prev = state.selectedSupervisores.join("\0");
     state.selectedSupervisores = selected;
     const changed = prev !== selected.join("\0");
@@ -249,14 +325,17 @@ function applyFilterModal() {
 }
 
 /** Personas únicas por DNI dentro de los filtros (soporta múltiples). */
-function buildWorkers(rows, { actividades = [], supervisores = [] } = {}) {
+function buildWorkers(rows, { fundos = [], actividades = [], supervisores = [] } = {}) {
+  const fundoSet = new Set(fundos);
   const actSet = new Set(actividades);
   const supSet = new Set(supervisores);
   const map = new Map();
 
   rows.forEach((row) => {
+    const fundo = String(row.fundo || "").trim();
     const act = String(row.actividad || "").trim();
     const sup = String(row.supervisor || "").trim();
+    if (fundoSet.size && !fundoSet.has(fundo)) return;
     if (actSet.size && !actSet.has(act)) return;
     if (supSet.size && !supSet.has(sup)) return;
 
@@ -282,7 +361,7 @@ function buildWorkers(rows, { actividades = [], supervisores = [] } = {}) {
     if (!w.trabajador && name) w.trabajador = name;
     if (act) w.actividades.add(act);
     if (sup) w.supervisores.add(sup);
-    if (row.fundo) w.fundos.add(String(row.fundo).trim());
+    if (fundo) w.fundos.add(fundo);
   });
 
   return [...map.values()]
@@ -303,12 +382,13 @@ function buildWorkers(rows, { actividades = [], supervisores = [] } = {}) {
 }
 
 function applyReportFilters({ resetPage = true } = {}) {
+  const fundos = state.selectedFundos;
   const actividades = state.selectedActividades;
   const supervisores = state.selectedSupervisores;
   const search = ($("rtFltSearch")?.value || "").trim().toLowerCase();
 
-  if (actividades.length && supervisores.length) {
-    state.workers = buildWorkers(state.rows, { actividades, supervisores });
+  if (fundos.length && actividades.length && supervisores.length) {
+    state.workers = buildWorkers(state.rows, { fundos, actividades, supervisores });
   } else {
     state.workers = [];
   }
@@ -334,7 +414,12 @@ function renderKpis() {
   const trabEl = $("rtKpiTrabajadores");
 
   if (fileEl) fileEl.textContent = state.fileName || "—";
-  if (supEl) supEl.textContent = String(state.allSupervisores.length || uniqueSorted(state.rows.map((r) => r.supervisor)).length);
+  if (supEl) {
+    const count = state.selectedFundos.length
+      ? state.availableSupervisores.length
+      : uniqueSorted(state.rows.map((r) => r.supervisor)).length;
+    supEl.textContent = String(count);
+  }
   if (actEl) {
     const count = state.selectedSupervisores.length
       ? state.availableActividades.length
@@ -353,6 +438,7 @@ function summarizeList(list, emptyLabel) {
 function renderMeta() {
   const meta = $("rtMeta");
   if (!meta) return;
+  const fundos = state.selectedFundos;
   const actividades = state.selectedActividades;
   const supervisores = state.selectedSupervisores;
 
@@ -360,8 +446,12 @@ function renderMeta() {
     meta.textContent = "Sube un Excel para comenzar.";
     return;
   }
+  if (!fundos.length) {
+    meta.textContent = `${state.rows.length} filas leídas · elige uno o varios fundos.`;
+    return;
+  }
   if (!supervisores.length) {
-    meta.textContent = `${state.rows.length} filas leídas · elige uno o varios supervisores.`;
+    meta.textContent = `Fundo: ${summarizeList(fundos, "—")} · elige uno o varios supervisores.`;
     return;
   }
   if (!actividades.length) {
@@ -370,7 +460,10 @@ function renderMeta() {
   }
   meta.textContent = `${state.filtered.length} trabajador${
     state.filtered.length === 1 ? "" : "es"
-  } · ${summarizeList(supervisores, "—")} · ${summarizeList(actividades, "—")}`;
+  } · ${summarizeList(fundos, "—")} · ${summarizeList(supervisores, "—")} · ${summarizeList(
+    actividades,
+    "—"
+  )}`;
 }
 
 function renderPagerControls() {
@@ -413,6 +506,7 @@ function renderTable() {
   const start = (pager.page - 1) * pager.pageSize;
   const pageRows = state.filtered.slice(start, start + pager.pageSize);
 
+  const fundos = state.selectedFundos;
   const actividades = state.selectedActividades;
   const supervisores = state.selectedSupervisores;
 
@@ -420,21 +514,26 @@ function renderTable() {
     body.innerHTML = "";
     if (empty) {
       empty.hidden = false;
-      const title = empty.querySelector(".rt-empty__title");
-      const text = empty.querySelector(".rt-empty__text");
+      const title = empty.querySelector(".pases-empty__title, .rt-empty__title");
+      const text = empty.querySelector(".pases-empty__text, .rt-empty__text");
       if (!state.rows.length) {
         if (title) title.textContent = "Aún no hay data clasificada";
         if (text) text.textContent = "Sube un Excel para comenzar el reporte.";
+      } else if (!fundos.length) {
+        if (title) title.textContent = "Aún no hay data clasificada";
+        if (text)
+          text.textContent =
+            "Los datos ya se leyeron. Paso 1: toca Fundo y marca uno o varios.";
       } else if (!supervisores.length) {
         if (title) title.textContent = "Aún no hay data clasificada";
         if (text)
           text.textContent =
-            "Los datos ya se leyeron. Paso 1: toca Supervisor y marca uno o varios para clasificar la lista.";
+            "Paso 2: toca Supervisor y marca uno o varios del fundo elegido.";
       } else if (!actividades.length) {
         if (title) title.textContent = "Aún no hay data clasificada";
         if (text)
           text.textContent =
-            "Paso 2: toca Actividad y marca las del supervisor para ver los trabajadores.";
+            "Paso 3: toca Actividad y marca las del supervisor para ver los trabajadores.";
       } else {
         if (title) title.textContent = "Sin trabajadores";
         if (text) text.textContent = "No hay trabajadores para esa combinación de filtros.";
@@ -470,8 +569,7 @@ function syncExportButton() {
 }
 
 function showWorkspace(show) {
-  $("rtUploadZone")?.classList.toggle("is-hidden", show);
-  $("rtWorkspace")?.classList.toggle("is-hidden", !show);
+  // Estilo Pases: UI siempre visible; Subir Excel en el header.
   const newBtn = $("btnRtNewFile");
   if (newBtn) newBtn.hidden = !show;
 }
@@ -486,12 +584,13 @@ async function handleFile(file) {
     state.rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
     state.workers = [];
     state.filtered = [];
+    state.selectedFundos = [];
     state.selectedActividades = [];
     state.selectedSupervisores = [];
     pager.page = 1;
 
     showWorkspace(true);
-    refreshSupervisorOptions();
+    refreshFundoOptions();
     applyReportFilters({ resetPage: true });
     if (!state.rows.length) setStatus("empty", "No se encontraron filas en el Excel.");
     else setStatus("", "");
@@ -503,7 +602,7 @@ async function handleFile(file) {
 
 function exportExcel() {
   if (!state.filtered.length) {
-    setStatus("empty", "No hay trabajadores para exportar. Elige supervisor y actividad.");
+    setStatus("empty", "No hay trabajadores para exportar. Elige fundo, supervisor y actividad.");
     return;
   }
   const XLSX = window.XLSX;
@@ -630,8 +729,12 @@ function bindFilterModal() {
   if (filterModal.bound) return;
   filterModal.bound = true;
 
-  $("rtBtnSupervisor")?.addEventListener("click", () => {
+  $("rtBtnFundo")?.addEventListener("click", () => {
     if (!state.rows.length) return;
+    openFilterModal("fundo");
+  });
+  $("rtBtnSupervisor")?.addEventListener("click", () => {
+    if (!state.selectedFundos.length) return;
     openFilterModal("supervisor");
   });
   $("rtBtnActividad")?.addEventListener("click", () => {
@@ -684,8 +787,10 @@ function resetModule() {
   state.rows = [];
   state.workers = [];
   state.filtered = [];
-  state.allSupervisores = [];
+  state.allFundos = [];
+  state.availableSupervisores = [];
   state.availableActividades = [];
+  state.selectedFundos = [];
   state.selectedActividades = [];
   state.selectedSupervisores = [];
   pager.page = 1;
@@ -714,6 +819,7 @@ function init() {
   if (started) return;
   started = true;
   bindUi();
+  renderTable();
 }
 
 window.addEventListener("qb:route-changed", (evt) => {

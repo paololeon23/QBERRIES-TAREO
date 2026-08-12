@@ -17,10 +17,11 @@
     <link rel="stylesheet" href="css/topbar.css" />
     <link rel="stylesheet" href="css/shell-brand.css" />
     <link rel="stylesheet" href="css/validacion.css" />
-    <link rel="stylesheet" href="css/pases.css" />
-    <link rel="stylesheet" href="css/tarjetas.css" />
-    <link rel="stylesheet" href="css/reporte-trabajadores.css" />
-    <link rel="stylesheet" href="css/inicio.css" />
+    <link rel="stylesheet" href="css/pases.css?v=20260811b" />
+    <link rel="stylesheet" href="css/tarjetas.css?v=20260811b" />
+    <link rel="stylesheet" href="css/reporte-trabajadores.css?v=20260811c" />
+    <link rel="stylesheet" href="css/produccion.css?v=20260811c" />
+    <link rel="stylesheet" href="css/inicio.css?v=20260811b" />
   </head>
   <body>
     <div id="applicationRoot" class="application-shell">
@@ -104,6 +105,12 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6M7 16h8"/></svg>
               </span>
               <span class="sidebar-nav-link__text">Tarjeta Pallet</span>
+            </a>
+            <a class="sidebar-nav-link" href="#/produccion" data-route="produccion" data-sidebar-tooltip="Producción">
+              <span class="sidebar-nav-link__icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14v4"/><path d="M12 10v8"/><path d="M17 6v12"/></svg>
+              </span>
+              <span class="sidebar-nav-link__text">Producción</span>
             </a>
           </div>
         </nav>
@@ -435,7 +442,7 @@
                       <span>Fecha <i class="tip-dot" aria-hidden="true">i</i></span>
                       <select id="fltFecha"><option value="">Todas</option></select>
                     </label>
-                    <label class="field has-tip" data-tip="Filtra por resultado: OK = 9.6, Posible pase &lt; 9.6, Advertencia hasta 12 h, o Error si supera 12.">
+                    <label class="field has-tip" data-tip="Filtra por resultado: OK = 9.6 exacto, Posible pase &lt; 9.6, Advertencia = 10.1 / 10.6 / 12 exactos, Error ≠ exacto (ej. 11.37).">
                       <span>Estado horas <i class="tip-dot" aria-hidden="true">i</i></span>
                       <select id="fltEstado">
                         <option value="">Todos</option>
@@ -917,105 +924,227 @@
             </div>
           </section>
 
-          <!-- REPORTE DE TRABAJADORES -->
-          <section class="view" id="viewReporteTrabajadores" data-view="reporte-trabajadores" hidden>
-            <div class="rt-module">
-              <div class="rt-header">
-                <div class="rt-header__copy">
-                  <p class="rt-header__eyebrow">QBerries · Reportes</p>
-                  <h2 class="rt-header__title">Reporte de Trabajadores</h2>
-                  <p class="rt-header__sub">
-                    Primero elige uno o varios <strong>Supervisores</strong> (col. W); eso habilita las <strong>Actividades</strong> (col. M) de esos supervisores. Luego ves los trabajadores (col. D) y puedes exportar todo.
+          <!-- PRODUCCIÓN -->
+          <section class="view" id="viewProduccion" data-view="produccion" hidden>
+            <div class="pases-module">
+              <div class="pases-header">
+                <div class="pases-header__copy">
+                  <p class="pases-header__eyebrow">QBerries · Análisis</p>
+                  <h2 class="pases-header__title">Producción</h2>
+                  <p class="pases-header__sub">
+                    Solo sube <strong>Produccion_Licapa</strong>. Trabajadores en JSON · enlace por DNI (col. H).
                   </p>
                 </div>
-                <div class="rt-header__actions">
-                  <button type="button" class="btn btn--ghost" id="btnRtNewFile" hidden>Otro Excel</button>
-                  <button type="button" class="btn btn--primary" id="btnRtExport" disabled>Exportar Excel</button>
+                <div class="pases-header__actions">
+                  <button type="button" class="btn btn--ghost" id="btnProdExport" disabled>Exportar Excel</button>
+                  <button type="button" class="btn btn--ghost" id="btnProdResumen" disabled>Resumen</button>
+                  <button type="button" class="btn btn--primary" id="btnProdPickExcel">Subir Excel</button>
+                  <button type="button" class="btn btn--ghost" id="btnProdNewFile" hidden>Otro Excel</button>
+                  <input type="file" id="prodInputExcel" accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden />
+                  <input type="file" id="prodInputListado" hidden />
+                  <button type="button" id="btnProdPickListado" hidden></button>
                 </div>
               </div>
 
-              <div class="rt-upload" id="rtUploadZone">
-                <div class="rt-upload__card" id="rtDropCard">
-                  <div class="rt-upload__icon" aria-hidden="true">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                      <path d="M12 18v-6"/>
-                      <path d="m9 15 3-3 3 3"/>
-                    </svg>
+              <div class="pases-kpis" aria-label="Resumen producción">
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Archivo</span>
+                  <span class="pases-kpi__value pases-kpi__value--sm" id="prodKpiFile">—</span>
+                </div>
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Grupos</span>
+                  <span class="pases-kpi__value" id="prodKpiGrupos">0</span>
+                </div>
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Trabajadores</span>
+                  <span class="pases-kpi__value" id="prodKpiTrabajadores">0</span>
+                </div>
+                <div class="pases-kpi pases-kpi--ok">
+                  <span class="pases-kpi__label">Jarras</span>
+                  <span class="pases-kpi__value" id="prodKpiJarras">0</span>
+                </div>
+              </div>
+              <span id="prodKpiListado" hidden>—</span>
+              <span id="prodListadoMetaInline" hidden></span>
+              <span id="prodListadoMeta" hidden></span>
+
+              <div class="qb-filters" role="search">
+                <div class="field">
+                  <span>Grupo</span>
+                  <button type="button" class="rt-filter-btn" id="prodBtnGrupo" data-placeholder="Todos los grupos…">
+                    <span class="rt-filter-btn__text" id="prodBtnGrupoText">Todos los grupos…</span>
+                    <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
+                  </button>
+                </div>
+                <label class="field">
+                  <span>Fecha</span>
+                  <select id="prodFltFecha"><option value="">Todas</option></select>
+                </label>
+                <label class="field field--grow">
+                  <span>Buscar / DNI</span>
+                  <input type="search" id="prodFltSearch" placeholder="Nombre o DNI…" autocomplete="off" />
+                </label>
+                <div class="field qb-filters__tools-field">
+                  <span>Ranking grupos</span>
+                  <div class="qb-filters__tools" role="group" aria-label="Ranking de grupos por jarras">
+                    <button type="button" class="btn btn--secondary btn--sm is-active" id="btnProdRankAll" data-rank="all">Todos</button>
+                    <button type="button" class="btn btn--ghost btn--sm" id="btnProdRankTop" data-rank="top10">Mejores 10</button>
+                    <button type="button" class="btn btn--ghost btn--sm" id="btnProdRankBottom" data-rank="bottom10">Peores 10</button>
                   </div>
-                  <h3 class="rt-upload__title">Sube tu Excel de tareo</h3>
-                  <p class="rt-upload__text">Arrastra el archivo o selecciónalo. Se leen Actividad (M), Supervisor (W) y Trabajador (D).</p>
-                  <button type="button" class="btn btn--primary" id="btnRtPickExcel">Elegir Excel</button>
+                </div>
+              </div>
+
+              <div class="pases-meta-row">
+                <p class="pases-meta" id="prodMeta">Sube Produccion_Licapa para comenzar.</p>
+              </div>
+              <p class="pases-status" id="prodStatus" hidden></p>
+
+              <div class="pases-table-shell" id="prodDropCard">
+                <div class="pases-table-wrap">
+                  <table class="pases-table" id="prodTable">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>DNI</th>
+                        <th>Trabajador</th>
+                        <th>Grupo</th>
+                        <th>Jarras</th>
+                        <th>Registros</th>
+                      </tr>
+                    </thead>
+                    <tbody id="prodTableBody"></tbody>
+                  </table>
+                  <p class="pases-empty" id="prodEmpty" hidden>
+                    <span class="pases-empty__icon" aria-hidden="true"></span>
+                    <span class="pases-empty__title">Sin producción</span>
+                    <span class="pases-empty__text">Usa «Subir Excel» con Produccion_Licapa.</span>
+                  </p>
+                </div>
+
+                <div class="table-pager" id="prodPager" aria-label="Paginación producción">
+                  <label class="table-pager__per-page">
+                    <span>Items per page:</span>
+                    <select id="prodPagerPageSize" aria-label="Filas por página">
+                      <option value="10">10</option>
+                      <option value="20" selected>20</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
+                  </label>
+                  <span class="table-pager__range" id="prodPagerRange">0 – 0 of 0</span>
+                  <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
+                    <button type="button" class="table-pager__btn" id="prodPagerFirst" aria-label="Primera página" title="Primera">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="prodPagerPrev" aria-label="Página anterior" title="Anterior">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="prodPagerNext" aria-label="Página siguiente" title="Siguiente">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </button>
+                    <button type="button" class="table-pager__btn" id="prodPagerLast" aria-label="Última página" title="Última">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5.59 7.41 10.18 12l-4.59 4.59L7 18l6-6-6-6zM16 6h2v12h-2z"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div id="prodUploadZone" hidden></div>
+              <div id="prodWorkspace"></div>
+            </div>
+          </section>
+
+          <!-- REPORTE DE TRABAJADORES -->
+          <section class="view" id="viewReporteTrabajadores" data-view="reporte-trabajadores" hidden>
+            <div class="pases-module">
+              <div class="pases-header">
+                <div class="pases-header__copy">
+                  <p class="pases-header__eyebrow">QBerries · Reportes</p>
+                  <h2 class="pases-header__title">Reporte de Trabajadores</h2>
+                  <p class="pases-header__sub">
+                    Sube el Excel de tareo. Filtra Fundo → Supervisor → Actividad y exporta.
+                  </p>
+                </div>
+                <div class="pases-header__actions">
+                  <button type="button" class="btn btn--ghost" id="btnRtExport" disabled>Exportar Excel</button>
+                  <button type="button" class="btn btn--primary" id="btnRtPickExcel">Subir Excel</button>
+                  <button type="button" class="btn btn--ghost" id="btnRtNewFile" hidden>Otro Excel</button>
                   <input type="file" id="rtInputExcel" accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden />
                 </div>
               </div>
 
-              <div class="rt-workspace is-hidden" id="rtWorkspace">
-                <div class="rt-kpis" aria-label="Resumen del reporte">
-                  <div class="rt-kpi">
-                    <span class="rt-kpi__label">Archivo</span>
-                    <span class="rt-kpi__value rt-kpi__value--file" id="rtKpiFile">—</span>
-                  </div>
-                  <div class="rt-kpi">
-                    <span class="rt-kpi__label">Actividades</span>
-                    <span class="rt-kpi__value" id="rtKpiActividades">0</span>
-                  </div>
-                  <div class="rt-kpi">
-                    <span class="rt-kpi__label">Supervisores</span>
-                    <span class="rt-kpi__value" id="rtKpiSupervisores">0</span>
-                  </div>
-                  <div class="rt-kpi rt-kpi--accent">
-                    <span class="rt-kpi__label">Trabajadores</span>
-                    <span class="rt-kpi__value" id="rtKpiTrabajadores">0</span>
-                  </div>
+              <div class="pases-kpis" aria-label="Resumen del reporte">
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Archivo</span>
+                  <span class="pases-kpi__value pases-kpi__value--sm" id="rtKpiFile">—</span>
                 </div>
-
-                <div class="rt-filters" role="search">
-                  <div class="field">
-                    <span>1. Supervisor <em>(col. W · múltiple)</em></span>
-                    <button type="button" class="rt-filter-btn" id="rtBtnSupervisor" data-placeholder="Selecciona supervisor(es)…">
-                      <span class="rt-filter-btn__text" id="rtBtnSupervisorText">Selecciona supervisor(es)…</span>
-                      <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
-                    </button>
-                  </div>
-                  <div class="field">
-                    <span>2. Actividad <em>(col. M · múltiple)</em></span>
-                    <button type="button" class="rt-filter-btn" id="rtBtnActividad" data-placeholder="Primero elige supervisor…" disabled>
-                      <span class="rt-filter-btn__text" id="rtBtnActividadText">Primero elige supervisor…</span>
-                      <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
-                    </button>
-                  </div>
-                  <label class="field field--grow">
-                    <span>Buscar trabajador / DNI</span>
-                    <input type="search" id="rtFltSearch" placeholder="Nombre o documento…" autocomplete="off" disabled />
-                  </label>
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Actividades</span>
+                  <span class="pases-kpi__value" id="rtKpiActividades">0</span>
                 </div>
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Supervisores</span>
+                  <span class="pases-kpi__value" id="rtKpiSupervisores">0</span>
+                </div>
+                <div class="pases-kpi pases-kpi--ok">
+                  <span class="pases-kpi__label">Trabajadores</span>
+                  <span class="pases-kpi__value" id="rtKpiTrabajadores">0</span>
+                </div>
+              </div>
 
-                <p class="rt-meta" id="rtMeta">Sube un Excel para comenzar.</p>
-                <p class="rt-status" id="rtStatus" hidden></p>
+              <div class="qb-filters" role="search">
+                <div class="field">
+                  <span>Fundo</span>
+                  <button type="button" class="rt-filter-btn" id="rtBtnFundo" data-placeholder="Selecciona fundo(s)…">
+                    <span class="rt-filter-btn__text" id="rtBtnFundoText">Selecciona fundo(s)…</span>
+                    <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
+                  </button>
+                </div>
+                <div class="field">
+                  <span>Supervisor</span>
+                  <button type="button" class="rt-filter-btn" id="rtBtnSupervisor" data-placeholder="Primero elige fundo…" disabled>
+                    <span class="rt-filter-btn__text" id="rtBtnSupervisorText">Primero elige fundo…</span>
+                    <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
+                  </button>
+                </div>
+                <div class="field">
+                  <span>Actividad</span>
+                  <button type="button" class="rt-filter-btn" id="rtBtnActividad" data-placeholder="Primero elige supervisor…" disabled>
+                    <span class="rt-filter-btn__text" id="rtBtnActividadText">Primero elige supervisor…</span>
+                    <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
+                  </button>
+                </div>
+                <label class="field field--grow">
+                  <span>Buscar / DNI</span>
+                  <input type="search" id="rtFltSearch" placeholder="Nombre o documento…" autocomplete="off" disabled />
+                </label>
+              </div>
 
-                <div class="rt-table-shell">
-                  <div class="rt-table-wrap">
-                    <table class="rt-table" id="rtTable">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Documento</th>
-                          <th>Trabajador</th>
-                          <th>Actividad</th>
-                          <th>Supervisor</th>
-                          <th>Fundo</th>
-                          <th>Registros</th>
-                        </tr>
-                      </thead>
-                      <tbody id="rtTableBody"></tbody>
-                    </table>
-                    <div class="rt-empty" id="rtEmpty">
-                      <div class="rt-empty__title">Aún no hay data clasificada</div>
-                      <p class="rt-empty__text">Elige supervisor y actividad para armar la lista de trabajadores.</p>
-                    </div>
-                  </div>
+              <div class="pases-meta-row">
+                <p class="pases-meta" id="rtMeta">Sube un Excel para comenzar.</p>
+              </div>
+              <p class="pases-status" id="rtStatus" hidden></p>
+
+              <div class="pases-table-shell" id="rtDropCard">
+                <div class="pases-table-wrap">
+                  <table class="pases-table" id="rtTable">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Documento</th>
+                        <th>Trabajador</th>
+                        <th>Actividad</th>
+                        <th>Supervisor</th>
+                        <th>Fundo</th>
+                        <th>Registros</th>
+                      </tr>
+                    </thead>
+                    <tbody id="rtTableBody"></tbody>
+                  </table>
+                  <p class="pases-empty" id="rtEmpty" hidden>
+                    <span class="pases-empty__icon" aria-hidden="true"></span>
+                    <span class="pases-empty__title">Aún no hay data clasificada</span>
+                    <span class="pases-empty__text">Usa «Subir Excel» y filtra fundo, supervisor y actividad.</span>
+                  </p>
                 </div>
 
                 <div class="table-pager" id="rtPager" aria-label="Paginación reporte trabajadores">
@@ -1045,6 +1174,8 @@
                   </div>
                 </div>
               </div>
+              <div id="rtUploadZone" hidden></div>
+              <div id="rtWorkspace"></div>
             </div>
           </section>
         </div>
@@ -1269,13 +1400,95 @@
       </div>
     </div>
 
+    <div class="modal" id="modalProdGrupo" hidden>
+      <div class="modal__backdrop" data-close-modal="prod-grupo"></div>
+      <div class="modal__dialog modal__dialog--rt-filter" role="dialog" aria-modal="true" aria-labelledby="prodGrupoTitle">
+        <button type="button" class="modal__close" id="btnCloseProdGrupo" aria-label="Cerrar">×</button>
+        <p class="rt-filter-modal__eyebrow">Filtro</p>
+        <h2 class="modal__title" id="prodGrupoTitle">Grupo</h2>
+        <p class="rt-filter-modal__hint">Marca uno o varios grupos (columna F). Vacío = todos.</p>
+
+        <div class="rt-filter-modal__toolbar">
+          <input type="search" id="prodGrupoSearch" class="rt-filter-modal__search" placeholder="Buscar grupo…" autocomplete="off" />
+          <div class="rt-filter-modal__bulk">
+            <button type="button" class="rt-filter-modal__link" id="btnProdGrupoAll">Todos</button>
+            <button type="button" class="rt-filter-modal__link" id="btnProdGrupoNone">Ninguno</button>
+          </div>
+        </div>
+
+        <div class="rt-filter-modal__list" id="prodGrupoList" role="listbox" aria-multiselectable="true"></div>
+
+        <div class="rt-filter-modal__footer">
+          <span class="rt-filter-modal__count" id="prodGrupoCount">Todos los grupos (sin filtro)</span>
+          <div class="rt-filter-modal__actions">
+            <button type="button" class="btn btn--ghost" id="btnProdGrupoCancel">Cancelar</button>
+            <button type="button" class="btn btn--primary" id="btnProdGrupoApply">Aplicar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal modal--tarjetas-resumen" id="modalProdResumen" hidden>
+      <div class="modal__backdrop" data-close-modal="prod-resumen"></div>
+      <div class="modal__dialog modal__dialog--tarjetas-resumen" role="dialog" aria-modal="true" aria-labelledby="prodResumenTitle">
+        <div class="tj-resumen">
+          <header class="tj-resumen__head">
+            <div>
+              <p class="tj-resumen__eyebrow">QBerries · Producción</p>
+              <h2 class="tj-resumen__title" id="prodResumenTitle">Resumen jarras</h2>
+              <p class="tj-resumen__sub" id="prodResumenSub">Mejores y peores según el filtro actual</p>
+            </div>
+            <button type="button" class="btn btn--ghost" id="btnCloseProdResumen">Cerrar</button>
+          </header>
+
+          <div class="tj-resumen__kpis" id="prodResumenKpis" aria-label="Indicadores"></div>
+
+          <div class="tj-resumen__grid">
+            <section class="tj-resumen__card tj-resumen__card--wide">
+              <h3 class="tj-resumen__card-title">Top 10 mejores grupos</h3>
+              <p class="tj-resumen__card-hint">Grupos con más jarras (filtro actual)</p>
+              <div class="tj-resumen__chart-wrap">
+                <canvas id="chartProdMejores"></canvas>
+              </div>
+            </section>
+            <section class="tj-resumen__card tj-resumen__card--wide">
+              <h3 class="tj-resumen__card-title">Top 10 peores grupos</h3>
+              <p class="tj-resumen__card-hint">Grupos con menos jarras (filtro actual)</p>
+              <div class="tj-resumen__chart-wrap">
+                <canvas id="chartProdPeores"></canvas>
+              </div>
+            </section>
+            <section class="tj-resumen__card tj-resumen__card--wide">
+              <h3 class="tj-resumen__card-title">Diferencia de jarras por grupo</h3>
+              <p class="tj-resumen__card-hint" id="prodResumenDiffHint">Actual − fecha anterior (mismo Excel)</p>
+              <div class="prod-resumen-compare" role="group" aria-label="Comparar fechas">
+                <label class="field">
+                  <span>Fecha actual</span>
+                  <select id="prodResumenFechaActual"></select>
+                </label>
+                <label class="field">
+                  <span>Fecha anterior</span>
+                  <select id="prodResumenFechaAnterior"></select>
+                </label>
+              </div>
+              <p class="prod-resumen-diff-meta" id="prodResumenDiffMeta"></p>
+              <div class="tj-resumen__chart-wrap tj-resumen__chart-wrap--tall">
+                <canvas id="chartProdGrupos"></canvas>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="vendor/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script type="module" src="js/shell.js"></script>
-    <script type="module" src="js/validacion-app.js"></script>
-    <script type="module" src="js/pases-app.js"></script>
-    <script type="module" src="js/tarjetas-app.js"></script>
-    <script type="module" src="js/reporte-trabajadores-app.js"></script>
-    <script type="module" src="js/inicio-app.js"></script>
+    <script type="module" src="js/shell.js?v=20260811b"></script>
+    <script type="module" src="js/validacion-app.js?v=20260811b"></script>
+    <script type="module" src="js/pases-app.js?v=20260811b"></script>
+    <script type="module" src="js/tarjetas-app.js?v=20260811b"></script>
+    <script type="module" src="js/reporte-trabajadores-app.js?v=20260811b"></script>
+    <script type="module" src="js/produccion-app.js?v=20260811c"></script>
+    <script type="module" src="js/inicio-app.js?v=20260811b"></script>
   </body>
 </html>

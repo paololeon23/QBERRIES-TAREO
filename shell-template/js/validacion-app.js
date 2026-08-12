@@ -22,7 +22,8 @@ import {
   closeResumenModal,
   syncResumenFiltersFromMain,
   renderResumenView,
-  bindResumenUi
+  bindResumenUi,
+  getFilteredResumenData
 } from "./validacion-resumen.js";
 import { getCurrentRoute } from "./shell.js";
 
@@ -93,18 +94,18 @@ const KPI_HELP = {
     title: "Error ≠ exacto",
     tone: "danger",
     html: `
-      <p>Personas-día en <strong>error</strong> dentro de <strong>COSTO DE COSECHA</strong>: suma &gt; 12 h u horario incompleto/inválido (falta inicio/fin).</p>
+      <p>Personas-día en <strong>error</strong> dentro de <strong>COSTO DE COSECHA</strong>: suma distinta de <strong>9.6 / 10.1 / 10.6 / 12</strong> (ej. 9.63, 11.37), suma &gt; 12 h, horario incompleto/inválido, CECO vacío, <strong>Documento vacío</strong> o <strong>Trabajador vacío</strong>.</p>
       <ul>
-        <li>Pasa el mouse sobre celdas rojas/amarillas para ver el detalle.</li>
+        <li>Pasa el mouse sobre celdas rojas para ver el detalle.</li>
       </ul>`
   },
   extra: {
     title: "Extra / advertencia ≤ 12",
     tone: "warn",
     html: `
-      <p>Jornada sobre 9.6 h y hasta <strong>12 h</strong> en <strong>COSTO DE COSECHA</strong> (ej. 10.1, 11.6, 12).</p>
+      <p>Solo valores <strong>exactos</strong> sobre la jornada: <strong>10.1</strong> (media hora extra), <strong>10.6</strong> (1 h extra) o <strong>12</strong> (tope).</p>
       <ul>
-        <li>No es error: el tope es 12 h. Solo &gt; 12 sale en rojo.</li>
+        <li>Cualquier otro número (ej. 11.37) no es aviso: va en <strong>rojo</strong> como ≠ exacto.</li>
       </ul>`
   },
   pase: {
@@ -399,7 +400,7 @@ function syncFilterTips(filteredCount) {
         : f.estado === "posible-salida"
           ? `Mostrando posibles pases (suma < 9.6). ${living}.`
           : f.estado === "aviso"
-            ? `Mostrando advertencias (suma > 9.6 hasta 12). ${living}.`
+            ? `Mostrando advertencias (exacto 10.1 / 10.6 / 12). ${living}.`
             : f.estado === "rojo"
               ? `Mostrando errores (suma > 12 u horario incompleto). ${living}.`
               : `Filtra OK, Posible pase, Advertencia o Error. Ahora ves ${living}.`
@@ -911,8 +912,28 @@ function downloadDetalleLikeFrontend() {
       rowTone,
       rowTip: row.tipHoras || row.tipHoraInicio || row.tipHoraFin || "",
       cells: [
-        { value: row.documento, text: true },
-        row.trabajador,
+        {
+          value:
+            row.documentoVacio || row.dayFlags?.documento === "rojo"
+              ? `(vacío)${row.codigoTrabajador ? ` · ${row.codigoTrabajador}` : ""}`
+              : row.documento,
+          text: true,
+          tone: row.documentoVacio || row.dayFlags?.documento === "rojo" ? "danger" : "",
+          tip: row.tipDocumento || ""
+        },
+        {
+          value: String(row.trabajador || "").trim()
+            ? row.trabajador
+            : String(row.documento || "").trim() || String(row.codigoTrabajador || "").trim()
+              ? "(vacío)"
+              : "",
+          tone:
+            (String(row.documento || "").trim() || String(row.codigoTrabajador || "").trim()) &&
+            (!String(row.trabajador || "").trim() || row.dayFlags?.trabajador === "rojo")
+              ? "danger"
+              : "",
+          tip: row.tipTrabajador || ""
+        },
         row.supervisor,
         row.fundo,
         row.macroPartida,
@@ -985,78 +1006,37 @@ function downloadDetalleLikeFrontend() {
 
 function downloadResumenExcel() {
   const stamp = new Date().toISOString().slice(0, 10);
-  const filters = readFilters();
-  const filtered = filterRows(state.validated.rows, filters);
-  const dayRows = collapseToDayRows(filtered);
+  const mainFilters = readFilters();
+  const { groups } = getFilteredResumenData(state.validated, mainFilters);
 
-  // Resumen por Documento + Supervisor a partir de la vista filtrada
-  const map = new Map();
-  dayRows.forEach((row) => {
-    const key = `${row.documento}||${row.supervisor || ""}`;
-    if (!map.has(key)) {
-      map.set(key, {
-        documento: row.documento,
-        trabajador: row.trabajador,
-        supervisor: row.supervisor,
-        fundo: row.fundo,
-        macroPartida: row.macroPartida,
-        tipoBucket: row.tipoBucket || "",
-        variedad: row.sessionVariedad || row.variedad || "",
-        dias: 0,
-        totalHoras: 0,
-        alertasRojo: 0,
-        alertasAviso: 0
-      });
-    }
-    const agg = map.get(key);
-    agg.dias += 1;
-    agg.totalHoras += Number(row.sumaHorasPago ?? row.totalDia ?? row.horas ?? 0) || 0;
-    if (row.status === "rojo") agg.alertasRojo += 1;
-    if (row.status === "aviso") agg.alertasAviso += 1;
-  });
+  if (!groups.length) {
+    window.alert("No hay filas en el resumen con los filtros actuales.");
+    return;
+  }
 
-  const rows = [...map.values()].map((r) => {
-    const rowTone = r.alertasRojo > 0 ? "softDanger" : r.alertasAviso > 0 ? "softWarn" : "";
-    return {
-      rowTone,
-      cells: [
-        { value: r.documento, text: true },
-        r.trabajador,
-        r.supervisor,
-        r.fundo,
-        r.macroPartida,
-        r.tipoBucket,
-        r.variedad,
-        r.dias,
-        formatHourExport(r.totalHoras),
-        {
-          value: r.alertasRojo,
-          tone: r.alertasRojo > 0 ? "danger" : ""
-        },
-        {
-          value: r.alertasAviso,
-          tone: r.alertasAviso > 0 ? "warn" : ""
-        }
-      ]
-    };
-  });
+  const rows = groups.map((g) => ({
+    rowTone: g.errores > 0 ? "softDanger" : g.avisos > 0 ? "softWarn" : "",
+    cells: [
+      g.fundo,
+      g.supervisor,
+      g.planillas,
+      g.trabajadores,
+      {
+        value: g.errores,
+        tone: g.errores > 0 ? "danger" : ""
+      },
+      {
+        value: g.avisos,
+        tone: g.avisos > 0 ? "warn" : ""
+      },
+      g.ok
+    ]
+  }));
 
   downloadHtmlExcel({
-    filename: `QBerries_Resumen_Cuadrilla_${stamp}.xls`,
+    filename: `QBerries_Resumen_Supervisores_${stamp}.xls`,
     sheetName: "Resumen",
-    headers: [
-      "Documento",
-      "Trabajador",
-      "Supervisor",
-      "Fundo",
-      "Macro Partida",
-      "Tipo",
-      "Variedad",
-      "Días",
-      "Total horas",
-      "Alertas rojo",
-      "Alertas aviso"
-    ],
+    headers: ["Fundo", "Supervisor", "Planillas", "Trabajadores", "Errores", "Extras", "OK"],
     rows
   });
 }

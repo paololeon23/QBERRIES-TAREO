@@ -224,15 +224,13 @@ export function syncResumenFiltersFromMain(validated) {
   fillResumenActividadOptions(validated, { supervisor, fundo, macro });
 }
 
-export function renderResumenView(validated, mainFilters = {}) {
-  if (!validated) return;
-
+/** Misma data que la tabla del modal Resumen (respeta filtros del modal). */
+export function getFilteredResumenData(validated, mainFilters = {}) {
   const supervisor =
     document.getElementById("resumenFltSupervisor")?.value || mainFilters.supervisor || "";
   const fundo = document.getElementById("resumenFltFundo")?.value || mainFilters.fundo || "";
   const macro = document.getElementById("resumenFltMacro")?.value || mainFilters.macro || "";
 
-  // Cascada Macro → Actividad (solo actividades de esa macro)
   fillResumenActividadOptions(validated, { supervisor, fundo, macro });
 
   const actividad =
@@ -248,6 +246,21 @@ export function renderResumenView(validated, mainFilters = {}) {
 
   const dayRows = collapseToDayRows(filtered);
   const { groups, kpis } = buildResumenGroups(dayRows);
+  return {
+    groups,
+    kpis,
+    filtered,
+    dayRows,
+    filters: { supervisor, fundo, macro, actividad },
+    macro,
+    actividad
+  };
+}
+
+export function renderResumenView(validated, mainFilters = {}) {
+  if (!validated) return;
+
+  const { groups, kpis, filtered, dayRows, macro } = getFilteredResumenData(validated, mainFilters);
 
   // Misma lógica que la card Supervisores de la pantalla principal
   const supervisoresKpi = countSupervisoresCosto(filtered);
