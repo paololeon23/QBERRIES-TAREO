@@ -1,6 +1,7 @@
 .application-shell {
+  --shell-sidebar-col: var(--sidebar-width);
   display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--shell-sidebar-col) minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas:
     "sidebar topbar"
@@ -13,10 +14,22 @@
   overflow: hidden;
   overscroll-behavior: none;
   position: relative;
+  transition: grid-template-columns var(--transition-standard);
 }
 
 .application-shell.is-sidebar-collapsed {
+  --shell-sidebar-col: var(--sidebar-width-collapsed);
   grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr);
+}
+
+.application-shell.is-sidebar-collapsed > .sidebar {
+  width: var(--sidebar-width-collapsed) !important;
+  max-width: var(--sidebar-width-collapsed) !important;
+  min-width: 0 !important;
+}
+
+.application-shell.is-sidebar-collapsing {
+  transition: none;
 }
 
 .main-content {

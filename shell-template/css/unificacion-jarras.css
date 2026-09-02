@@ -1,0 +1,180 @@
+/* Unificación de jarras */
+
+.uj-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.uj-tabs .btn.is-active {
+  background: #145a34;
+  border-color: #145a34;
+  color: #fff;
+}
+
+.uj-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 1.5rem 1.25rem;
+  border: 1.5px dashed #b7d7c4;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #f7fcf9 0%, #fff 100%);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.uj-drop:hover,
+.uj-drop.is-dragover {
+  border-color: #27ae60;
+  background: #f0faf4;
+  box-shadow: 0 0 0 4px rgba(39, 174, 96, 0.1);
+}
+
+.uj-drop__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #e8f8ef;
+  color: #145a34;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.uj-drop__title {
+  margin: 0.35rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #145a34;
+}
+
+.uj-drop__text {
+  margin: 0 0 0.55rem;
+  max-width: 36rem;
+  font-size: 0.88rem;
+  color: #5b6b63;
+  line-height: 1.4;
+}
+
+.uj-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.uj-files {
+  border: 1px solid #e5ebe8;
+  border-radius: 0.95rem;
+  background: #fff;
+  padding: 0.85rem;
+  box-shadow: 0 1px 0 rgba(20, 90, 52, 0.03);
+}
+
+.uj-files__title {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #145a34;
+}
+
+.uj-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.55rem;
+  background: #f8fbf9;
+  border: 1px solid #e7f0ea;
+}
+
+.uj-file + .uj-file {
+  margin-top: 0.4rem;
+}
+
+.uj-file__name {
+  font-size: 0.82rem;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uj-file__count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #145a34;
+  white-space: nowrap;
+}
+
+.uj-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.uj-table-shell .pases-table-wrap {
+  max-height: min(58vh, 34rem);
+  overflow: auto;
+}
+
+.uj-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #145a34;
+  color: #fff;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.uj-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.uj-tipo {
+  display: inline-flex;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #e8f8ef;
+  color: #145a34;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.uj-source {
+  font-size: 0.78rem;
+  color: #6b7280;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uj-table-empty {
+  margin: 0;
+  padding: 1.25rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+.uj-row-count {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #5b6b63;
+}
+
+@media (max-width: 960px) {
+  .uj-layout {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,10 +1,34 @@
 /** Motor de reglas: valida suma del día (turnos) solo en COSTO DE COSECHA. */
 
-import { HOUR_BASE, HOURS_LABEL, classifyDayHours } from "./excel-parser.js?v=20260812b";
-import { countSupervisoresCosto } from "./validacion-kpi.js";
+import { HOUR_BASE, HOURS_LABEL, classifyDayHours } from "./excel-parser.js?v=20260821e";
+import { countSupervisoresCosto } from "./validacion-kpi.js?v=20260901c";
+import { getHorariosCosecha } from "./horarios-cosecha.js?v=20260902a";
 
-/** Horarios flexibles: no marcar rojo por hora de inicio/fin mientras la suma ≤ 12 h. */
-const REST_GAP_MIN = 60; // tip informativo de descanso (aviso), no error rojo
+/**
+ * Horarios COSTO DE COSECHA (por fundo — ver horarios-cosecha.js):
+ * - LICAPA: 06:45→12:00, tarde 13:00→17:21, directo 06:45→16:21
+ * - LICAPA II / III: 06:30→12:00, tarde 13:00→17:06, directo 06:30→16:06
+ */
+const REST_GAP_MIN = 60;
+
+function sameTurn(a, b) {
+  if (!a || !b) return false;
+  if (a.horaInicioMin != null && b.horaInicioMin != null) return a.horaInicioMin === b.horaInicioMin;
+  if (a.horaInicioKey && b.horaInicioKey) return a.horaInicioKey === b.horaInicioKey;
+  return a.horaInicioTexto === b.horaInicioTexto;
+}
+
+/** Texto corto con lo que puso la persona: "06:30 → 13:00". */
+function horarioPuesto(row) {
+  const ini = row?.horaInicioTexto || "—";
+  const fin = row?.horaFinTexto || "—";
+  const h = row?.horasTurno;
+  const horas =
+    h != null && Number.isFinite(Number(h))
+      ? ` (${String(Math.round(Number(h) * 1e3) / 1e3)} h)`
+      : "";
+  return `${ini} → ${fin}${horas}`;
+}
 
 function normalizeText(value) {
   return String(value ?? "")
@@ -215,66 +239,137 @@ export function validateDataset(parsed) {
     }
   });
 
-  // Horarios flexibles (solo COSTO DE COSECHA):
-  // Inicio/fin libres (ej. 07:00 … 19:06). Solo falta de dato o fin ≤ inicio → rojo.
-  // Descanso ≠ 1 h → aviso (no asusta en rojo).
+  // Horarios (solo COSTO DE COSECHA)
   dayGroups.forEach((group) => {
     const ordered = group
       .slice()
       .sort((a, b) => (a.horaInicioMin ?? 9999) - (b.horaInicioMin ?? 9999));
-    const sample = ordered[0];
+
+    const uniqueStarts = [];
+    const seenIni = new Set();
+    ordered.forEach((row) => {
+      const key = row.horaInicioMin ?? row.horaInicioTexto ?? row.horaInicioKey;
+      if (key == null || key === "") return;
+      const k = String(key);
+      if (seenIni.has(k)) return;
+      seenIni.add(k);
+      uniqueStarts.push(row);
+    });
+
+    const first = uniqueStarts[0];
+    const second = uniqueStarts[1];
+    const cutCount = uniqueStarts.length;
+    const sample = first || ordered[0];
+    const hz = getHorariosCosecha(sample?.fundo);
     const hardProblems = [];
     const softProblems = [];
 
     ordered.forEach((row) => {
-      const ini = row.horaInicioMin;
-      const fin = row.horaFinMin;
       row.dayFlags = row.dayFlags || {};
       row.dayFlags.horaInicio = "ok";
       row.dayFlags.horaFin = "ok";
       row.tipHoraInicio = "";
       row.tipHoraFin = "";
+    });
 
+    const markIni = (row, msg) => {
+      row.dayFlags.horaInicio = "rojo";
+      row.tipHoraInicio = msg;
+      hardProblems.push(msg.replace(/^Error:\s*/i, ""));
+    };
+    const markFin = (row, msg) => {
+      row.dayFlags.horaFin = "rojo";
+      row.tipHoraFin = msg;
+      hardProblems.push(msg.replace(/^Error:\s*/i, ""));
+    };
+    const markIniAviso = (row, msg) => {
+      if (row.dayFlags.horaInicio === "rojo") return;
+      row.dayFlags.horaInicio = "aviso";
+      row.tipHoraInicio = msg;
+      softProblems.push(msg.replace(/^Aviso:\s*/i, ""));
+    };
+    const markFinAviso = (row, msg) => {
+      if (row.dayFlags.horaFin === "rojo") return;
+      row.dayFlags.horaFin = "aviso";
+      row.tipHoraFin = msg;
+      softProblems.push(msg.replace(/^Aviso:\s*/i, ""));
+    };
+
+    // Datos básicos en todos los turnos
+    ordered.forEach((row) => {
+      const ini = row.horaInicioMin;
+      const fin = row.horaFinMin;
       if (ini == null) {
-        row.dayFlags.horaInicio = "rojo";
-        row.tipHoraInicio = "Error: falta hora de inicio. ¿Está vacía en el Excel?";
-        hardProblems.push("Sin hora inicio");
+        markIni(row, "Falta hora de inicio.");
         return;
       }
-
       if (fin == null) {
-        row.dayFlags.horaFin = "rojo";
-        row.tipHoraFin = "Error: falta hora de fin. ¿Está vacía en el Excel?";
-        hardProblems.push("Sin hora fin");
+        markFin(row, "Falta hora de fin.");
         return;
       }
-
       if (fin <= ini) {
-        row.dayFlags.horaFin = "rojo";
-        row.tipHoraFin = `Error: fin ${row.horaFinTexto} debe ser después de inicio ${row.horaInicioTexto}.`;
-        hardProblems.push(`Fin ${row.horaFinTexto} ≤ inicio ${row.horaInicioTexto}`);
+        markFin(row, `Fin inválido. Puso: ${horarioPuesto(row)}.`);
       }
     });
 
-    if (ordered.length >= 2) {
-      for (let i = 0; i < ordered.length - 1; i += 1) {
-        const a = ordered[i];
-        const b = ordered[i + 1];
-        if (a.horaFinMin == null || b.horaInicioMin == null) continue;
-        const gap = b.horaInicioMin - a.horaFinMin;
-        if (gap !== REST_GAP_MIN) {
-          const msg = `Aviso: descanso entre turnos ${gap} min (habitual 60 min).`;
-          if (a.dayFlags.horaFin !== "rojo") {
-            a.dayFlags.horaFin = "aviso";
-            a.tipHoraFin = msg;
+    if (first && first.horaInicioMin != null && first.horaFinMin != null) {
+      if (first.horaInicioMin !== hz.firstStartMin) {
+        ordered.filter((r) => sameTurn(r, first)).forEach((r) => {
+          markIni(r, `Debe iniciar ${hz.firstStartLabel}. Puso: ${horarioPuesto(r)}.`);
+        });
+      }
+
+      if (cutCount === 1) {
+        const fin = first.horaFinMin;
+        if (fin === hz.firstEndMin) {
+          // solo 1.er corte
+        } else if (hz.directEndMins.has(fin)) {
+          // directo OK
+        } else {
+          ordered.filter((r) => sameTurn(r, first)).forEach((r) => {
+            markFin(
+              r,
+              `Horario mal. Puso: ${horarioPuesto(r)}. Correcto: ${hz.firstStartLabel}→${hz.firstEndLabel} o directo ${hz.firstStartLabel}→${hz.directEndLabel}.`
+            );
+          });
+        }
+      } else {
+        if (first.horaFinMin !== hz.firstEndMin) {
+          ordered.filter((r) => sameTurn(r, first)).forEach((r) => {
+            markFin(
+              r,
+              `1.er corte debe ser ${hz.firstStartLabel}→${hz.firstEndLabel}. Puso: ${horarioPuesto(r)}.`
+            );
+          });
+        }
+
+        if (second && second.horaInicioMin != null) {
+          if (second.horaInicioMin !== hz.secondStartMin) {
+            ordered.filter((r) => sameTurn(r, second)).forEach((r) => {
+              markIni(r, `2.º corte inicia ${hz.secondStartLabel}. Puso: ${horarioPuesto(r)}.`);
+            });
           }
-          if (b.dayFlags.horaInicio !== "rojo") {
-            b.dayFlags.horaInicio = "aviso";
-            b.tipHoraInicio = msg;
+
+          if (second.horaFinMin != null && second.horaFinMin < hz.secondEndMin) {
+            ordered.filter((r) => sameTurn(r, second)).forEach((r) => {
+              markFinAviso(
+                r,
+                `2.º corte termina ${hz.secondEndLabel} o más. Puso: ${horarioPuesto(r)}.`
+              );
+            });
           }
-          softProblems.push(
-            `Descanso ${a.horaFinTexto || "?"} → ${b.horaInicioTexto || "?"} = ${gap} min`
-          );
+        }
+
+        for (let i = 0; i < uniqueStarts.length - 1; i += 1) {
+          const a = uniqueStarts[i];
+          const b = uniqueStarts[i + 1];
+          if (a.horaFinMin == null || b.horaInicioMin == null) continue;
+          const gap = b.horaInicioMin - a.horaFinMin;
+          if (gap !== hz.restGapMin) {
+            const msg = `Descanso debe ser 1 h (${hz.firstEndLabel}→${hz.secondStartLabel}). Puso: ${a.horaFinTexto || "—"} → ${b.horaInicioTexto || "—"} (${gap} min).`;
+            ordered.filter((r) => sameTurn(r, a)).forEach((r) => markFinAviso(r, msg));
+            ordered.filter((r) => sameTurn(r, b)).forEach((r) => markIniAviso(r, msg));
+          }
         }
       }
     }
@@ -285,14 +380,14 @@ export function validateDataset(parsed) {
         if (!row.flags.includes("horario")) row.flags.push("horario");
       });
       findings.horario.push({
-        documento: sample.documento,
-        trabajador: sample.trabajador,
-        supervisor: sample.supervisor,
-        fecha: sample.fecha,
-        detalle: hardProblems.join("; "),
+        documento: sample?.documento,
+        trabajador: sample?.trabajador,
+        supervisor: sample?.supervisor,
+        fecha: sample?.fecha,
+        detalle: [...new Set(hardProblems)].join("; "),
         inicios: ordered.map((r) => r.horaInicioTexto).join(" / "),
         fines: ordered.map((r) => r.horaFinTexto).join(" / "),
-        rowIndex: sample.rowIndex
+        rowIndex: sample?.rowIndex
       });
       return;
     }

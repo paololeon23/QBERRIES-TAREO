@@ -1,6 +1,6 @@
 /** Tabla: una fila por persona/día con Suma de Horas Pago + reloj turnos. */
 
-import { matchExactHourStep, classifyDayHours, HOURS_LABEL, HOUR_BASE } from "./excel-parser.js?v=20260812b";
+import { matchExactHourStep, classifyDayHours, HOURS_LABEL, HOUR_BASE } from "./excel-parser.js?v=20260824a";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -196,16 +196,18 @@ export function collapseToDayRows(rows) {
     }
     const inicios = allTurns.map((t) => t.iniTxt).filter(Boolean);
     const fines = allTurns.map((t) => t.finTxt).filter(Boolean);
-    const iniFlag = turns.some((t) => t.iniFlag === "rojo")
-      ? "rojo"
-      : turns.some((t) => t.iniFlag === "aviso")
-        ? "aviso"
-        : "ok";
-    const finFlag = turns.some((t) => t.finFlag === "rojo")
-      ? "rojo"
-      : turns.some((t) => t.finFlag === "aviso")
-        ? "aviso"
-        : "ok";
+    const iniFlag =
+      turns.some((t) => t.iniFlag === "rojo") || agg.dayFlags?.horaInicio === "rojo"
+        ? "rojo"
+        : turns.some((t) => t.iniFlag === "aviso") || agg.dayFlags?.horaInicio === "aviso"
+          ? "aviso"
+          : "ok";
+    const finFlag =
+      turns.some((t) => t.finFlag === "rojo") || agg.dayFlags?.horaFin === "rojo"
+        ? "rojo"
+        : turns.some((t) => t.finFlag === "aviso") || agg.dayFlags?.horaFin === "aviso"
+          ? "aviso"
+          : "ok";
     const tipIni =
       agg.tipHoraInicio ||
       (iniFlag === "rojo"
@@ -221,6 +223,21 @@ export function collapseToDayRows(rows) {
           ? "Aviso: revisar horario de fin / descanso."
           : "");
 
+    // Horario / datos en rojo ganan sobre “posible pase”:
+    // ej. 06:30→08:41 (suma 2.183) sigue siendo ERROR de horario para el resumen.
+    const hardDataError =
+      iniFlag === "rojo" ||
+      finFlag === "rojo" ||
+      agg.dayFlags?.ceco === "rojo" ||
+      agg.dayFlags?.documento === "rojo" ||
+      agg.dayFlags?.trabajador === "rojo" ||
+      (agg.flags || []).includes("rojo");
+    if (hardDataError) {
+      agg.status = "rojo";
+      if (!Array.isArray(agg.flags)) agg.flags = [];
+      if (!agg.flags.includes("rojo")) agg.flags.push("rojo");
+    }
+
     delete agg._turnHours;
     delete agg._turnStarts;
     delete agg._turnEnds;
@@ -229,6 +246,7 @@ export function collapseToDayRows(rows) {
 
     return {
       ...agg,
+      status: agg.status,
       sumaHorasPago: sum,
       totalDia: sum,
       horas: sum,

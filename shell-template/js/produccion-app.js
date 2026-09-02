@@ -7,7 +7,7 @@ import {
   parseListadoBuffer,
   parseProduccionBuffer,
   aggregateWorkers
-} from "./produccion-parser.js?v=20260812a";
+} from "./produccion-parser.js?v=20260821h";
 
 const LISTADO_KEY = "qb-produccion-listado-v1";
 const LISTADO_JSON_URL = "./data/listado-trabajadores.json";
@@ -93,10 +93,11 @@ function mapFromJsonTrabajadores(list) {
 
 async function loadPackedListado() {
   try {
-    const res = await fetch(LISTADO_JSON_URL, { cache: "no-store" });
+    const res = await fetch(`${LISTADO_JSON_URL}?v=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const map = mapFromJsonTrabajadores(data.trabajadores || data.people || []);
+    const list = data.workers || data.trabajadores || data.people || (Array.isArray(data) ? data : []);
+    const map = mapFromJsonTrabajadores(list);
     if (!map.size) throw new Error("JSON de listado vacío");
     applyWorkerMap(map, data.source || "listado-trabajadores.json", "json");
     return true;
@@ -381,15 +382,29 @@ async function handleProduccion(file) {
   if (!state.workerMap.size) {
     const ok = await loadPackedListado();
     if (!ok) {
-      setStatus("error", "No se pudo cargar el JSON de trabajadores. Recarga la página.");
-      return;
+      setStatus(
+        "loading",
+        "Sin listado JSON; se leerá el Excel igual (nombres desde el archivo)…"
+      );
+      await new Promise((r) => setTimeout(r, 40));
     }
   }
   try {
-    setStatus("loading", "Leyendo Produccion_Licapa (puede tardar si el archivo es grande)…");
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    setStatus(
+      "loading",
+      Number(mb) >= 15
+        ? `Archivo grande (${mb} MB). Leyendo… puede tardar 1–2 min. No cierres la pestaña.`
+        : `Leyendo ${file.name} (${mb} MB)…`
+    );
     showWorkspace(true);
+    await new Promise((r) => setTimeout(r, 50));
+
     const buffer = await file.arrayBuffer();
-    const parsed = parseProduccionBuffer(buffer, file.name, {
+    setStatus("loading", `Procesando producción… 10%`);
+    await new Promise((r) => setTimeout(r, 30));
+
+    const parsed = await parseProduccionBuffer(buffer, file.name, {
       workerMap: state.workerMap,
       onProgress: (p) =>
         setStatus("loading", `Procesando producción… ${Math.round(p)}%`)
@@ -403,9 +418,17 @@ async function handleProduccion(file) {
     state.selectedGrupos = [];
     fillFechaOptions();
     applyFilters({ resetPage: true });
-    setStatus("", "");
     if (!parsed.rows.length) {
       setStatus("empty", "No se encontraron filas con DNI (col. H) en el Excel.");
+    } else {
+      setStatus(
+        "",
+        ""
+      );
+      const meta = $("prodMeta");
+      if (meta) {
+        meta.textContent = `${file.name} · ${fmt(parsed.meta.registros)} filas · ${fmt(parsed.meta.trabajadores)} trabajadores · ${fmt(parsed.meta.jarras)} jarras`;
+      }
     }
   } catch (err) {
     console.error("[produccion]", err);

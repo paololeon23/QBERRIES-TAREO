@@ -8,7 +8,9 @@ const ROUTE_TITLES = {
   "pases-de-salida": "Pases de salida",
   "tarjeta-pallet": "Tarjeta Pallet",
   produccion: "Producción",
-  "reporte-trabajadores": "Reporte de Trabajadores"
+  "reporte-trabajadores": "Reporte de Trabajadores",
+  "trabajadores-jarras": "Trabajadores Jarras",
+  "unificacion-jarras": "Unificación de jarras"
 };
 
 const ROUTE_VIEW = {
@@ -21,7 +23,9 @@ const ROUTE_VIEW = {
   "pases-de-salida": "pases-de-salida",
   "tarjeta-pallet": "tarjeta-pallet",
   produccion: "produccion",
-  "reporte-trabajadores": "reporte-trabajadores"
+  "reporte-trabajadores": "reporte-trabajadores",
+  "trabajadores-jarras": "trabajadores-jarras",
+  "unificacion-jarras": "unificacion-jarras"
 };
 
 function normalizeHash(hash) {
@@ -52,6 +56,11 @@ export function applyRoute(routeKey) {
     link.classList.toggle("is-active", linkRoute === viewId || link.dataset.route === route);
   });
 
+  document.querySelectorAll(".sidebar__primary-panel, .sidebar__secondary-panel").forEach((panel) => {
+    const active = Boolean(panel.querySelector(".sidebar-nav-link.is-active"));
+    panel.classList.toggle("is-route-active", active);
+  });
+
   const title = ROUTE_TITLES[route] || ROUTE_TITLES[viewId] || "Inicio";
   const titleEl = document.getElementById("txtPageTitle");
   const crumbEl = document.getElementById("txtBreadcrumbActive");
@@ -64,7 +73,11 @@ export function applyRoute(routeKey) {
 function ensureProduccionNav() {
   if (document.querySelector('.sidebar-nav-link[data-route="produccion"]')) return;
   const tareo = document.querySelector('.sidebar-nav-link[data-route="tareo"]');
-  const panel = tareo?.closest(".sidebar__secondary-panel") || document.querySelector(".sidebar__secondary-panel");
+  const panel =
+    tareo?.closest(".sidebar-panel__links") ||
+    tareo?.closest(".sidebar__secondary-panel") ||
+    document.querySelector('.sidebar__secondary-panel[data-panel="campo"] .sidebar-panel__links') ||
+    document.querySelector(".sidebar__secondary-panel");
   if (!panel) return;
   const link = document.createElement("a");
   link.className = "sidebar-nav-link";
@@ -81,6 +94,9 @@ function ensureProduccionNav() {
 }
 
 (() => {
+  if (window.__QB_SHELL_INIT__) return;
+  window.__QB_SHELL_INIT__ = true;
+
   const shell = document.getElementById("applicationRoot");
   const collapseBtn = document.getElementById("btnSidebarCollapse");
   const searchInput = document.getElementById("txtSidebarSearch");
@@ -120,11 +136,22 @@ function ensureProduccionNav() {
     backdrop.setAttribute("aria-hidden", open ? "false" : "true");
   }
 
+  function syncCollapseButton(collapsed) {
+    if (!collapseBtn) return;
+    collapseBtn.classList.toggle("is-expand-state", collapsed);
+    const label = collapsed ? "Expandir menú" : "Colapsar menú";
+    collapseBtn.setAttribute("aria-label", label);
+    collapseBtn.setAttribute("title", label);
+    collapseBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  }
+
   function setCollapsed(collapsed) {
     if (!shell) return;
+    const next = Boolean(collapsed);
 
     if (isMobile()) {
-      if (collapsed) {
+      shell.classList.remove("is-sidebar-collapsed");
+      if (next) {
         shell.classList.remove("is-sidebar-drawer-open");
         document.body.classList.remove("is-sidebar-drawer-open");
         syncBackdrop(false);
@@ -133,15 +160,25 @@ function ensureProduccionNav() {
         document.body.classList.add("is-sidebar-drawer-open");
         syncBackdrop(true);
       }
-      collapseBtn?.classList.toggle("is-expand-state", !shell.classList.contains("is-sidebar-drawer-open"));
+      syncCollapseButton(next);
       return;
     }
 
     syncBackdrop(false);
+    shell.classList.remove("is-sidebar-drawer-open");
+    document.body.classList.remove("is-sidebar-drawer-open");
     shell.classList.add("is-sidebar-collapsing");
-    shell.classList.toggle("is-sidebar-collapsed", collapsed);
-    collapseBtn?.classList.toggle("is-expand-state", collapsed);
+    shell.classList.toggle("is-sidebar-collapsed", next);
+    syncCollapseButton(next);
     window.setTimeout(() => shell.classList.remove("is-sidebar-collapsing"), 220);
+  }
+
+  function closeAllPanelFlyouts() {
+    document.querySelectorAll(".sidebar__primary-panel.is-flyout-open, .sidebar__secondary-panel.is-flyout-open").forEach((panel) => {
+      panel.classList.remove("is-flyout-open");
+      const rail = panel.querySelector(".sidebar-panel__rail");
+      if (rail) rail.setAttribute("aria-expanded", "false");
+    });
   }
 
   function closeMobileDrawer() {
@@ -150,7 +187,11 @@ function ensureProduccionNav() {
     }
   }
 
-  collapseBtn?.addEventListener("click", () => {
+  collapseBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!shell) return;
+    closeAllPanelFlyouts();
     if (isMobile()) {
       setCollapsed(shell.classList.contains("is-sidebar-drawer-open"));
       return;
@@ -158,12 +199,37 @@ function ensureProduccionNav() {
     setCollapsed(!shell.classList.contains("is-sidebar-collapsed"));
   });
 
+  document.querySelectorAll(".sidebar-panel__rail").forEach((rail) => {
+    rail.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!shell?.classList.contains("is-sidebar-collapsed") || isMobile()) return;
+      const panel = rail.closest(".sidebar__primary-panel, .sidebar__secondary-panel");
+      if (!panel) return;
+      const wasOpen = panel.classList.contains("is-flyout-open");
+      closeAllPanelFlyouts();
+      if (!wasOpen) {
+        panel.classList.add("is-flyout-open");
+        rail.setAttribute("aria-expanded", "true");
+      }
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!shell?.classList.contains("is-sidebar-collapsed")) return;
+    const panel = event.target.closest?.(".sidebar__primary-panel, .sidebar__secondary-panel");
+    if (!panel) closeAllPanelFlyouts();
+  });
+
   backdrop?.addEventListener("click", () => {
     closeMobileDrawer();
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeMobileDrawer();
+    if (event.key === "Escape") {
+      closeAllPanelFlyouts();
+      closeMobileDrawer();
+    }
   });
 
   // Clic fuera del sidebar (main / topbar / footer) también cierra
@@ -191,6 +257,7 @@ function ensureProduccionNav() {
 
   document.querySelectorAll(".sidebar-nav-link").forEach((link) => {
     link.addEventListener("click", () => {
+      closeAllPanelFlyouts();
       if (isMobile()) setCollapsed(true);
     });
   });

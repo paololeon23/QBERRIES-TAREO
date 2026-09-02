@@ -48,7 +48,7 @@ export function classifyDayHours(hours) {
   if (rounded < HOUR_BASE - HOUR_EXACT_EPS) {
     return {
       flag: "posible-salida",
-      tip: `Posible pase de salida: suma ${formatHoursDisplay(rounded)} h (menor a 9.6). Verificar si hay pase registrado.`
+      tip: `Suma ${formatHoursDisplay(rounded)} h (< 9.6). ¿Pase de salida?`
     };
   }
 
@@ -59,31 +59,31 @@ export function classifyDayHours(hours) {
   if (exact === HOUR_HALF) {
     return {
       flag: "aviso",
-      tip: `Aviso: ${formatHoursDisplay(rounded)} h = media hora extra (exacto 10.1).`
+      tip: `Suma ${formatHoursDisplay(rounded)} h (extra 10.1).`
     };
   }
   if (exact === HOUR_MAX) {
     return {
       flag: "aviso-hora",
-      tip: `Aviso: ${formatHoursDisplay(rounded)} h = 1 h extra (exacto 10.6).`
+      tip: `Suma ${formatHoursDisplay(rounded)} h (extra 10.6).`
     };
   }
   if (exact === HOUR_DAY_CAP) {
     return {
       flag: "aviso-hora",
-      tip: `Aviso: ${formatHoursDisplay(rounded)} h = tope jornada (exacto 12).`
+      tip: `Suma ${formatHoursDisplay(rounded)} h (tope 12).`
     };
   }
 
   if (rounded > HOUR_DAY_CAP + HOUR_EXACT_EPS) {
     return {
       flag: "rojo",
-      tip: `Error: suma ${formatHoursDisplay(rounded)} h supera el tope de 12 h.`
+      tip: `Suma ${formatHoursDisplay(rounded)} h (> 12).`
     };
   }
   return {
     flag: "rojo",
-    tip: `Error: suma ${formatHoursDisplay(rounded)} h ≠ exacto (solo 9.6 / 10.1 / 10.6 / 11.6 / 12).`
+    tip: `Suma ${formatHoursDisplay(rounded)} h (no exacta).`
   };
 }
 

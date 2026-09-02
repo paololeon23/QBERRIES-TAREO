@@ -1,3 +1,6 @@
+(function () {
+"use strict";
+
 /** Dashboard Inicio — trabajadores + fundos/variedades */
 
 const DATA_URL = "./data/trabajadores-resumen.json";
@@ -456,3 +459,5 @@ window.addEventListener("qb:route-changed", (evt) => {
 if (window.location.hash.replace(/^#\/?/, "").split("/")[0] === "inicio" || !window.location.hash || window.location.hash === "#/") {
   initInicio();
 }
+
+})();

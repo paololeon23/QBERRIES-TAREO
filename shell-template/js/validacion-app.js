@@ -1,7 +1,7 @@
 /** Orquestación: upload, modal, reportes, historial. */
 
-import { parseExcelBuffer, matchExactHourStep, classifyDayHours } from "./excel-parser.js?v=20260812b";
-import { validateDataset } from "./validacion-rules.js?v=20260812b";
+import { parseExcelBuffer, matchExactHourStep, classifyDayHours } from "./excel-parser.js?v=20260821e";
+import { validateDataset } from "./validacion-rules.js?v=20260902a";
 import {
   populateFilters,
   readFilters,
@@ -15,8 +15,8 @@ import {
   countTotalPosibleSalidas,
   countTotalDuplicados,
   clearAllFilterControls
-} from "./validacion-table.js?v=20260812b";
-import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js";
+} from "./validacion-table.js?v=20260824a";
+import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js?v=20260901c";
 import {
   openResumenModal,
   closeResumenModal,
@@ -24,8 +24,8 @@ import {
   renderResumenView,
   bindResumenUi,
   getFilteredResumenData
-} from "./validacion-resumen.js";
-import { getCurrentRoute } from "./shell.js";
+} from "./validacion-resumen.js?v=20260902e";
+import { getCurrentRoute } from "./shell.js?v=20260824i";
 
 const HISTORY_KEY = "qb-validacion-history";
 
@@ -65,29 +65,28 @@ const KPI_HELP = {
     title: "Supervisores",
     tone: "info",
     html: `
-      <p>Personas distintas en la columna <strong>Supervisor</strong>, solo en <strong>COSTO DE COSECHA</strong>.</p>
+      <p>Equipos en <strong>COSTO DE COSECHA</strong>: cada supervisor = 1 grupo (1 scaner + cosecha + supervisor de cosecha).</p>
       <ul>
-        <li>Cada nombre se cuenta una sola vez (aunque trabaje en varios fundos).</li>
+        <li>Cuenta <strong>grupos</strong>, no filas repetidas.</li>
       </ul>`
   },
   scaner: {
     title: "Scaner",
     tone: "info",
     html: `
-      <p>Personas con Actividad <strong>SCANER</strong> (columna M), solo en <strong>COSTO DE COSECHA</strong>.</p>
+      <p>Grupos con <strong>SCANER</strong> en COSTO DE COSECHA.</p>
       <ul>
-        <li>También reconoce SCANNER / ESCÁNER.</li>
-        <li>Cada nombre se cuenta una sola vez.</li>
+        <li>1 scaner por equipo → debe coincidir con Supervisores y Cosecha si el grupo está completo.</li>
       </ul>`
   },
   cosecha: {
     title: "Cosecha",
     tone: "info",
     html: `
-      <p>Personas con Actividad exactamente <strong>COSECHA</strong> (columna M), solo en <strong>COSTO DE COSECHA</strong>.</p>
+      <p>Grupos con actividad <strong>COSECHA</strong> en COSTO DE COSECHA.</p>
       <ul>
-        <li>No incluye SUPERVISOR DE COSECHA ni SCANER.</li>
-        <li>Cada nombre se cuenta una sola vez.</li>
+        <li>Cuenta <strong>equipos</strong> con cosechadores (1 por grupo), no el total de personas en cosecha.</li>
+        <li>Debe coincidir con Supervisores y Scaner si cada grupo está completo.</li>
       </ul>`
   },
   error: {
@@ -439,6 +438,7 @@ function syncErrorFocusUi(totalErrors) {
   const countEl = $("errorFocusCount");
   const bar = $("errorFocusBar");
   const btnVer = $("btnVerErrores");
+  const btnPersonas = $("btnPersonasErrores");
   const btnBack = $("btnRegresarErrores");
 
   if (countEl) {
@@ -451,6 +451,9 @@ function syncErrorFocusUi(totalErrors) {
   if (btnVer) {
     btnVer.classList.toggle("is-hidden", state.errorFocusMode);
     btnVer.disabled = totalErrors === 0;
+  }
+  if (btnPersonas) {
+    btnPersonas.disabled = totalErrors === 0;
   }
   btnBack?.classList.toggle("is-hidden", !state.errorFocusMode);
 }
@@ -719,6 +722,231 @@ function revalidate() {
     paseOnly: state.paseFocusMode,
     dupOnly: state.dupFocusMode
   });
+  refreshView();
+}
+
+function motivoErrorPersona(row) {
+  // Preferir el tip de horario (ya trae "Puso: …")
+  if (row.tipHoraFin) return row.tipHoraFin;
+  if (row.tipHoraInicio) return row.tipHoraInicio;
+
+  const inis = row.horasInicioDetalle?.length
+    ? row.horasInicioDetalle
+    : row.horaInicioTexto
+      ? [row.horaInicioTexto]
+      : [];
+  const fins = row.horasFinDetalle?.length
+    ? row.horasFinDetalle
+    : row.horaFinTexto
+      ? [row.horaFinTexto]
+      : [];
+  const bloques = [];
+  const n = Math.max(inis.length, fins.length);
+  for (let i = 0; i < n; i += 1) {
+    bloques.push(`${inis[i] || "—"}→${fins[i] || "—"}`);
+  }
+  const suma =
+    row.sumaHorasPago != null || row.totalDia != null || row.horas != null
+      ? Math.round(Number(row.sumaHorasPago ?? row.totalDia ?? row.horas) * 1e3) / 1e3
+      : null;
+
+  if (row.tipHoras) {
+    if (bloques.length) return `Puso: ${bloques.join(" · ")}. ${row.tipHoras}`;
+    return row.tipHoras;
+  }
+  if (row.tipDuplicado) return row.tipDuplicado;
+  if (row.tipCeco) return row.tipCeco;
+  if (row.tipDocumento) return row.tipDocumento;
+  if (row.tipTrabajador) return row.tipTrabajador;
+  if (bloques.length) {
+    return `Puso: ${bloques.join(" · ")}${suma != null ? ` (${suma} h)` : ""}`;
+  }
+  return "Error de horas / horario";
+}
+
+function collectPersonasConError() {
+  if (!state.validated?.rows?.length) return [];
+  const dayRows = collapseToDayRows(state.validated.rows).filter((r) => r.status === "rojo");
+  return dayRows
+    .map((r) => ({
+      documento: r.documento || "",
+      trabajador: r.trabajador || "",
+      supervisor: r.supervisor || "",
+      fecha: r.fecha || "",
+      fundo: r.fundo || "",
+      motivo: motivoErrorPersona(r),
+      inicios: (r.horasInicioDetalle || []).join(" / "),
+      fines: (r.horasFinDetalle || []).join(" / ")
+    }))
+    .sort((a, b) => {
+      const sa = String(a.supervisor).localeCompare(String(b.supervisor), "es");
+      if (sa) return sa;
+      return String(a.trabajador).localeCompare(String(b.trabajador), "es");
+    });
+}
+
+function renderErroresPersonasList(query = "") {
+  const body = $("erroresPersonasBody");
+  const empty = $("erroresPersonasEmpty");
+  const countEl = $("erroresPersonasCount");
+  if (!body) return;
+  const q = String(query || "")
+    .trim()
+    .toLowerCase();
+  const all = collectPersonasConError();
+  const rows = q
+    ? all.filter((p) =>
+        `${p.documento} ${p.trabajador} ${p.supervisor} ${p.fecha} ${p.motivo}`
+          .toLowerCase()
+          .includes(q)
+      )
+    : all;
+  if (countEl) {
+    countEl.textContent = rows.length === 1 ? "1 persona" : `${rows.length} personas`;
+  }
+  if (!rows.length) {
+    body.innerHTML = "";
+    if (empty) empty.hidden = false;
+    return;
+  }
+  if (empty) empty.hidden = true;
+  body.innerHTML = rows
+    .map(
+      (p) => `<tr data-err-dni="${escapeHtml(p.documento)}" data-err-fecha="${escapeHtml(p.fecha)}">
+      <td class="errores-modal__dni">${escapeHtml(p.documento || "—")}</td>
+      <td>${escapeHtml(p.trabajador || "—")}</td>
+      <td>${escapeHtml(p.supervisor || "—")}</td>
+      <td>${escapeHtml(p.fecha || "—")}</td>
+      <td class="errores-modal__motivo" title="${escapeHtml(p.motivo)}">${escapeHtml(p.motivo)}</td>
+    </tr>`
+    )
+    .join("");
+}
+
+function collectSupervisoresConError() {
+  const personas = collectPersonasConError();
+  const map = new Map();
+  personas.forEach((p) => {
+    const key = String(p.supervisor || "").trim() || "(sin supervisor)";
+    if (!map.has(key)) {
+      map.set(key, {
+        supervisor: key,
+        errores: 0,
+        personas: new Set(),
+        motivos: []
+      });
+    }
+    const g = map.get(key);
+    g.errores += 1;
+    if (p.documento) g.personas.add(String(p.documento));
+    else if (p.trabajador) g.personas.add(String(p.trabajador));
+    if (p.motivo && g.motivos.length < 3 && !g.motivos.includes(p.motivo)) {
+      g.motivos.push(p.motivo);
+    }
+  });
+  return [...map.values()]
+    .map((g) => ({
+      supervisor: g.supervisor,
+      errores: g.errores,
+      personas: g.personas.size,
+      motivos: g.motivos.join(" · ")
+    }))
+    .sort((a, b) => b.errores - a.errores || a.supervisor.localeCompare(b.supervisor, "es"));
+}
+
+function renderSupervisoresErroresList(query = "") {
+  const body = $("supErroresBody");
+  const empty = $("supErroresEmpty");
+  const countEl = $("supErroresCount");
+  if (!body) return;
+  const q = String(query || "")
+    .trim()
+    .toLowerCase();
+  const all = collectSupervisoresConError();
+  const rows = q
+    ? all.filter((s) => `${s.supervisor} ${s.motivos}`.toLowerCase().includes(q))
+    : all;
+  if (countEl) {
+    countEl.textContent =
+      rows.length === 1 ? "1 supervisor" : `${rows.length} supervisores`;
+  }
+  if (!rows.length) {
+    body.innerHTML = "";
+    if (empty) empty.hidden = false;
+    return;
+  }
+  if (empty) empty.hidden = true;
+  body.innerHTML = rows
+    .map(
+      (s) => `<tr data-sup-err="${escapeHtml(s.supervisor)}">
+      <td class="errores-modal__dni">${escapeHtml(s.supervisor)}</td>
+      <td><strong>${s.errores}</strong></td>
+      <td>${s.personas}</td>
+      <td class="errores-modal__motivo" title="${escapeHtml(s.motivos)}">${escapeHtml(s.motivos || "—")}</td>
+    </tr>`
+    )
+    .join("");
+}
+
+function openSupervisoresErroresModal() {
+  const modal = $("modalSupervisoresErrores");
+  if (!modal) return;
+  const search = $("supErroresSearch");
+  if (search) search.value = "";
+  renderSupervisoresErroresList("");
+  modal.hidden = false;
+}
+
+function closeSupervisoresErroresModal() {
+  const modal = $("modalSupervisoresErrores");
+  if (modal) modal.hidden = true;
+}
+
+function focusSupervisorFromError(supervisor) {
+  closeSupervisoresErroresModal();
+  enterErrorFocusMode();
+  const sel = $("fltSupervisor");
+  if (sel && supervisor && supervisor !== "(sin supervisor)") {
+    const has = [...sel.options].some((o) => o.value === supervisor);
+    if (has) {
+      sel.disabled = false;
+      sel.value = supervisor;
+    }
+  }
+  refreshView();
+}
+
+function openErroresPersonasModal() {
+  const modal = $("modalErroresPersonas");
+  if (!modal) return;
+  const search = $("erroresPersonasSearch");
+  if (search) search.value = "";
+  renderErroresPersonasList("");
+  modal.hidden = false;
+}
+
+function closeErroresPersonasModal() {
+  const modal = $("modalErroresPersonas");
+  if (modal) modal.hidden = true;
+}
+
+function focusPersonaFromError(dni, fecha) {
+  closeErroresPersonasModal();
+  enterErrorFocusMode();
+  const search = $("fltSearch");
+  if (search && dni) {
+    search.value = dni;
+  }
+  if (fecha) {
+    const sel = $("fltFecha");
+    if (sel) {
+      const has = [...sel.options].some((o) => o.value === fecha);
+      if (has) {
+        sel.disabled = false;
+        sel.value = fecha;
+      }
+    }
+  }
   refreshView();
 }
 
@@ -1029,14 +1257,19 @@ function downloadResumenExcel() {
         value: g.avisos,
         tone: g.avisos > 0 ? "warn" : ""
       },
-      g.ok
+      {
+        value: g.apoyo
+          ? `Sí · ${(g.apoyoNombres || []).join(" · ")}`
+          : "No",
+        tone: g.apoyo ? "ok" : ""
+      }
     ]
   }));
 
   downloadHtmlExcel({
     filename: `QBerries_Resumen_Supervisores_${stamp}.xls`,
     sheetName: "Resumen",
-    headers: ["Fundo", "Supervisor", "Planillas", "Trabajadores", "Errores", "Extras", "OK"],
+    headers: ["Fundo", "Supervisor", "Planillas", "Trabajadores", "Errores", "Extras", "Apoyo"],
     rows
   });
 }
@@ -1233,7 +1466,21 @@ function bindUi() {
     openResumenModal();
   });
   $("btnReportHallazgos")?.addEventListener("click", () => downloadReport("hallazgos"));
-  $("btnReportDetalle")?.addEventListener("click", () => downloadReport("detalle"));
+  $("btnSupervisoresErrores")?.addEventListener("click", () => openSupervisoresErroresModal());
+  $("btnCloseSupErrores")?.addEventListener("click", closeSupervisoresErroresModal);
+  $("btnCloseSupErrores2")?.addEventListener("click", closeSupervisoresErroresModal);
+  $("btnSupErroresFiltrar")?.addEventListener("click", () => {
+    closeSupervisoresErroresModal();
+    enterErrorFocusMode();
+  });
+  $("supErroresSearch")?.addEventListener("input", () => {
+    renderSupervisoresErroresList($("supErroresSearch")?.value || "");
+  });
+  $("supErroresBody")?.addEventListener("click", (e) => {
+    const tr = e.target.closest("tr[data-sup-err]");
+    if (!tr) return;
+    focusSupervisorFromError(tr.getAttribute("data-sup-err") || "");
+  });
   $("btnExportar")?.addEventListener("click", () => downloadReport("detalle"));
   $("btnNewUpload")?.addEventListener("click", () => {
     state.parsed = null;
@@ -1253,6 +1500,21 @@ function bindUi() {
   });
 
   $("btnVerErrores")?.addEventListener("click", () => enterErrorFocusMode());
+  $("btnPersonasErrores")?.addEventListener("click", () => openErroresPersonasModal());
+  $("btnCloseErroresPersonas")?.addEventListener("click", closeErroresPersonasModal);
+  $("btnCloseErroresPersonas2")?.addEventListener("click", closeErroresPersonasModal);
+  $("btnErroresFiltrarTabla")?.addEventListener("click", () => {
+    closeErroresPersonasModal();
+    enterErrorFocusMode();
+  });
+  $("erroresPersonasSearch")?.addEventListener("input", () => {
+    renderErroresPersonasList($("erroresPersonasSearch")?.value || "");
+  });
+  $("erroresPersonasBody")?.addEventListener("click", (e) => {
+    const tr = e.target.closest("tr[data-err-dni]");
+    if (!tr) return;
+    focusPersonaFromError(tr.getAttribute("data-err-dni") || "", tr.getAttribute("data-err-fecha") || "");
+  });
   $("btnRegresarErrores")?.addEventListener("click", () => exitErrorFocusMode({ restoreSaved: true }));
   $("btnVerAvisos")?.addEventListener("click", () => enterWarnFocusMode());
   $("btnRegresarAvisos")?.addEventListener("click", () => exitWarnFocusMode({ restoreSaved: true }));
@@ -1271,7 +1533,11 @@ function bindUi() {
       const which = el.getAttribute("data-close-modal");
       if (which === "kpi") hideKpiHelp();
       else if (which === "resumen") closeResumenModal();
-      else hideSuccessModal();
+      else if (which === "errores-personas") closeErroresPersonasModal();
+      else if (which === "supervisores-errores") closeSupervisoresErroresModal();
+      else if (which === "planillas-faltantes") {
+        document.getElementById("modalPlanillasFaltantes").hidden = true;
+      } else hideSuccessModal();
     });
   });
 

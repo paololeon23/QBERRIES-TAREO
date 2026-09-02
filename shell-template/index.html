@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -51,15 +51,17 @@
     />
     <link rel="stylesheet" href="css/tokens.css?v=20260812a" />
     <link rel="stylesheet" href="css/reset.css?v=20260812a" />
-    <link rel="stylesheet" href="css/app-shell.css?v=20260812a" />
-    <link rel="stylesheet" href="css/sidebar.css?v=20260812a" />
-    <link rel="stylesheet" href="css/topbar.css?v=20260812a" />
+    <link rel="stylesheet" href="css/app-shell.css?v=20260824f" />
+    <link rel="stylesheet" href="css/sidebar.css?v=20260824j" />
+    <link rel="stylesheet" href="css/topbar.css?v=20260824j" />
     <link rel="stylesheet" href="css/shell-brand.css?v=20260812a" />
-    <link rel="stylesheet" href="css/validacion.css?v=20260812a" />
+    <link rel="stylesheet" href="css/validacion.css?v=20260831j" />
     <link rel="stylesheet" href="css/pases.css?v=20260812a" />
     <link rel="stylesheet" href="css/tarjetas.css?v=20260812a" />
     <link rel="stylesheet" href="css/reporte-trabajadores.css?v=20260812a" />
     <link rel="stylesheet" href="css/produccion.css?v=20260812a" />
+    <link rel="stylesheet" href="css/jarras.css?v=20260812w" />
+    <link rel="stylesheet" href="css/unificacion-jarras.css?v=20260817a" />
     <link rel="stylesheet" href="css/inicio.css?v=20260812a" />
   </head>
   <body>
@@ -91,66 +93,112 @@
             />
           </div>
 
-          <div class="sidebar__primary-panel">
-            <a class="sidebar-nav-link is-active" href="#/inicio" data-route="inicio" data-sidebar-tooltip="Inicio">
-              <span class="sidebar-nav-link__icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <div class="sidebar__primary-panel" data-panel="general">
+            <p class="sidebar__panel-label">General</p>
+            <button type="button" class="sidebar-panel__rail" aria-label="General" aria-expanded="false">
+              <span class="sidebar-nav-link__icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               </span>
-              <span class="sidebar-nav-link__text">Inicio</span>
-            </a>
-
-            <a class="sidebar-nav-link" href="#/historial" data-route="historial" data-sidebar-tooltip="Historial">
-              <span class="sidebar-nav-link__icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
-              </span>
-              <span class="sidebar-nav-link__text">Historial</span>
-            </a>
-
-            <a class="sidebar-nav-link" href="#/recomendaciones" data-route="recomendaciones" data-sidebar-tooltip="Recomendaciones">
-              <span class="sidebar-nav-link__icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
-              </span>
-              <span class="sidebar-nav-link__text">Recomendaciones</span>
-            </a>
+            </button>
+            <div class="sidebar-panel__links">
+              <p class="sidebar-panel__flyout-title">General</p>
+              <a class="sidebar-nav-link is-active" href="#/inicio" data-route="inicio">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Inicio</span>
+              </a>
+              <a class="sidebar-nav-link" href="#/historial" data-route="historial">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Historial</span>
+              </a>
+              <a class="sidebar-nav-link" href="#/recomendaciones" data-route="recomendaciones">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Recomendaciones</span>
+              </a>
+            </div>
           </div>
 
-          <div class="sidebar__secondary-panel">
-            <a class="sidebar-nav-link" href="#/tareo" data-route="tareo" data-sidebar-tooltip="Tareo">
-              <span class="sidebar-nav-link__icon">
+          <div class="sidebar__secondary-panel" data-panel="campo">
+            <p class="sidebar__panel-label">Campo</p>
+            <button type="button" class="sidebar-panel__rail" aria-label="Campo" aria-expanded="false">
+              <span class="sidebar-nav-link__icon" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               </span>
-              <span class="sidebar-nav-link__text">Tareo</span>
-            </a>
-            <a class="sidebar-nav-link" href="#/produccion" data-route="produccion" data-sidebar-tooltip="Producción">
-              <span class="sidebar-nav-link__icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14v4"/><path d="M12 10v8"/><path d="M17 6v12"/></svg>
-              </span>
-              <span class="sidebar-nav-link__text">Producción</span>
-            </a>
+            </button>
+            <div class="sidebar-panel__links">
+              <p class="sidebar-panel__flyout-title">Campo</p>
+              <a class="sidebar-nav-link" href="#/tareo" data-route="tareo">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Tareo</span>
+              </a>
+              <a class="sidebar-nav-link" href="#/produccion" data-route="produccion">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14v4"/><path d="M12 10v8"/><path d="M17 6v12"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Producción</span>
+              </a>
+            </div>
           </div>
 
-          <div class="sidebar__secondary-panel">
-            <a class="sidebar-nav-link" href="#/reporte-trabajadores" data-route="reporte-trabajadores" data-sidebar-tooltip="Reporte de Trabajadores">
-              <span class="sidebar-nav-link__icon">
+          <div class="sidebar__secondary-panel" data-panel="jarras">
+            <p class="sidebar__panel-label">Trabajadores y jarras</p>
+            <button type="button" class="sidebar-panel__rail" aria-label="Trabajadores y jarras" aria-expanded="false">
+              <span class="sidebar-nav-link__icon" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               </span>
-              <span class="sidebar-nav-link__text">Reporte de Trabajadores</span>
-            </a>
+            </button>
+            <div class="sidebar-panel__links">
+              <p class="sidebar-panel__flyout-title">Trabajadores y jarras</p>
+              <a class="sidebar-nav-link" href="#/reporte-trabajadores" data-route="reporte-trabajadores">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Reporte de Trabajadores</span>
+              </a>
+              <a class="sidebar-nav-link" href="#/trabajadores-jarras" data-route="trabajadores-jarras">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8h14"/><path d="M5 12h14"/><path d="M5 16h10"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Trabajadores Jarras</span>
+              </a>
+              <a class="sidebar-nav-link" href="#/unificacion-jarras" data-route="unificacion-jarras">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Unificación de jarras</span>
+              </a>
+            </div>
           </div>
 
-          <div class="sidebar__secondary-panel">
-            <a class="sidebar-nav-link" href="#/pases-de-salida" data-route="pases-de-salida" data-sidebar-tooltip="Pases de salida">
-              <span class="sidebar-nav-link__icon">
+          <div class="sidebar__secondary-panel" data-panel="salida">
+            <p class="sidebar__panel-label">Salida y logística</p>
+            <button type="button" class="sidebar-panel__rail" aria-label="Salida y logística" aria-expanded="false">
+              <span class="sidebar-nav-link__icon" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               </span>
-              <span class="sidebar-nav-link__text">Pases de salida</span>
-            </a>
-            <a class="sidebar-nav-link" href="#/tarjeta-pallet" data-route="tarjeta-pallet" data-sidebar-tooltip="Tarjeta Pallet">
-              <span class="sidebar-nav-link__icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6M7 16h8"/></svg>
-              </span>
-              <span class="sidebar-nav-link__text">Tarjeta Pallet</span>
-            </a>
+            </button>
+            <div class="sidebar-panel__links">
+              <p class="sidebar-panel__flyout-title">Salida y logística</p>
+              <a class="sidebar-nav-link" href="#/pases-de-salida" data-route="pases-de-salida">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Pases de salida</span>
+              </a>
+              <a class="sidebar-nav-link" href="#/tarjeta-pallet" data-route="tarjeta-pallet">
+                <span class="sidebar-nav-link__icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6M7 16h8"/></svg>
+                </span>
+                <span class="sidebar-nav-link__text">Tarjeta Pallet</span>
+              </a>
+            </div>
           </div>
         </nav>
 
@@ -159,11 +207,11 @@
             <div class="sidebar-user__avatar" aria-hidden="true">QB</div>
             <div class="sidebar-user__meta">
               <strong class="sidebar-user__name">QBerries</strong>
-              <span class="sidebar-user__role">Operaciones · Tareo</span>
+              <span class="sidebar-user__role">Operaciones</span>
             </div>
-            <span class="sidebar-user__badge" title="Sesión activa">Online</span>
+            <span class="sidebar-user__badge" title="Sesión activa">Activo</span>
           </div>
-          <p class="sidebar-user__version">Control de tareo · v1.0.0</p>
+          <p class="sidebar-user__version">QBerries · Control operativo v1.0</p>
         </div>
       </aside>
 
@@ -700,7 +748,7 @@
                 <article class="rules-card">
                   <span class="rules-card__tag">Horarios</span>
                   <h3 class="rules-card__title">Turnos y descanso</h3>
-                  <p class="rules-card__text">Primer turno <strong>06:30</strong>; entre turnos <strong>1 h de descanso</strong>; fin tarde <strong>17:06 / 17:36 / 18:06</strong> (máx). Se leen Hora Inicio / Hora Fin en HH:MM.</p>
+                  <p class="rules-card__text"><strong>LICAPA:</strong> 06:45→12:00 y tarde 13:00→17:21. <strong>LICAPA II / III:</strong> 06:30→12:00 y tarde 13:00→17:06. Entre turnos <strong>1 h de descanso</strong>. Se leen Hora Inicio / Hora Fin en HH:MM.</p>
                 </article>
                 <article class="rules-card">
                   <span class="rules-card__tag">Calidad</span>
@@ -1223,6 +1271,174 @@
               <div id="rtWorkspace"></div>
             </div>
           </section>
+
+          <!-- TRABAJADORES JARRAS -->
+          <section class="view" id="viewTrabajadoresJarras" data-view="trabajadores-jarras" hidden>
+            <div class="pases-module tj-module">
+              <div class="pases-header">
+                <div class="pases-header__copy">
+                  <p class="pases-header__eyebrow">QBerries · Registro</p>
+                  <h2 class="pases-header__title">Trabajadores Jarras</h2>
+                  <p class="pases-header__sub">
+                    Elige lote → se llenan módulo y turno. Guías con jarras/jabas por trabajador. Se guarda solo en este dispositivo.
+                  </p>
+                </div>
+                <div class="pases-header__actions">
+                  <button type="button" class="btn btn--ghost" id="btnTjUploadLotes">Actualizar lotes</button>
+                  <button type="button" class="btn btn--ghost" id="btnTjUploadGrupos">Actualizar grupos</button>
+                  <button type="button" class="btn btn--ghost" id="btnTjExportExcel">Exportar Excel</button>
+                  <button type="button" class="btn btn--ghost" id="btnTjExportPdf">Exportar PDF</button>
+                  <input type="file" id="tjInputLotes" accept=".xlsx,.xls" hidden />
+                  <input type="file" id="tjInputGrupos" accept=".xlsx,.xls" hidden />
+                </div>
+              </div>
+
+              <div class="pases-kpis" aria-label="Resumen jarras">
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Grupos</span>
+                  <span class="pases-kpi__value" id="tjKpiSup">0</span>
+                </div>
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Trabajadores</span>
+                  <span class="pases-kpi__value" id="tjKpiTrab">0</span>
+                </div>
+                <div class="pases-kpi pases-kpi--ok">
+                  <span class="pases-kpi__label">Jarras</span>
+                  <span class="pases-kpi__value" id="tjKpiJarras">0</span>
+                </div>
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Jabas</span>
+                  <span class="pases-kpi__value" id="tjKpiJabas">0</span>
+                </div>
+              </div>
+
+              <div class="pases-meta-row">
+                <p class="pases-meta" id="tjMeta">Cargando catálogos…</p>
+                <button type="button" class="btn btn--ghost btn--sm" id="btnTjClear">Vaciar registro</button>
+              </div>
+              <p class="pases-status" id="tjStatus" hidden></p>
+
+              <div class="qb-filters" role="search" aria-label="Filtrar grupos">
+                <label class="field field--grow">
+                  <span>Agregar grupo</span>
+                  <div class="tj-add-grupo">
+                    <input type="text" id="tjAddGrupoInput" placeholder="Ej. Grupo LIC 03…" autocomplete="off" />
+                    <button type="button" class="btn btn--primary btn--sm" id="btnTjAddGrupo">Agregar</button>
+                  </div>
+                </label>
+                <label class="field">
+                  <span>Grupo</span>
+                  <select id="tjFltGrupo"><option value="">Todos</option></select>
+                </label>
+                <label class="field">
+                  <span>Lote</span>
+                  <select id="tjFltLote"><option value="">Todos</option></select>
+                </label>
+                <label class="field">
+                  <span>Turno</span>
+                  <select id="tjFltTurno"><option value="">Todos</option></select>
+                </label>
+                <label class="field field--grow">
+                  <span>Buscar trabajador</span>
+                  <input type="search" id="tjFltSearch" placeholder="Nombre del trabajador…" autocomplete="off" />
+                </label>
+                <div class="field qb-filters__tools-field">
+                  <span>Vista</span>
+                  <div class="qb-filters__tools">
+                    <button type="button" class="btn btn--ghost btn--sm" id="btnTjFltClear">Limpiar</button>
+                  </div>
+                </div>
+              </div>
+
+              <div id="tjSupervisors" class="tj-groups"></div>
+            </div>
+          </section>
+
+          <!-- UNIFICACIÓN DE JARRAS -->
+          <section class="view" id="viewUnificacionJarras" data-view="unificacion-jarras" hidden>
+            <div class="pases-module">
+              <div class="pases-header">
+                <div class="pases-header__copy">
+                  <p class="pases-header__eyebrow">QBerries · Jarras</p>
+                  <h2 class="pases-header__title">Unificación de jarras</h2>
+                  <p class="pases-header__sub">
+                    Sube varios Excel del mismo tipo (Suma, Descuento o Descarte) y descarga uno solo unificado.
+                  </p>
+                </div>
+                <div class="pases-header__actions">
+                  <button type="button" class="btn btn--ghost" id="btnUjClear" disabled>Vaciar apartado</button>
+                  <button type="button" class="btn btn--ghost" id="btnUjExport" disabled>Descargar unificado</button>
+                  <button type="button" class="btn btn--primary" id="btnUjPick">Subir Excel(s)</button>
+                  <input type="file" id="ujInputExcel" accept=".xlsx,.xls,.xlsm" multiple hidden />
+                </div>
+              </div>
+
+              <div class="pases-kpis" aria-label="Resumen unificación">
+                <div class="pases-kpi pases-kpi--ok">
+                  <span class="pases-kpi__label">Suma</span>
+                  <span class="pases-kpi__value" id="ujKpiSuma">0</span>
+                </div>
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Descuento</span>
+                  <span class="pases-kpi__value" id="ujKpiDescuento">0</span>
+                </div>
+                <div class="pases-kpi">
+                  <span class="pases-kpi__label">Descarte</span>
+                  <span class="pases-kpi__value" id="ujKpiDescarte">0</span>
+                </div>
+              </div>
+
+              <div class="uj-tabs" role="tablist" aria-label="Tipo de unificación">
+                <button type="button" class="btn btn--secondary btn--sm is-active" data-uj-tab="suma">Suma de jarras</button>
+                <button type="button" class="btn btn--ghost btn--sm" data-uj-tab="descuento">Descuento jarras</button>
+                <button type="button" class="btn btn--ghost btn--sm" data-uj-tab="descarte">Descarte jarras</button>
+              </div>
+
+              <div class="pases-meta-row">
+                <p class="pases-meta" id="ujMeta">Apartado activo: Suma de jarras.</p>
+                <p class="uj-row-count" id="ujRowCount"></p>
+              </div>
+              <p class="pases-status" id="ujStatus" hidden></p>
+
+              <div class="uj-drop" id="ujDropZone" tabindex="0" role="button" aria-label="Subir Excel para unificar">
+                <div class="uj-drop__icon" aria-hidden="true">↑</div>
+                <p class="uj-drop__title">Arrastra varios Excel o haz clic</p>
+                <p class="uj-drop__text">Formato DATA-SUPERVISORES: Supervisor, Tipo, Turno día/tarde, Totales, Lotes, Día, Hora.</p>
+                <button type="button" class="btn btn--primary" id="btnUjDropPick">Elegir Excel(s)</button>
+              </div>
+
+              <div class="uj-layout">
+                <aside class="uj-files" aria-label="Archivos cargados">
+                  <h3 class="uj-files__title">Archivos</h3>
+                  <div id="ujFileList"></div>
+                </aside>
+
+                <div class="pases-table-shell uj-table-shell">
+                  <div class="pases-table-wrap">
+                    <table class="pases-table uj-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Supervisor</th>
+                          <th>Tipo</th>
+                          <th>Turno día</th>
+                          <th>Turno tarde</th>
+                          <th>Total</th>
+                          <th>Trabajadores</th>
+                          <th>Lote(s)</th>
+                          <th>Día</th>
+                          <th>Hora</th>
+                          <th>Archivo</th>
+                        </tr>
+                      </thead>
+                      <tbody id="ujTableBody"></tbody>
+                    </table>
+                    <p class="uj-table-empty" id="ujTableEmpty" hidden>Sin filas unificadas aún.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </main>
 
@@ -1233,6 +1449,18 @@
           <span>QBerries 1.0.0</span>
         </div>
       </footer>
+    </div>
+
+    <div class="modal" id="modalTjConfirm" hidden>
+      <div class="modal__backdrop" data-close-modal="tj-confirm"></div>
+      <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tjConfirmTitle">
+        <h2 class="modal__title" id="tjConfirmTitle">¿Seguro que deseas eliminar?</h2>
+        <p class="modal__text" id="tjConfirmText">Esta acción no se puede deshacer.</p>
+        <div class="modal__actions" style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">
+          <button type="button" class="btn btn--ghost" id="btnTjConfirmCancel">Cancelar</button>
+          <button type="button" class="btn btn--primary" id="btnTjConfirmOk">Sí, eliminar</button>
+        </div>
+      </div>
     </div>
 
     <div class="modal" id="modalSuccess" hidden>
@@ -1253,6 +1481,75 @@
         <h2 class="modal__title" id="modalKpiHelpTitle">Indicador</h2>
         <div class="modal__help-body" id="modalKpiHelpBody"></div>
         <button type="button" class="btn btn--primary" id="btnKpiHelpOk">Entendido</button>
+      </div>
+    </div>
+
+    <div class="modal" id="modalPlanillasFaltantes" hidden>
+      <div class="modal__backdrop" data-close-modal="planillas-faltantes"></div>
+      <div class="modal__dialog modal__dialog--errores" role="dialog" aria-modal="true" aria-labelledby="planillasFaltantesTitle">
+        <button type="button" class="modal__close" id="btnClosePlanillasFaltantes" aria-label="Cerrar">×</button>
+        <p class="errores-modal__eyebrow">QBerries · LICAPA</p>
+        <h2 class="modal__title" id="planillasFaltantesTitle">Supervisores sin cerrar planilla</h2>
+        <p class="errores-modal__hint" id="planillasFaltantesHint">
+          <b>Activos</b> = sí trabajan → deben cerrar planilla.
+          Comparativa: <b>Total</b> trabajadores vs <b>Cerraron</b> (jornada completa) vs <b>Solo mañana</b> (enfermo/salida temprana OK).
+          Cerró si al menos 1 trabajador tiene tarde; no cerró si todos quedan solo en mañana (LICAPA 06:45–12:00 · II/III 06:30–12:00).
+          <b>No activos</b> = ya no trabajan → no deben subir tareo (botón Avísame).
+        </p>
+
+        <div class="resumen-kpis resumen-kpis--inline" id="planillasFaltantesKpis" aria-label="Resumen planillas"></div>
+
+        <div class="errores-modal__tabs-row">
+          <div class="errores-modal__tabs" role="tablist" aria-label="Vista planillas">
+            <button type="button" class="errores-modal__tab is-active" data-planillas-tab="faltantes">Faltan cerrar</button>
+            <button type="button" class="errores-modal__tab" data-planillas-tab="activos">Activos</button>
+            <button type="button" class="errores-modal__tab" data-planillas-tab="inactivos">No activos</button>
+          </div>
+          <button
+            type="button"
+            class="btn btn--ghost btn--sm planillas-avisame-btn"
+            id="btnPlanillasAvisame"
+            hidden
+            title="Personas que ya no trabajan pero aparecen en el tareo"
+          >
+            Avísame
+            <span class="planillas-avisame-btn__count" id="planillasAvisameCount" hidden></span>
+          </button>
+        </div>
+
+        <div class="errores-modal__toolbar">
+          <input
+            type="search"
+            id="planillasFaltantesSearch"
+            class="errores-modal__search"
+            placeholder="Buscar supervisor…"
+            autocomplete="off"
+          />
+          <span class="errores-modal__count" id="planillasFaltantesCount"></span>
+        </div>
+
+        <div class="errores-modal__list-wrap">
+          <table class="errores-modal__table">
+            <thead>
+              <tr>
+                <th>DNI</th>
+                <th>Supervisor</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="planillasFaltantesBody"></tbody>
+          </table>
+          <p class="errores-modal__empty" id="planillasFaltantesEmpty" hidden>Todos los supervisores cerraron planilla.</p>
+        </div>
+
+        <div class="errores-modal__footer">
+          <button type="button" class="btn btn--ghost btn--sm" id="btnPlanillasFaltantesCatalog">Actualizar listado</button>
+          <input type="file" id="planillasFaltantesCatalogInput" accept=".xlsx,.xls,.xlsm" hidden />
+          <div class="errores-modal__footer-actions">
+            <button type="button" class="btn btn--ghost" id="btnClosePlanillasFaltantes2">Cerrar</button>
+            <button type="button" class="btn btn--primary" id="btnPlanillasFaltantesExport">Exportar faltantes</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1306,7 +1603,7 @@
                       <th>Trabajadores</th>
                       <th>Errores</th>
                       <th>Extras</th>
-                      <th>OK</th>
+                      <th title="¿Tiene otro SUPERVISOR DE COSECHA como apoyo?">Apoyo</th>
                     </tr>
                   </thead>
                   <tbody id="resumenTableBody"></tbody>
@@ -1317,20 +1614,66 @@
               </div>
             </section>
 
-            <section class="resumen-card">
-              <div class="resumen-card__head">
+            <section class="resumen-card" id="resumenRightCard">
+              <div class="resumen-card__head resumen-card__head--split" id="resumenChartsHead">
                 <h3 class="resumen-card__title">Personas por Actividad</h3>
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--sm"
+                  id="btnResumenPlanillasFaltantes"
+                  title="Ver quiénes faltan por cerrar planilla"
+                >
+                  Planillas faltantes
+                </button>
               </div>
-              <div class="resumen-chart-meta">
-                <strong id="resumenChartTitle">QBerries</strong>
-                <span id="resumenChartSubtitle">Total trabajadores: 0</span>
-              </div>
-              <div class="resumen-charts">
-                <div class="resumen-chart-box">
-                  <canvas id="chartResumenMacro"></canvas>
+
+              <div id="resumenChartsView">
+                <div class="resumen-chart-meta">
+                  <strong id="resumenChartTitle">QBerries</strong>
+                  <span id="resumenChartSubtitle">Total trabajadores: 0</span>
                 </div>
-                <div class="resumen-chart-box">
-                  <canvas id="chartResumenEstado"></canvas>
+                <div class="resumen-charts">
+                  <div class="resumen-chart-box">
+                    <canvas id="chartResumenMacro"></canvas>
+                  </div>
+                  <div class="resumen-chart-box">
+                    <canvas id="chartResumenEstado"></canvas>
+                  </div>
+                </div>
+              </div>
+
+              <div id="resumenFaltantesView" class="resumen-faltantes" hidden>
+                <div class="resumen-faltantes__toolbar">
+                  <button type="button" class="btn btn--ghost btn--sm" id="btnResumenFaltantesBack">← Regresar</button>
+                  <button type="button" class="btn btn--ghost btn--sm planillas-avisame-btn" id="btnResumenAvisame" hidden>
+                    Avísame
+                    <span class="planillas-avisame-btn__count" id="resumenAvisameCount" hidden></span>
+                  </button>
+                </div>
+                <h3 class="resumen-faltantes__title">Planillas: quiénes sí y quiénes no</h3>
+                <p class="resumen-faltantes__hint" id="resumenFaltantesHint">Comparativa por supervisor según filtros de arriba.</p>
+                <div class="resumen-faltantes__kpis" id="resumenFaltantesKpis"></div>
+                <div class="resumen-faltantes__tabs" role="tablist">
+                  <button type="button" class="resumen-faltantes__tab is-active" data-faltantes-tab="todos">Todos</button>
+                  <button type="button" class="resumen-faltantes__tab" data-faltantes-tab="falta-manana">Falta mañana</button>
+                  <button type="button" class="resumen-faltantes__tab" data-faltantes-tab="falta-tarde">Falta tarde</button>
+                  <button type="button" class="resumen-faltantes__tab" data-faltantes-tab="cerraron">Cerraron</button>
+                </div>
+                <div class="resumen-faltantes__list-wrap">
+                  <table class="resumen-faltantes__table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Supervisor</th>
+                        <th>Total</th>
+                        <th>Cerraron</th>
+                        <th>Solo mañana</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="resumenFaltantesBody"></tbody>
+                  </table>
+                  <p class="resumen-faltantes__empty" id="resumenFaltantesEmpty" hidden>Sin datos en este filtro.</p>
                 </div>
               </div>
             </section>
@@ -1528,12 +1871,16 @@
 
     <script src="vendor/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script type="module" src="js/shell.js?v=20260812c"></script>
-    <script type="module" src="js/validacion-app.js?v=20260812b"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+    <script type="module" src="js/shell.js?v=20260824i"></script>
+    <script type="module" src="js/validacion-app.js?v=20260902e"></script>
     <script type="module" src="js/pases-app.js?v=20260812a"></script>
     <script type="module" src="js/tarjetas-app.js?v=20260812a"></script>
     <script type="module" src="js/reporte-trabajadores-app.js?v=20260812a"></script>
-    <script type="module" src="js/produccion-app.js?v=20260812a"></script>
-    <script type="module" src="js/inicio-app.js?v=20260812a"></script>
+    <script type="module" src="js/produccion-app.js?v=20260821h"></script>
+    <script type="module" src="js/jarras-app.js?v=20260831q"></script>
+    <script src="js/unificacion-jarras-app.js?v=20260831q"></script>
+    <script src="js/inicio-app.js?v=20260819c"></script>
   </body>
 </html>

@@ -86,15 +86,15 @@ function pickCols(headerRow) {
     fecha: -1
   };
 
-  headerRow.forEach((cell, idx) => {
-    const h = normHeader(cell);
+  headerRow.forEach((cellValue, idx) => {
+    const h = normHeader(cellValue);
     if (!h) return;
     if (h === "grupo") cols.grupo = idx;
     else if (h === "ci") cols.dni = idx;
     else if (h === "dni" && cols.dni < 0) cols.dni = idx;
     else if (h === "documento" && cols.dni < 0) cols.dni = idx;
     else if (h === "jarras" || h === "cantidad") cols.jarras = idx;
-    else if (h === "c" && cols.jarras < 0) cols.jarras = idx; // col. Q encabezado "C"
+    else if (h === "c" && cols.jarras < 0) cols.jarras = idx;
     else if (h === "huerto" || h === "fundo") cols.huerto = idx;
     else if (h === "variedad") cols.variedad = idx;
     else if (h === "apellido") cols.apellido = idx;
@@ -102,12 +102,11 @@ function pickCols(headerRow) {
     else if (h === "fecha") cols.fecha = idx;
   });
 
-  // Fallbacks solo si el esquema es de producción (headers conocidos)
   const schema = detectSchema(headerRow);
   if (schema.isProduccion) {
-    if (cols.grupo < 0) cols.grupo = 5; // F
-    if (cols.dni < 0) cols.dni = 7; // H = CI
-    if (cols.jarras < 0) cols.jarras = 16; // Q = C
+    if (cols.grupo < 0) cols.grupo = 5;
+    if (cols.dni < 0) cols.dni = 7;
+    if (cols.jarras < 0) cols.jarras = 16;
     if (cols.huerto < 0) cols.huerto = 1;
     if (cols.variedad < 0) cols.variedad = 4;
     if (cols.apellido < 0) cols.apellido = 8;
@@ -118,9 +117,46 @@ function pickCols(headerRow) {
   return { cols, schema };
 }
 
-function cell(row, idx) {
-  if (idx == null || idx < 0 || !row) return "";
-  return row[idx];
+function sheetCell(sheet, r, c) {
+  if (!sheet || c < 0 || r < 0) return "";
+  const ref = window.XLSX.utils.encode_cell({ r, c });
+  const cellObj = sheet[ref];
+  if (!cellObj) return "";
+  if (cellObj.v != null && cellObj.v !== "") return cellObj.v;
+  if (cellObj.w != null && cellObj.w !== "") return cellObj.w;
+  // inlineStr (Excel sin sharedStrings)
+  if (cellObj.is) {
+    if (typeof cellObj.is.t === "string") return cellObj.is.t;
+    if (Array.isArray(cellObj.is.r)) {
+      return cellObj.is.r.map((part) => (part && part.t != null ? part.t : "")).join("");
+    }
+  }
+  return cellObj.v != null ? cellObj.v : "";
+}
+
+function getSheetRange(sheet) {
+  if (sheet["!ref"]) return window.XLSX.utils.decode_range(sheet["!ref"]);
+  let maxR = 0;
+  let maxC = 0;
+  Object.keys(sheet).forEach((key) => {
+    if (key[0] === "!") return;
+    const coord = window.XLSX.utils.decode_cell(key);
+    if (coord.r > maxR) maxR = coord.r;
+    if (coord.c > maxC) maxC = coord.c;
+  });
+  return { s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } };
+}
+
+function readHeaderRow(sheet, colCount) {
+  const header = [];
+  for (let c = 0; c < colCount; c += 1) header.push(sheetCell(sheet, 0, c));
+  return header;
+}
+
+function yieldToUi() {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
 }
 
 function nameFromParts(apellido, nombre) {
@@ -172,15 +208,16 @@ export function parseListadoBuffer(buffer, fileName = "listado.xlsx") {
 }
 
 /**
- * Parsea Producción (puede ser muy grande).
- * @param {ArrayBuffer} buffer
- * @param {{ workerMap?: Map<string,string>, onProgress?: (p:number)=>void }} options
+ * Parsea Producción (archivos grandes ~50 MB).
+ * Lee celdas por columna (sin matriz completa) + pausas para no congelar la UI.
  */
-export function parseProduccionBuffer(buffer, fileName = "produccion.xlsx", options = {}) {
+export async function parseProduccionBuffer(buffer, fileName = "produccion.xlsx", options = {}) {
   if (!window.XLSX?.read) throw new Error("SheetJS no está disponible");
   const workerMap = options.workerMap || new Map();
 
-  options.onProgress?.(5);
+  options.onProgress?.(3);
+  await yieldToUi();
+
   const workbook = window.XLSX.read(buffer, {
     type: "array",
     raw: true,
@@ -189,19 +226,12 @@ export function parseProduccionBuffer(buffer, fileName = "produccion.xlsx", opti
     cellStyles: false,
     sheetStubs: false
   });
-  options.onProgress?.(45);
+  options.onProgress?.(35);
+  await yieldToUi();
 
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
-  const matrix = window.XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    raw: true,
-    blankrows: false
-  });
-  options.onProgress?.(70);
-
-  if (!matrix.length) {
+  if (!sheet) {
     return {
       fileName,
       sheetName,
@@ -213,7 +243,22 @@ export function parseProduccionBuffer(buffer, fileName = "produccion.xlsx", opti
     };
   }
 
-  const { cols, schema } = pickCols(matrix[0]);
+  const range = getSheetRange(sheet);
+  if (range.e.r < 1) {
+    return {
+      fileName,
+      sheetName,
+      rows: [],
+      workers: [],
+      grupos: [],
+      fechas: [],
+      meta: { registros: 0, trabajadores: 0, jarras: 0 }
+    };
+  }
+
+  const colCount = Math.max(range.e.c + 1, 18);
+  const header = readHeaderRow(sheet, colCount);
+  const { cols, schema } = pickCols(header);
 
   if (schema.isTareo && !schema.isProduccion) {
     throw new Error(
@@ -226,29 +271,42 @@ export function parseProduccionBuffer(buffer, fileName = "produccion.xlsx", opti
     );
   }
 
+  options.onProgress?.(45);
+  await yieldToUi();
+
   const rawRows = [];
   const byWorker = new Map();
   const gruposSet = new Set();
   const fechasSet = new Set();
   let totalJarras = 0;
   let dateLikeGrupos = 0;
+  const totalRows = Math.max(1, range.e.r);
+  const CHUNK = 2500;
 
-  for (let i = 1; i < matrix.length; i += 1) {
-    const row = matrix[i];
-    const dni = normalizeDni(cell(row, cols.dni));
-    if (!dni) continue;
-
-    let grupo = cleanText(cell(row, cols.grupo)) || "(sin grupo)";
-    // Si por error Grupo trae fechas seriales, formatea y luego rechazo abajo
-    if (looksLikeDateLabel(grupo) || looksLikeDateLabel(excelSerialToDate(cell(row, cols.grupo)))) {
-      dateLikeGrupos += 1;
-      grupo = excelSerialToDate(cell(row, cols.grupo)) || grupo;
+  for (let r = 1; r <= range.e.r; r += 1) {
+    const dni = normalizeDni(sheetCell(sheet, r, cols.dni));
+    if (!dni) {
+      if (r % CHUNK === 0) {
+        options.onProgress?.(45 + Math.min(45, Math.round((r / totalRows) * 45)));
+        await yieldToUi();
+      }
+      continue;
     }
-    const jarras = toNumber(cell(row, cols.jarras));
-    const huerto = cleanText(cell(row, cols.huerto));
-    const variedad = cleanText(cell(row, cols.variedad));
-    const fecha = excelSerialToDate(cell(row, cols.fecha));
-    const excelName = nameFromParts(cell(row, cols.apellido), cell(row, cols.nombre));
+
+    const grupoRaw = sheetCell(sheet, r, cols.grupo);
+    let grupo = cleanText(grupoRaw) || "(sin grupo)";
+    if (looksLikeDateLabel(grupo) || looksLikeDateLabel(excelSerialToDate(grupoRaw))) {
+      dateLikeGrupos += 1;
+      grupo = excelSerialToDate(grupoRaw) || grupo;
+    }
+    const jarras = toNumber(sheetCell(sheet, r, cols.jarras));
+    const huerto = cleanText(sheetCell(sheet, r, cols.huerto));
+    const variedad = cleanText(sheetCell(sheet, r, cols.variedad));
+    const fecha = excelSerialToDate(sheetCell(sheet, r, cols.fecha));
+    const excelName = nameFromParts(
+      sheetCell(sheet, r, cols.apellido),
+      sheetCell(sheet, r, cols.nombre)
+    );
     const trabajador = workerMap.get(dni) || excelName || `(DNI ${dni})`;
 
     gruposSet.add(grupo);
@@ -263,7 +321,7 @@ export function parseProduccionBuffer(buffer, fileName = "produccion.xlsx", opti
       huerto,
       variedad,
       fecha,
-      excelRow: i + 1
+      excelRow: r + 1
     });
 
     if (!byWorker.has(dni)) {
@@ -286,6 +344,11 @@ export function parseProduccionBuffer(buffer, fileName = "produccion.xlsx", opti
     if (!w.trabajador || w.trabajador.startsWith("(DNI")) {
       if (trabajador && !trabajador.startsWith("(DNI")) w.trabajador = trabajador;
     }
+
+    if (r % CHUNK === 0) {
+      options.onProgress?.(45 + Math.min(45, Math.round((r / totalRows) * 45)));
+      await yieldToUi();
+    }
   }
 
   if (rawRows.length && dateLikeGrupos / rawRows.length > 0.6) {
@@ -301,6 +364,7 @@ export function parseProduccionBuffer(buffer, fileName = "produccion.xlsx", opti
   }
 
   options.onProgress?.(95);
+  await yieldToUi();
 
   const workers = [...byWorker.values()]
     .map((w) => ({
@@ -314,6 +378,8 @@ export function parseProduccionBuffer(buffer, fileName = "produccion.xlsx", opti
       huerto: [...w.huertos].sort((a, b) => a.localeCompare(b, "es")).join(" · ")
     }))
     .sort((a, b) => b.jarras - a.jarras || a.trabajador.localeCompare(b.trabajador, "es"));
+
+  options.onProgress?.(100);
 
   return {
     fileName,
