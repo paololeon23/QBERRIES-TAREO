@@ -91,21 +91,24 @@ export function isExactAllowedHour(hours) {
   return matchExactHourStep(hours) != null;
 }
 
-/** Fallbacks 0-based: C, D, I, M, U, V/W, Y, AB/AC/AD/AE */
+/** Fallbacks 0-based: B/C/D, I, M, N, O, P, U, V/W, Y, AB/AC/AD/AE */
 const FALLBACK = {
   codigoTrabajador: 1, // B
-  documento: 2,
-  trabajador: 3,
-  macroPartida: 8,
+  documento: 2, // C
+  trabajador: 3, // D
+  macroPartida: 8, // I
   actividad: 12, // M
+  fundo: 13, // N — LICAPA / LICAPA II / LICAPA III
+  modulo: 14, // O
+  lote: 15, // P — Lote (a veces encabezado “Módulo Turno”)
   ceco: 20, // U
-  codSupervisor: 21,
-  supervisor: 22,
-  fecha: 24,
-  horaInicio: 27,
-  horaFin: 28,
-  totalHoras: 29,
-  horasPago: 30
+  codSupervisor: 21, // V
+  supervisor: 22, // W
+  fecha: 24, // Y
+  horaInicio: 27, // AB
+  horaFin: 28, // AC
+  totalHoras: 29, // AD
+  horasPago: 30 // AE
 };
 
 function normHeader(value) {
@@ -123,6 +126,27 @@ function cleanText(value) {
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Nombre vacío o placeholder (p. ej. TRABAJADOR NO VERIFICADO).
+ * Caso: hay DNI/Código pero no hay nombre real en Trabajador.
+ */
+export function isNombreTrabajadorVacio(value) {
+  const raw = cleanText(value);
+  if (!raw) return true;
+  const n = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  if (!n || n === "-" || n === "—" || n === "." || n === "n/a" || n === "na" || n === "s/n") {
+    return true;
+  }
+  if (n.includes("no verificado")) return true;
+  if (n.includes("sin nombre") || n.includes("sin trabajador")) return true;
+  if (n === "null" || n === "undefined" || n === "none") return true;
+  return false;
 }
 
 function isCostoCosechaMacro(value) {
@@ -386,6 +410,8 @@ function mapHeaders(headerRow) {
     fundo: -1,
     macroPartida: -1,
     actividad: -1,
+    modulo: -1,
+    lote: -1,
     ceco: -1,
     fecha: -1,
     horaInicio: -1,
@@ -522,6 +548,35 @@ function mapHeaders(headerRow) {
       mapping.actividad = index;
     }
 
+    // Módulo (columna O)
+    if (
+      mapping.modulo < 0 &&
+      scoreMatch(
+        h,
+        ["modulo", "módulo", "modulos", "módulos"],
+        ["modulo"],
+        ["supervisor", "partida", "turno", "lote"]
+      )
+    ) {
+      mapping.modulo = index;
+    }
+
+    // Lote (columna P) — en tareo a menudo viene como “Módulo Turno” / “Lote”
+    if (
+      mapping.lote < 0 &&
+      (h === "lote" ||
+        h === "nro lote" ||
+        h === "numero lote" ||
+        h === "n lote" ||
+        h === "modulo turno" ||
+        h === "módulo turno" ||
+        h === "mod turno" ||
+        (h.includes("lote") && !h.includes("ceco") && !h.includes("cod")) ||
+        (h.includes("modulo") && h.includes("turno")))
+    ) {
+      mapping.lote = index;
+    }
+
     // CECO / Centro de costo (columna U)
     if (
       mapping.ceco < 0 &&
@@ -635,6 +690,9 @@ function mapHeaders(headerRow) {
   if (mapping.trabajador < 0) mapping.trabajador = FALLBACK.trabajador;
   if (mapping.macroPartida < 0) mapping.macroPartida = FALLBACK.macroPartida;
   if (mapping.actividad < 0) mapping.actividad = FALLBACK.actividad;
+  if (mapping.fundo < 0) mapping.fundo = FALLBACK.fundo; // N
+  if (mapping.modulo < 0) mapping.modulo = FALLBACK.modulo; // O
+  if (mapping.lote < 0) mapping.lote = FALLBACK.lote; // P
   if (mapping.ceco < 0) mapping.ceco = FALLBACK.ceco;
   if (mapping.supervisor < 0) mapping.supervisor = FALLBACK.supervisor;
   if (mapping.codSupervisor < 0) mapping.codSupervisor = FALLBACK.codSupervisor;
@@ -657,6 +715,8 @@ function rowHasAnyMappedData(sheet, r, mapping) {
     mapping.supervisor,
     mapping.macroPartida,
     mapping.actividad,
+    mapping.modulo,
+    mapping.lote,
     mapping.ceco,
     mapping.fecha,
     mapping.horaInicio,
@@ -789,6 +849,8 @@ export function parseExcelBuffer(buffer, fileName = "archivo.xlsx") {
       fundo: cleanText(readSheetCell(sheet, r, mapping.fundo)),
       macroPartida,
       actividad,
+      modulo: cleanText(readSheetCell(sheet, r, mapping.modulo)),
+      lote: cleanText(readSheetCell(sheet, r, mapping.lote)),
       ceco,
       fecha,
       fechaSerial,

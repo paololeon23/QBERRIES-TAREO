@@ -103,14 +103,13 @@ function resolveApiBases() {
   }
   const bases = [];
   try {
-    const host = window.location.hostname || "";
-    // Si estamos en el mismo sitio del proxy → same-origin (más rápido, HTTPS)
-    if (host === "qpack.netlify.app") {
+    const host = String(window.location.hostname || "");
+    if (/\.netlify\.app$/i.test(host)) {
       bases.push("/api/tarjetas");
     }
   } catch (_) {}
   bases.push(TARJETAS_API_BASE);
-  return bases;
+  return [...new Set(bases)];
 }
 
 async function fetchOnce(url) {

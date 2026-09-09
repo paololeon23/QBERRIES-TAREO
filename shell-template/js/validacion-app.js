@@ -1,7 +1,7 @@
 /** Orquestación: upload, modal, reportes, historial. */
 
-import { parseExcelBuffer, matchExactHourStep, classifyDayHours } from "./excel-parser.js?v=20260821e";
-import { validateDataset } from "./validacion-rules.js?v=20260902a";
+import { parseExcelBuffer, matchExactHourStep, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js";
+import { validateDataset } from "./validacion-rules.js";
 import {
   populateFilters,
   readFilters,
@@ -14,18 +14,28 @@ import {
   countTotalWarnings,
   countTotalPosibleSalidas,
   countTotalDuplicados,
-  clearAllFilterControls
-} from "./validacion-table.js?v=20260824a";
-import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js?v=20260901c";
+  clearAllFilterControls,
+  getActividadFilterState,
+  setSelectedActividades,
+  resetActividadFilterToDefaults,
+  resetActividadFilterState,
+  defaultSelectedActividades,
+  syncActividadFilterButton
+} from "./validacion-table.js";
+import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js";
 import {
   openResumenModal,
   closeResumenModal,
   syncResumenFiltersFromMain,
   renderResumenView,
   bindResumenUi,
-  getFilteredResumenData
-} from "./validacion-resumen.js?v=20260902e";
-import { getCurrentRoute } from "./shell.js?v=20260824i";
+  getFilteredResumenData,
+  getResumenTableRowsForExport,
+  resetPlanillasFaltantesState,
+  isAdminCosechaSupervisor
+} from "./validacion-resumen.js";
+import { isActividadHorarioNuevo } from "./horarios-cosecha.js";
+import { getCurrentRoute } from "./shell.js";
 
 const HISTORY_KEY = "qb-validacion-history";
 
@@ -34,6 +44,7 @@ const state = {
   validated: null,
   selectedRowIndexes: [],
   fileName: "",
+  uploading: false,
   errorFocusMode: false,
   warnFocusMode: false,
   paseFocusMode: false,
@@ -93,7 +104,7 @@ const KPI_HELP = {
     title: "Error ≠ exacto",
     tone: "danger",
     html: `
-      <p>Personas-día en <strong>error</strong> dentro de <strong>COSTO DE COSECHA</strong>: suma distinta de <strong>9.6 / 10.1 / 10.6 / 11.6 / 12</strong> (ej. 9.63, 11.37), suma &gt; 12 h, horario incompleto/inválido, CECO vacío, <strong>Documento vacío</strong> o <strong>Trabajador vacío</strong>.</p>
+      <p>Personas-día en <strong>error</strong> dentro de <strong>COSTO DE COSECHA</strong>: suma distinta de <strong>9.6 / 10.1 / 10.6 / 11.6 / 12</strong> (ej. 9.63, 11.37), suma &gt; 12 h, horario incompleto/inválido, CECO vacío, <strong>Documento vacío</strong>, <strong>DNI/Código sin nombre</strong> (vacío o “NO VERIFICADO”) o <strong>actividad no permitida</strong> (fuera de las 9 autorizadas).</p>
       <ul>
         <li>Pasa el mouse sobre celdas rojas para ver el detalle.</li>
       </ul>`
@@ -387,10 +398,10 @@ function syncFilterTips(filteredCount) {
         : `Filtra por fundo / sede. Ahora ves ${living}.`
     ],
     [
-      "fltFecha",
-      f.fecha
-        ? `Activo: fecha ${f.fecha}. ${living}.`
-        : `Filtra por fecha del tareo. Ahora ves ${living}.`
+      "btnFltActividad",
+      (f.actividades || []).length
+        ? `Activo: ${(f.actividades || []).length} actividad(es). Cosecha → 06:45/17:21 · otras → 06:30/17:06. ${living}.`
+        : `Sin actividades seleccionadas. ${living}.`
     ],
     [
       "fltEstado",
@@ -419,6 +430,124 @@ function syncFilterTips(filteredCount) {
   });
 }
 
+const tareoActModal = {
+  draft: [],
+  search: ""
+};
+
+function escapeActHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderTareoActFilterList() {
+  const list = $("tareoActFilterList");
+  const count = $("tareoActFilterCount");
+  if (!list) return;
+  const { available } = getActividadFilterState();
+  const q = tareoActModal.search.trim().toLowerCase();
+  const filtered = q
+    ? available.filter((a) => a.toLowerCase().includes(q))
+    : available;
+  const draftSet = new Set(tareoActModal.draft);
+
+  if (!filtered.length) {
+    list.innerHTML = `<p class="rt-filter-modal__empty">Sin coincidencias</p>`;
+  } else {
+    list.innerHTML = filtered
+      .map((a) => {
+        const safe = escapeActHtml(a);
+        const isOn = draftSet.has(a);
+        const horario = isActividadHorarioNuevo(a)
+          ? "LICAPA 06:45 · II/III 06:30"
+          : "06:30 / 17:06";
+        return `<label class="rt-filter-modal__option${isOn ? " is-checked" : ""}">
+        <input type="checkbox" class="rt-filter-modal__check" value="${safe}" ${isOn ? "checked" : ""} />
+        <span class="rt-filter-modal__box" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+        <span class="rt-filter-modal__label">${safe}<small class="tareo-act-horario">${horario}</small></span>
+      </label>`;
+      })
+      .join("");
+  }
+
+  if (count) {
+    const n = tareoActModal.draft.length;
+    count.textContent = n === 1 ? "1 seleccionada" : `${n} seleccionadas`;
+  }
+}
+
+function openTareoActFilterModal() {
+  const modal = $("modalTareoActFilter");
+  if (!modal) return;
+  const { selected } = getActividadFilterState();
+  tareoActModal.draft = [...selected];
+  tareoActModal.search = "";
+  const search = $("tareoActFilterSearch");
+  if (search) search.value = "";
+  renderTareoActFilterList();
+  modal.hidden = false;
+}
+
+function closeTareoActFilterModal() {
+  const modal = $("modalTareoActFilter");
+  if (modal) modal.hidden = true;
+}
+
+function bindTareoActFilterUi() {
+  $("btnFltActividad")?.addEventListener("click", () => openTareoActFilterModal());
+  $("btnCloseTareoActFilter")?.addEventListener("click", closeTareoActFilterModal);
+  $("btnTareoActCancel")?.addEventListener("click", closeTareoActFilterModal);
+  document.querySelectorAll('[data-close-modal="tareo-act"]').forEach((el) => {
+    el.addEventListener("click", closeTareoActFilterModal);
+  });
+
+  $("tareoActFilterSearch")?.addEventListener("input", (e) => {
+    tareoActModal.search = e.target.value || "";
+    renderTareoActFilterList();
+  });
+
+  $("btnTareoActDefault")?.addEventListener("click", () => {
+    const { available } = getActividadFilterState();
+    tareoActModal.draft = defaultSelectedActividades(available);
+    renderTareoActFilterList();
+  });
+  $("btnTareoActAll")?.addEventListener("click", () => {
+    tareoActModal.draft = [...getActividadFilterState().available];
+    renderTareoActFilterList();
+  });
+  $("btnTareoActNone")?.addEventListener("click", () => {
+    tareoActModal.draft = [];
+    renderTareoActFilterList();
+  });
+
+  $("tareoActFilterList")?.addEventListener("change", (e) => {
+    const input = e.target;
+    if (!(input instanceof HTMLInputElement) || !input.classList.contains("rt-filter-modal__check")) return;
+    const value = input.value;
+    const set = new Set(tareoActModal.draft);
+    if (input.checked) set.add(value);
+    else set.delete(value);
+    tareoActModal.draft = [...set];
+    input.closest(".rt-filter-modal__option")?.classList.toggle("is-checked", input.checked);
+    const count = $("tareoActFilterCount");
+    if (count) {
+      const n = tareoActModal.draft.length;
+      count.textContent = n === 1 ? "1 seleccionada" : `${n} seleccionadas`;
+    }
+  });
+
+  $("btnTareoActApply")?.addEventListener("click", () => {
+    setSelectedActividades(tareoActModal.draft);
+    closeTareoActFilterModal();
+    refreshView();
+  });
+}
+
 function applyFiltersObject(filters) {
   if (!filters) return;
   const setVal = (id, value) => {
@@ -427,11 +556,13 @@ function applyFiltersObject(filters) {
   };
   setVal("fltSupervisor", filters.supervisor);
   setVal("fltFundo", filters.fundo);
-  setVal("fltFecha", filters.fecha);
   setVal("fltEstado", filters.estado);
   setVal("fltTipoLote", filters.tipo);
   const search = $("fltSearch");
   if (search) search.value = filters.search || "";
+  if (Array.isArray(filters.actividades)) {
+    setSelectedActividades(filters.actividades);
+  }
 }
 
 function syncErrorFocusUi(totalErrors) {
@@ -517,11 +648,50 @@ function syncDupFocusUi(totalDups) {
   btnBack?.classList.toggle("is-hidden", !state.dupFocusMode);
 }
 
+function getScopeFilters(base = null, { ignoreActividades = false } = {}) {
+  const f = base || readFilters();
+  return {
+    supervisor: f.supervisor || "",
+    fundo: f.fundo || "",
+    fecha: "",
+    macro: f.macro || "",
+    actividad: f.actividad || "",
+    actividades: ignoreActividades
+      ? undefined
+      : Array.isArray(f.actividades)
+        ? [...f.actividades]
+        : [],
+    dia: "",
+    estado: "",
+    tipo: f.tipo || "",
+    search: f.search || "",
+    soloDuplicados: false
+  };
+}
+
+/**
+ * Alcance para contadores (errores/avisos): fundo/supervisor/búsqueda.
+ * Ignora filtro de actividades para no ocultar actividades no permitidas.
+ */
+function getScopedRows(baseFilters = null, opts = { ignoreActividades: true }) {
+  if (!state.validated) return [];
+  return filterRows(state.validated.rows, getScopeFilters(baseFilters, opts));
+}
+
+function lockEstadoFilter(value, labelHtml) {
+  const estado = $("fltEstado");
+  if (!estado) return;
+  estado.disabled = false;
+  estado.innerHTML = `<option value="${value}">${labelHtml}</option>`;
+  estado.value = value;
+  estado.disabled = true;
+}
+
 function enterErrorFocusMode() {
   if (!state.validated) return;
-  const total = countTotalErrors(state.validated.rows);
+  const total = countTotalErrors(getScopedRows());
   if (!total) {
-    window.alert("No hay registros con error.");
+    window.alert("No hay registros con error en el filtro actual.");
     return;
   }
   if (state.warnFocusMode) exitWarnFocusMode({ restoreSaved: false });
@@ -529,15 +699,16 @@ function enterErrorFocusMode() {
   if (state.dupFocusMode) exitDupFocusMode({ restoreSaved: false });
   state.savedFiltersBeforeErrorFocus = readFilters();
   state.errorFocusMode = true;
-  clearAllFilterControls();
   populateFilters(state, { errorOnly: true });
-  const estado = $("fltEstado");
-  if (estado) {
-    estado.disabled = false;
-    estado.innerHTML = `<option value="rojo">Error &gt; 12</option>`;
-    estado.value = "rojo";
-    estado.disabled = true;
-  }
+  /* Errores: no ocultar por filtro de las 9 actividades (p. ej. sin actividad / no permitida) */
+  const { available } = getActividadFilterState();
+  setSelectedActividades(available);
+  applyFiltersObject({
+    ...state.savedFiltersBeforeErrorFocus,
+    actividades: available,
+    estado: "rojo"
+  });
+  lockEstadoFilter("rojo", "Error &gt; 12");
   refreshView();
 }
 
@@ -553,9 +724,9 @@ function exitErrorFocusMode({ restoreSaved = true } = {}) {
 
 function enterWarnFocusMode() {
   if (!state.validated) return;
-  const total = countTotalWarnings(state.validated.rows);
+  const total = countTotalWarnings(getScopedRows());
   if (!total) {
-    window.alert("No hay registros con advertencia.");
+    window.alert("No hay registros con advertencia en el filtro actual.");
     return;
   }
   if (state.errorFocusMode) exitErrorFocusMode({ restoreSaved: false });
@@ -563,15 +734,12 @@ function enterWarnFocusMode() {
   if (state.dupFocusMode) exitDupFocusMode({ restoreSaved: false });
   state.savedFiltersBeforeWarnFocus = readFilters();
   state.warnFocusMode = true;
-  clearAllFilterControls();
   populateFilters(state, { warnOnly: true });
-  const estado = $("fltEstado");
-  if (estado) {
-    estado.disabled = false;
-    estado.innerHTML = `<option value="aviso">Advertencia ≤ 12</option>`;
-    estado.value = "aviso";
-    estado.disabled = true;
-  }
+  applyFiltersObject({
+    ...state.savedFiltersBeforeWarnFocus,
+    estado: "aviso"
+  });
+  lockEstadoFilter("aviso", "Advertencia ≤ 12");
   refreshView();
 }
 
@@ -587,9 +755,9 @@ function exitWarnFocusMode({ restoreSaved = true } = {}) {
 
 function enterPaseFocusMode() {
   if (!state.validated) return;
-  const total = countTotalPosibleSalidas(state.validated.rows);
+  const total = countTotalPosibleSalidas(getScopedRows());
   if (!total) {
-    window.alert("No hay registros con posible pase de salida (< 9.6 h).");
+    window.alert("No hay posibles pases de salida (< 9.6 h) en el filtro actual.");
     return;
   }
   if (state.errorFocusMode) exitErrorFocusMode({ restoreSaved: false });
@@ -597,15 +765,12 @@ function enterPaseFocusMode() {
   if (state.dupFocusMode) exitDupFocusMode({ restoreSaved: false });
   state.savedFiltersBeforePaseFocus = readFilters();
   state.paseFocusMode = true;
-  clearAllFilterControls();
   populateFilters(state, { paseOnly: true });
-  const estado = $("fltEstado");
-  if (estado) {
-    estado.disabled = false;
-    estado.innerHTML = `<option value="posible-salida">Posible pase &lt; 9.6</option>`;
-    estado.value = "posible-salida";
-    estado.disabled = true;
-  }
+  applyFiltersObject({
+    ...state.savedFiltersBeforePaseFocus,
+    estado: "posible-salida"
+  });
+  lockEstadoFilter("posible-salida", "Posible pase &lt; 9.6");
   refreshView();
 }
 
@@ -621,9 +786,9 @@ function exitPaseFocusMode({ restoreSaved = true } = {}) {
 
 function enterDupFocusMode() {
   if (!state.validated) return;
-  const total = countTotalDuplicados(state.validated.rows);
+  const total = countTotalDuplicados(getScopedRows());
   if (!total) {
-    window.alert("No hay turnos duplicados (mismo DNI + fecha + hora de inicio).");
+    window.alert("No hay turnos duplicados en el filtro actual.");
     return;
   }
   if (state.errorFocusMode) exitErrorFocusMode({ restoreSaved: false });
@@ -631,8 +796,8 @@ function enterDupFocusMode() {
   if (state.paseFocusMode) exitPaseFocusMode({ restoreSaved: false });
   state.savedFiltersBeforeDupFocus = readFilters();
   state.dupFocusMode = true;
-  clearAllFilterControls();
   populateFilters(state, { dupOnly: true });
+  applyFiltersObject(state.savedFiltersBeforeDupFocus);
   refreshView();
 }
 
@@ -702,15 +867,745 @@ function refreshView({ keepPage = false } = {}) {
 
   const filters = readFilters();
   if (state.dupFocusMode) filters.soloDuplicados = true;
-  const filtered = filterRows(state.validated.rows, filters);
+  /* En foco de errores, no restringir por actividad (coincide con el contador). */
+  if (state.errorFocusMode) filters.actividades = undefined;
+
+  let filtered = filterRows(state.validated.rows, filters);
+
+  /* Si el filtro de las 9 deja 0 filas pero hay data, ampliar a todas las actividades del Excel. */
+  if (
+    !filtered.length &&
+    state.validated.rows.length &&
+    !state.errorFocusMode &&
+    !state.warnFocusMode &&
+    !state.paseFocusMode &&
+    !state.dupFocusMode &&
+    Array.isArray(filters.actividades) &&
+    filters.actividades.length > 0
+  ) {
+    const scoped = getScopedRows(filters);
+    if (scoped.length) {
+      const { available } = getActividadFilterState();
+      if (available.length) {
+        setSelectedActividades(available);
+        filters.actividades = [...available];
+        filtered = filterRows(state.validated.rows, filters);
+      }
+    }
+  }
+
+  const scoped = getScopedRows(filters);
   renderFechaMeta(state.validated.rows);
   renderKpis(filtered);
   renderTable(state, filtered, { expandDuplicates: state.dupFocusMode });
   syncFilterTips(filtered.length);
-  syncErrorFocusUi(countTotalErrors(state.validated.rows));
-  syncWarnFocusUi(countTotalWarnings(state.validated.rows));
-  syncPaseFocusUi(countTotalPosibleSalidas(state.validated.rows));
-  syncDupFocusUi(countTotalDuplicados(state.validated.rows));
+  syncErrorFocusUi(countTotalErrors(scoped));
+  syncWarnFocusUi(countTotalWarnings(scoped));
+  syncPaseFocusUi(countTotalPosibleSalidas(scoped));
+  syncDupFocusUi(countTotalDuplicados(scoped));
+  renderModulosCosechaIfOpen();
+  renderLotesHoyIfOpen();
+}
+
+function normExactToken(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isActividadCosechaExact(actividad) {
+  return normExactToken(actividad) === "COSECHA";
+}
+
+function workerUniqueKey(row) {
+  const doc = String(row.documento || "").trim();
+  if (doc) return `d:${doc}`;
+  const name = normExactToken(row.trabajador);
+  return name ? `n:${name}` : "";
+}
+
+/**
+ * COSECHA (exacta) + Fundo del filtro (exacto) o todos.
+ * Agrupa por módulo (col O) y cuenta trabajadores únicos.
+ */
+function buildModulosCosechaReport() {
+  const rows = state.validated?.rows || [];
+  const fundoFiltro = String(readFilters().fundo || "").trim();
+  const fundoNorm = normExactToken(fundoFiltro);
+
+  const scoped = rows.filter((row) => {
+    if (!isActividadCosechaExact(row.actividad)) return false;
+    if (fundoNorm) return normExactToken(row.fundo) === fundoNorm;
+    return true;
+  });
+
+  const byKey = new Map();
+  const globalWorkers = new Set();
+
+  scoped.forEach((row) => {
+    const wKey = workerUniqueKey(row);
+    if (!wKey) return;
+    globalWorkers.add(wKey);
+
+    const modulo = String(row.modulo || "").trim() || "(sin módulo)";
+    const fundo = String(row.fundo || "").trim() || "(sin fundo)";
+    const groupKey = fundoFiltro ? modulo : `${fundo}||${modulo}`;
+
+    if (!byKey.has(groupKey)) {
+      byKey.set(groupKey, { fundo, modulo, workers: new Set() });
+    }
+    byKey.get(groupKey).workers.add(wKey);
+  });
+
+  const items = [...byKey.values()]
+    .map((g) => ({
+      fundo: g.fundo,
+      modulo: g.modulo,
+      cantidad: g.workers.size
+    }))
+    .sort((a, b) => {
+      if (!fundoFiltro) {
+        const ff = a.fundo.localeCompare(b.fundo, "es");
+        if (ff) return ff;
+      }
+      return a.modulo.localeCompare(b.modulo, "es", { numeric: true });
+    });
+
+  const sumaModulos = items.reduce((s, it) => s + it.cantidad, 0);
+
+  return {
+    fundoFiltro: fundoFiltro || "",
+    showFundo: !fundoFiltro,
+    items,
+    totalUnicos: globalWorkers.size,
+    sumaModulos,
+    filasFuente: scoped.length
+  };
+}
+
+function renderModulosCosechaTable() {
+  const report = buildModulosCosechaReport();
+  const head = $("tblModulosCosechaHead");
+  const body = $("tblModulosCosechaBody");
+  const meta = $("modulosCosechaMeta");
+  const count = $("modulosCosechaCount");
+  const hint = $("modulosCosechaHint");
+
+  if (hint) {
+    hint.innerHTML = report.fundoFiltro
+      ? `Actividad exacta <b>COSECHA</b> · Fundo exacto <b>${escapeHtml(report.fundoFiltro)}</b> · trabajadores únicos por módulo.`
+      : `Actividad exacta <b>COSECHA</b> · <b>Todos</b> los fundos · trabajadores únicos por fundo/módulo.`;
+  }
+
+  if (meta) {
+    const scopeTxt = report.fundoFiltro ? `Fundo: ${report.fundoFiltro}` : "Fundo: todos";
+    meta.textContent = `${scopeTxt} · ${report.filasFuente} filas COSECHA · ${report.items.length} módulos`;
+  }
+
+  if (head) {
+    head.innerHTML = report.showFundo
+      ? `<tr><th>Fundo</th><th>Módulo</th><th>Cantidad de trabajadores</th></tr>`
+      : `<tr><th>Módulo</th><th>Cantidad de trabajadores</th></tr>`;
+  }
+
+  if (body) {
+    if (!report.items.length) {
+      const cols = report.showFundo ? 3 : 2;
+      body.innerHTML = `<tr><td colspan="${cols}" class="errores-modal__empty">Sin trabajadores COSECHA para este alcance.</td></tr>`;
+    } else {
+      const rowsHtml = report.items
+        .map((it) =>
+          report.showFundo
+            ? `<tr>
+                <td>${escapeHtml(it.fundo)}</td>
+                <td>${escapeHtml(it.modulo)}</td>
+                <td>${it.cantidad}</td>
+              </tr>`
+            : `<tr>
+                <td>${escapeHtml(it.modulo)}</td>
+                <td>${it.cantidad}</td>
+              </tr>`
+        )
+        .join("");
+
+      const totalRow = report.showFundo
+        ? `<tr class="modulos-table__total">
+            <td colspan="2">TOTAL DE TRABAJADORES ÚNICOS</td>
+            <td>${report.totalUnicos}</td>
+          </tr>`
+        : `<tr class="modulos-table__total">
+            <td>TOTAL DE TRABAJADORES ÚNICOS</td>
+            <td>${report.totalUnicos}</td>
+          </tr>`;
+
+      body.innerHTML = rowsHtml + totalRow;
+    }
+  }
+
+  if (count) {
+    const n = report.items.length;
+    count.textContent =
+      n === 1
+        ? `1 módulo · ${report.totalUnicos} únicos`
+        : `${n} módulos · ${report.totalUnicos} únicos`;
+  }
+
+  return report;
+}
+
+function openModulosCosechaModal() {
+  if (!state.validated) {
+    window.alert("Primero sube un Excel de tareo.");
+    return;
+  }
+  const modal = $("modalModulosCosecha");
+  if (!modal) return;
+  renderModulosCosechaTable();
+  modal.hidden = false;
+}
+
+function closeModulosCosechaModal() {
+  const modal = $("modalModulosCosecha");
+  if (modal) modal.hidden = true;
+}
+
+function renderModulosCosechaIfOpen() {
+  const modal = $("modalModulosCosecha");
+  if (!modal || modal.hidden) return;
+  renderModulosCosechaTable();
+}
+
+function classifyActividadLote(actividad) {
+  const a = normExactToken(actividad);
+  if (a === "COSECHA") return "cosecha";
+  if (a === "SCANER" || a === "SCANNER" || a === "ESCANER") return "scaner";
+  if (a.includes("CALIDAD")) return "calidad";
+  if (a === "SUPERVISOR DE COSECHA" || a === "SUPERVISOR DE ACOPIO") return "supervisor";
+  return "otro";
+}
+
+const LOTES_LICAPA_URL = "data/lotes-licapa.json";
+let lotesLicapaCatalog = null; // { byLote: Map, byCod: Map, list: [] }
+
+function loteNumKey(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  // evita claves vacías / leading zeros → "003" = "3"
+  return String(Number(digits));
+}
+
+async function loadLotesLicapaCatalog() {
+  if (lotesLicapaCatalog) return lotesLicapaCatalog;
+  try {
+    const res = await fetch(LOTES_LICAPA_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : Array.isArray(data?.lotes) ? data.lotes : [];
+    const byLote = new Map();
+    const byCod = new Map();
+    list.forEach((item) => {
+      const lote = String(item?.lote ?? "").trim();
+      const modulo = String(item?.modulo ?? "").trim();
+      const turno = String(item?.turno ?? "").trim();
+      const codLote = String(item?.codLote ?? item?.cod ?? "").trim();
+      const meta = {
+        lote,
+        modulo,
+        turno,
+        codLote,
+        etapa: String(item?.etapa ?? "").trim(),
+        variedad: String(item?.variedad ?? "").trim()
+      };
+      const num = loteNumKey(lote);
+      if (num) byLote.set(num, meta);
+      if (codLote) byCod.set(normExactToken(codLote), meta);
+    });
+    lotesLicapaCatalog = { list, byLote, byCod };
+  } catch (err) {
+    console.warn("[lotes-licapa] No se pudo cargar:", err);
+    lotesLicapaCatalog = { list: [], byLote: new Map(), byCod: new Map() };
+  }
+  return lotesLicapaCatalog;
+}
+
+/** Extrae nº de lote desde col P / texto (189, LOTE 189, LT189, M5T2LT189…). */
+function extractLoteNumberFromText(text) {
+  const raw = String(text ?? "").trim();
+  if (!raw) return "";
+  const upper = raw.toUpperCase();
+  const patterns = [
+    /\bLT\s*0*(\d+)\b/i,
+    /\bLOTE\s*0*(\d+)\b/i,
+    /\bL\s*0*(\d+)\b/i,
+    /^0*(\d+)$/
+  ];
+  for (const re of patterns) {
+    const m = upper.match(re);
+    if (m?.[1]) return String(Number(m[1]));
+  }
+  const onlyDigits = raw.replace(/\D/g, "");
+  if (onlyDigits && onlyDigits.length <= 4) return String(Number(onlyDigits));
+  return "";
+}
+
+function formatLoteLabel(loteNum) {
+  const n = String(loteNum || "").trim();
+  if (!n) return "";
+  return `LOTE ${n}`;
+}
+
+/** Catálogo M5/T2 → "MODULO 5 - TURNO 2" */
+function formatModuloTurnoDetalle(modulo, turno) {
+  const modRaw = String(modulo || "").trim();
+  const turRaw = String(turno || "").trim();
+  if (!modRaw && !turRaw) return "—";
+  const modNum = (modRaw.match(/(\d+)/) || [])[1] || modRaw.replace(/^m/i, "");
+  const turNum = (turRaw.match(/(\d+)/) || [])[1] || turRaw.replace(/^turno\s*/i, "");
+  if (modNum && turNum) return `MODULO ${modNum} - TURNO ${turNum}`;
+  if (modNum) return `MODULO ${modNum}`;
+  if (turNum) return `TURNO ${turNum}`;
+  return "—";
+}
+
+/**
+ * Lote = columna P del Excel. Módulo/Turno = lotes-licapa.json.
+ * CECO (QBE01-…) NO se usa como lote.
+ */
+function resolveLoteLicapaMeta(row, catalog) {
+  const loteExcel = String(row?.lote || "").trim();
+  const moduloExcel = String(row?.modulo || "").trim();
+  const ceco = String(row?.ceco || "").trim();
+
+  const cat = catalog || lotesLicapaCatalog;
+  const loteNum =
+    extractLoteNumberFromText(loteExcel) ||
+    extractLoteNumberFromText(moduloExcel) ||
+    "";
+
+  if (!loteNum) {
+    // Sin lote en col P: no inventar con CECO
+    return {
+      lote: loteExcel || "(sin lote)",
+      loteNum: "",
+      modulo: "",
+      turno: "",
+      moduloTurno: "—",
+      fromCatalog: false
+    };
+  }
+
+  let meta = cat?.byLote?.get(loteNum) || null;
+  if (!meta && loteExcel) {
+    meta = cat?.byCod?.get(normExactToken(loteExcel)) || null;
+  }
+  if (!meta && ceco) {
+    meta = cat?.byCod?.get(normExactToken(ceco)) || null;
+  }
+
+  if (!meta) {
+    return {
+      lote: formatLoteLabel(loteNum),
+      loteNum,
+      modulo: "",
+      turno: "",
+      moduloTurno: "—",
+      fromCatalog: false
+    };
+  }
+
+  const hasModulo = Boolean(meta.modulo);
+  const hasTurno = Boolean(meta.turno);
+  return {
+    lote: formatLoteLabel(meta.lote || loteNum),
+    loteNum: loteNumKey(meta.lote) || loteNum,
+    modulo: hasModulo ? meta.modulo : "",
+    turno: hasTurno ? meta.turno : "",
+    moduloTurno: formatModuloTurnoDetalle(meta.modulo, meta.turno),
+    codLote: meta.codLote || "",
+    fromCatalog: true,
+    soloLote: !hasModulo && !hasTurno
+  };
+}
+
+let lotesHoyUiState = { search: "", report: null };
+
+/**
+ * Una fila = supervisor + fundo + lote (col P).
+ * Módulo/Turno = lotes-licapa → "MODULO 5 - TURNO 2".
+ */
+function buildLotesHoyReport() {
+  const rows = state.validated?.rows || [];
+  const fundoFiltro = String(readFilters().fundo || "").trim();
+  const fundoNorm = normExactToken(fundoFiltro);
+  const catalog = lotesLicapaCatalog;
+
+  const scoped = rows.filter((row) => {
+    if (!row.esCostoCosecha) return false;
+    if (fundoNorm) return normExactToken(row.fundo) === fundoNorm;
+    return true;
+  });
+
+  const byKey = new Map();
+  const fechas = new Set();
+
+  scoped.forEach((row) => {
+    const kind = classifyActividadLote(row.actividad);
+    if (kind === "otro") return;
+
+    const supervisor = String(row.supervisor || "").trim() || "(sin supervisor)";
+    const fundo = String(row.fundo || "").trim() || "(sin fundo)";
+    const loteMeta = resolveLoteLicapaMeta(row, catalog);
+    const lote = loteMeta.lote;
+    const wKey = workerUniqueKey(row);
+    const groupKey = `${normExactToken(fundo)}||${normExactToken(supervisor)}||${normExactToken(loteMeta.loteNum || lote)}`;
+
+    if (row.fecha) fechas.add(row.fecha);
+
+    if (!byKey.has(groupKey)) {
+      byKey.set(groupKey, {
+        fundo,
+        supervisor,
+        lote,
+        loteNum: loteMeta.loteNum || "",
+        modulo: loteMeta.modulo || "",
+        turno: loteMeta.turno || "",
+        moduloTurno: loteMeta.moduloTurno || "—",
+        fromCatalog: Boolean(loteMeta.fromCatalog),
+        cosecha: new Set(),
+        scaner: new Set(),
+        calidad: new Set(),
+        supervisorAct: new Set(),
+        total: new Set()
+      });
+    }
+    const g = byKey.get(groupKey);
+    if (loteMeta.fromCatalog) {
+      g.fromCatalog = true;
+      g.lote = loteMeta.lote;
+      if (loteMeta.loteNum) g.loteNum = loteMeta.loteNum;
+      if (loteMeta.modulo) g.modulo = loteMeta.modulo;
+      if (loteMeta.turno) g.turno = loteMeta.turno;
+      g.moduloTurno = loteMeta.moduloTurno || formatModuloTurnoDetalle(g.modulo, g.turno);
+    }
+    if (!wKey) return;
+    g.total.add(wKey);
+    if (kind === "cosecha") g.cosecha.add(wKey);
+    else if (kind === "scaner") g.scaner.add(wKey);
+    else if (kind === "calidad") g.calidad.add(wKey);
+    else if (kind === "supervisor") g.supervisorAct.add(wKey);
+  });
+
+  const items = [...byKey.values()]
+    .map((g) => ({
+      fundo: g.fundo,
+      supervisor: g.supervisor,
+      lote: g.lote,
+      loteNum: g.loteNum,
+      moduloTurno: g.moduloTurno || formatModuloTurnoDetalle(g.modulo, g.turno),
+      fromCatalog: g.fromCatalog,
+      isAdminCosecha: isAdminCosechaSupervisor(g.supervisor),
+      cosecha: g.cosecha.size,
+      scaner: g.scaner.size,
+      calidad: g.calidad.size,
+      supervisorAct: g.supervisorAct.size,
+      total: g.total.size
+    }))
+    .filter(
+      (it) =>
+        it.cosecha > 0 ||
+        it.scaner > 0 ||
+        it.calidad > 0 ||
+        it.supervisorAct > 0 ||
+        it.total > 0
+    )
+    .sort((a, b) => {
+      const aa = a.isAdminCosecha ? 1 : 0;
+      const bb = b.isAdminCosecha ? 1 : 0;
+      if (aa !== bb) return aa - bb;
+      const ss = a.supervisor.localeCompare(b.supervisor, "es");
+      if (ss) return ss;
+      if (!fundoFiltro) {
+        const ff = a.fundo.localeCompare(b.fundo, "es");
+        if (ff) return ff;
+      }
+      const na = Number(a.loteNum) || 0;
+      const nb = Number(b.loteNum) || 0;
+      if (na && nb && na !== nb) return na - nb;
+      return a.lote.localeCompare(b.lote, "es", { numeric: true });
+    });
+
+  const totCosecha = items.reduce((s, it) => s + it.cosecha, 0);
+  const totScaner = items.reduce((s, it) => s + it.scaner, 0);
+  const totCalidad = items.reduce((s, it) => s + it.calidad, 0);
+  const totSupervisor = items.reduce((s, it) => s + it.supervisorAct, 0);
+  const supervisoresUnicos = new Set(items.map((it) => it.supervisor)).size;
+  const lotesUnicos = new Set(items.map((it) => `${it.fundo}||${it.lote}`)).size;
+  const conCatalogo = items.filter((it) => it.fromCatalog).length;
+
+  return {
+    fundoFiltro: fundoFiltro || "",
+    showFundo: !fundoFiltro,
+    items,
+    fechas: [...fechas].sort(),
+    totCosecha,
+    totScaner,
+    totCalidad,
+    totSupervisor,
+    supervisoresUnicos,
+    lotesUnicos,
+    conCatalogo,
+    filasFuente: scoped.length
+  };
+}
+
+function getLotesHoyVisibleItems(report) {
+  const q = String(lotesHoyUiState.search || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  const items = report?.items || [];
+  if (!q) return items;
+  return items.filter((it) => {
+    const blob = `${it.supervisor} ${it.fundo} ${it.lote} ${it.moduloTurno || ""}`
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return blob.includes(q);
+  });
+}
+
+function renderLotesHoyCards() {
+  const report = buildLotesHoyReport();
+  lotesHoyUiState.report = report;
+  const body = $("lotesHoyBody");
+  const empty = $("lotesHoyEmpty");
+  const meta = $("lotesHoyMeta");
+  const count = $("lotesHoyCount");
+  const footerMeta = $("lotesHoyFooterMeta");
+  const hint = $("lotesHoyHint");
+  const wrap = $("lotesHoyGrid");
+  const kpiSup = $("lotesKpiSup");
+  const kpiLotes = $("lotesKpiLotes");
+  const kpiCosecha = $("lotesKpiCosecha");
+  const kpiScaner = $("lotesKpiScaner");
+  const kpiCalidad = $("lotesKpiCalidad");
+
+  if (hint) {
+    hint.innerHTML = report.fundoFiltro
+      ? `Filtro: fundo <b>${escapeHtml(report.fundoFiltro)}</b>. Lote = col. P del Excel · detalle = <b>MODULO X - TURNO Y</b> (lotes-licapa).`
+      : `Lote = <b>columna P</b> del Excel. Detalle = <b>MODULO X - TURNO Y</b> desde lotes-licapa. Si no hay lote, no se inventa con CECO.`;
+  }
+
+  if (meta) {
+    const fechaTxt =
+      report.fechas.length === 1
+        ? `Fecha ${report.fechas[0]}`
+        : report.fechas.length
+          ? `${report.fechas.length} fechas`
+          : "Sin fecha";
+    meta.textContent = fechaTxt;
+  }
+
+  if (kpiSup) kpiSup.textContent = String(report.supervisoresUnicos);
+  if (kpiLotes) kpiLotes.textContent = String(report.lotesUnicos);
+  if (kpiCosecha) kpiCosecha.textContent = String(report.totCosecha);
+  if (kpiScaner) kpiScaner.textContent = String(report.totScaner);
+  if (kpiCalidad) kpiCalidad.textContent = String(report.totSupervisor || 0);
+
+  const visible = getLotesHoyVisibleItems(report);
+
+  if (!report.items.length) {
+    if (body) body.innerHTML = "";
+    if (wrap) wrap.hidden = true;
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = "Sin lotes con personal en este alcance.";
+    }
+  } else if (!visible.length) {
+    if (body) body.innerHTML = "";
+    if (wrap) wrap.hidden = true;
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = "Sin coincidencias en la búsqueda.";
+    }
+  } else {
+    if (empty) empty.hidden = true;
+    if (wrap) wrap.hidden = false;
+    if (body) {
+      body.innerHTML = visible
+        .map((it) => {
+          const mtClass =
+            !it.moduloTurno || it.moduloTurno === "—"
+              ? "lotes-modturno is-muted"
+              : "lotes-modturno";
+          const loteTitle = it.fromCatalog
+            ? `${it.lote} · ${it.moduloTurno}`
+            : `${it.lote} (sin catálogo)`;
+          const rowClass = it.isAdminCosecha ? "is-row-admin-cosecha" : "";
+          const supHtml = it.isAdminCosecha
+            ? `${escapeHtml(it.supervisor)} <span class="resumen-admin-tag">Admin</span>`
+            : escapeHtml(it.supervisor);
+          return `<tr class="${rowClass}">
+            <td class="lotes-table__sup">${supHtml}</td>
+            <td class="lotes-table__fundo">${escapeHtml(it.fundo)}</td>
+            <td class="lotes-table__lote" title="${escapeHtml(loteTitle)}">${escapeHtml(it.lote)}</td>
+            <td><span class="${mtClass}">${escapeHtml(it.moduloTurno || "—")}</span></td>
+            <td class="lotes-num lotes-num--cosecha">${it.cosecha}</td>
+            <td class="lotes-num lotes-num--scaner">${it.scaner}</td>
+            <td class="lotes-num lotes-num--sup">${it.supervisorAct}</td>
+            <td class="lotes-num lotes-num--total">${it.total}</td>
+          </tr>`;
+        })
+        .join("");
+    }
+  }
+
+  if (count) {
+    count.textContent =
+      visible.length === 1 ? "1 fila visible" : `${visible.length} filas visibles`;
+  }
+  if (footerMeta) {
+    footerMeta.textContent = `Totales: Cosecha ${report.totCosecha} · Escanear ${report.totScaner} · Supervisor ${report.totSupervisor || 0} · ${report.supervisoresUnicos} supervisores · ${report.lotesUnicos} lotes`;
+  }
+
+  return report;
+}
+
+async function openLotesHoyModal() {
+  if (!state.validated) {
+    window.alert("Primero sube un Excel de tareo.");
+    return;
+  }
+  const modal = $("modalLotesHoy");
+  if (!modal) return;
+  await loadLotesLicapaCatalog();
+  lotesHoyUiState.search = "";
+  const search = $("lotesHoySearch");
+  if (search) search.value = "";
+  renderLotesHoyCards();
+  modal.hidden = false;
+}
+
+function closeLotesHoyModal() {
+  const modal = $("modalLotesHoy");
+  if (modal) modal.hidden = true;
+}
+
+function renderLotesHoyIfOpen() {
+  const modal = $("modalLotesHoy");
+  if (!modal || modal.hidden) return;
+  loadLotesLicapaCatalog().then(() => renderLotesHoyCards());
+}
+
+function exportLotesHoyExcel() {
+  if (!state.validated) {
+    window.alert("Primero sube un Excel de tareo.");
+    return;
+  }
+  const report = lotesHoyUiState.report || buildLotesHoyReport();
+  const items = getLotesHoyVisibleItems(report);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const fundoTag = report.fundoFiltro
+    ? report.fundoFiltro.replace(/\s+/g, "-")
+    : "TODOS";
+
+  const headers = [
+    "Supervisor",
+    "Fundo",
+    "Lote",
+    "Módulo - Turno",
+    "Cosecha",
+    "Escanear",
+    "Supervisor act.",
+    "Total personas"
+  ];
+
+  const rows = items.map((it) => ({
+    cells: [
+      { value: it.supervisor },
+      { value: it.fundo },
+      { value: it.lote },
+      { value: it.moduloTurno },
+      { value: it.cosecha },
+      { value: it.scaner },
+      { value: it.supervisorAct },
+      { value: it.total }
+    ]
+  }));
+
+  rows.push({
+    cells: [
+      { value: "TOTALES" },
+      { value: `${report.supervisoresUnicos} supervisores` },
+      { value: `${report.lotesUnicos} lotes` },
+      { value: "" },
+      { value: report.totCosecha },
+      { value: report.totScaner },
+      { value: report.totSupervisor || 0 },
+      { value: "" }
+    ]
+  });
+
+  try {
+    downloadXlsxExcel({
+      filename: `lotes-hoy-${fundoTag}-${stamp}.xlsx`,
+      sheetName: "Lotes hoy",
+      headers,
+      rows
+    });
+  } catch (err) {
+    window.alert(err?.message || "No se pudo exportar Excel.");
+  }
+}
+
+function exportModulosCosechaExcel() {
+  if (!state.validated) {
+    window.alert("Primero sube un Excel de tareo.");
+    return;
+  }
+  const report = buildModulosCosechaReport();
+  const stamp = new Date().toISOString().slice(0, 10);
+  const fundoTag = report.fundoFiltro
+    ? report.fundoFiltro.replace(/\s+/g, "-")
+    : "TODOS";
+
+  const headers = report.showFundo
+    ? ["Fundo", "Módulo", "Cantidad de trabajadores"]
+    : ["Módulo", "Cantidad de trabajadores"];
+
+  const rows = report.items.map((it) => ({
+    cells: report.showFundo
+      ? [{ value: it.fundo }, { value: it.modulo }, { value: it.cantidad }]
+      : [{ value: it.modulo }, { value: it.cantidad }]
+  }));
+
+  rows.push({
+    cells: report.showFundo
+      ? [
+          { value: "TOTAL DE TRABAJADORES ÚNICOS" },
+          { value: "" },
+          { value: report.totalUnicos }
+        ]
+      : [
+          { value: "TOTAL DE TRABAJADORES ÚNICOS" },
+          { value: report.totalUnicos }
+        ]
+  });
+
+  try {
+    downloadXlsxExcel({
+      filename: `cosecha-modulos-${fundoTag}-${stamp}.xlsx`,
+      sheetName: "COSECHA módulos",
+      headers,
+      rows
+    });
+  } catch (err) {
+    window.alert(err?.message || "No se pudo exportar Excel.");
+  }
 }
 
 function revalidate() {
@@ -726,9 +1621,17 @@ function revalidate() {
 }
 
 function motivoErrorPersona(row) {
+  const parts = [];
+
+  // Identidad primero: DNI sin nombre / documento vacío
+  if (row.tipTrabajador) parts.push(row.tipTrabajador);
+  if (row.tipDocumento) parts.push(row.tipDocumento);
+  if (row.tipCeco) parts.push(row.tipCeco);
+  if (row.tipActividad) parts.push(row.tipActividad);
+
   // Preferir el tip de horario (ya trae "Puso: …")
-  if (row.tipHoraFin) return row.tipHoraFin;
-  if (row.tipHoraInicio) return row.tipHoraInicio;
+  if (row.tipHoraFin) parts.push(row.tipHoraFin);
+  else if (row.tipHoraInicio) parts.push(row.tipHoraInicio);
 
   const inis = row.horasInicioDetalle?.length
     ? row.horasInicioDetalle
@@ -751,16 +1654,15 @@ function motivoErrorPersona(row) {
       : null;
 
   if (row.tipHoras) {
-    if (bloques.length) return `Puso: ${bloques.join(" · ")}. ${row.tipHoras}`;
-    return row.tipHoras;
+    if (bloques.length) parts.push(`Puso: ${bloques.join(" · ")}. ${row.tipHoras}`);
+    else parts.push(row.tipHoras);
+  } else if (row.tipDuplicado) {
+    parts.push(row.tipDuplicado);
+  } else if (!parts.length && bloques.length) {
+    parts.push(`Puso: ${bloques.join(" · ")}${suma != null ? ` (${suma} h)` : ""}`);
   }
-  if (row.tipDuplicado) return row.tipDuplicado;
-  if (row.tipCeco) return row.tipCeco;
-  if (row.tipDocumento) return row.tipDocumento;
-  if (row.tipTrabajador) return row.tipTrabajador;
-  if (bloques.length) {
-    return `Puso: ${bloques.join(" · ")}${suma != null ? ` (${suma} h)` : ""}`;
-  }
+
+  if (parts.length) return parts.join(" · ");
   return "Error de horas / horario";
 }
 
@@ -814,7 +1716,7 @@ function renderErroresPersonasList(query = "") {
     .map(
       (p) => `<tr data-err-dni="${escapeHtml(p.documento)}" data-err-fecha="${escapeHtml(p.fecha)}">
       <td class="errores-modal__dni">${escapeHtml(p.documento || "—")}</td>
-      <td>${escapeHtml(p.trabajador || "—")}</td>
+      <td>${escapeHtml(isNombreTrabajadorVacio(p.trabajador) ? "(sin nombre)" : p.trabajador || "—")}</td>
       <td>${escapeHtml(p.supervisor || "—")}</td>
       <td>${escapeHtml(p.fecha || "—")}</td>
       <td class="errores-modal__motivo" title="${escapeHtml(p.motivo)}">${escapeHtml(p.motivo)}</td>
@@ -937,16 +1839,6 @@ function focusPersonaFromError(dni, fecha) {
   if (search && dni) {
     search.value = dni;
   }
-  if (fecha) {
-    const sel = $("fltFecha");
-    if (sel) {
-      const has = [...sel.options].some((o) => o.value === fecha);
-      if (has) {
-        sel.disabled = false;
-        sel.value = fecha;
-      }
-    }
-  }
   refreshView();
 }
 
@@ -1006,9 +1898,9 @@ function formatHourExport(value) {
   return String(Math.round(n * 1e3) / 1e3);
 }
 
-function stackExportHtml(times) {
+function stackExportText(times) {
   const list = Array.isArray(times) ? times.filter(Boolean) : [];
-  return list.map((t) => escapeXml(t)).join("<br/>");
+  return list.join(" | ");
 }
 
 function estadoLabel(status) {
@@ -1029,79 +1921,65 @@ function downloadBlobFile(filename, blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-/**
- * Export HTML que Excel abre bien, con colores de celda.
- * cells: string | { html, tone?: 'danger'|'warn'|'ok'|'', tip?: string }
- */
-function downloadHtmlExcel({ filename, sheetName, headers, rows }) {
-  const headHtml = headers
-    .map(
-      (h) =>
-        `<th style="background:#145a34;color:#ffffff;font-weight:700;border:1px solid #0f4a2b;padding:7px 9px;text-align:left;">${escapeXml(h)}</th>`
-    )
-    .join("");
+function cellExportValue(cell) {
+  if (cell == null) return "";
+  if (typeof cell !== "object" || Array.isArray(cell)) return cell;
+  if (cell.html != null) {
+    return String(cell.html)
+      .replace(/<br\s*\/?>/gi, " | ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .trim();
+  }
+  return cell.value ?? "";
+}
 
-  const toneCss = {
-    danger: "background:#fecaca !important;color:#991b1b;font-weight:700;",
-    warn: "background:#fde68a !important;color:#92400e;font-weight:600;",
-    pase: "background:#bae6fd !important;color:#075985;font-weight:600;",
-    ok: "background:#dcfce7 !important;color:#166534;font-weight:600;",
-    softDanger: "background:#fff5f5 !important;",
-    softWarn: "background:#fffaf0 !important;",
-    softPase: "background:#f0f9ff !important;"
-  };
+/** Exporta .xlsx real (SheetJS) — Excel lo abre sin aviso de extensión. */
+function downloadXlsxExcel({ filename, sheetName, headers, rows }) {
+  if (typeof XLSX === "undefined" || !XLSX?.utils) {
+    throw new Error("No se cargó el exportador Excel (XLSX).");
+  }
 
-  const bodyHtml = rows
-    .map((row, idx) => {
-      const stripe = idx % 2 === 1 ? "#fafbfc" : "#ffffff";
-      const rowTone = row.rowTone || "";
-      const rowBg = toneCss[rowTone] || `background:${stripe};`;
-      const titleAttr = row.rowTip ? ` title="${escapeXml(row.rowTip)}"` : "";
-
-      const tds = (row.cells || [])
-        .map((cell) => {
-          const isObj = cell && typeof cell === "object" && !Array.isArray(cell);
-          const html = isObj ? cell.html ?? escapeXml(cell.value ?? "") : escapeXml(cell);
-          const tone = isObj ? cell.tone || "" : "";
-          const tip = isObj && cell.tip ? ` title="${escapeXml(cell.tip)}"` : "";
-          const numAsText = isObj && cell.text === true ? "mso-number-format:'\\@';" : "";
-          const style = `border:1px solid #e5e7eb;padding:6px 8px;vertical-align:top;white-space:pre-line;${rowBg}${
-            toneCss[tone] || ""
-          }${numAsText}`;
-          return `<td style="${style}"${tip}>${html}</td>`;
-        })
-        .join("");
-
-      return `<tr${titleAttr}>${tds}</tr>`;
-    })
-    .join("");
-
+  const safeName = String(filename || "export.xlsx").replace(/\.xls$/i, ".xlsx");
   const safeSheet = String(sheetName || "Hoja1").slice(0, 31);
-  const html = `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-<meta charset="UTF-8" />
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>${escapeXml(safeSheet)}</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-<style>
-  table { border-collapse: collapse; font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
-</style>
-</head>
-<body>
-<table>
-  <thead><tr>${headHtml}</tr></thead>
-  <tbody>${bodyHtml || `<tr><td colspan="${headers.length}" style="padding:8px;color:#6b7280;">Sin datos para exportar.</td></tr>`}</tbody>
-</table>
-</body>
-</html>`;
+  const aoa = [
+    headers,
+    ...(rows || []).map((row) => (row.cells || []).map((cell) => cellExportValue(cell)))
+  ];
+  if (aoa.length === 1) {
+    aoa.push(headers.map(() => ""));
+  }
 
-  // BOM ayuda a Excel a leer tildes/ñ
-  const blob = new Blob(["\uFEFF", html], { type: "application/vnd.ms-excel;charset=utf-8;" });
-  downloadBlobFile(filename, blob);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = headers.map((h, i) => {
+    let max = String(h || "").length;
+    aoa.forEach((r) => {
+      const len = String(r[i] ?? "").length;
+      if (len > max) max = len;
+    });
+    return { wch: Math.min(Math.max(max + 2, 10), 40) };
+  });
+
+  /* Documentos como texto para no perder ceros a la izquierda */
+  headers.forEach((h, col) => {
+    if (!/documento|dni/i.test(String(h))) return;
+    for (let r = 1; r < aoa.length; r += 1) {
+      const addr = XLSX.utils.encode_cell({ r, c: col });
+      const cell = ws[addr];
+      if (!cell) continue;
+      cell.t = "s";
+      cell.v = String(cell.v ?? "");
+      cell.z = "@";
+    }
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, safeSheet);
+  XLSX.writeFile(wb, safeName);
 }
 
 function resolveSumaFlag(row, total) {
@@ -1150,14 +2028,14 @@ function downloadDetalleLikeFrontend() {
           tip: row.tipDocumento || ""
         },
         {
-          value: String(row.trabajador || "").trim()
+          value: !isNombreTrabajadorVacio(row.trabajador)
             ? row.trabajador
             : String(row.documento || "").trim() || String(row.codigoTrabajador || "").trim()
-              ? "(vacío)"
+              ? "(sin nombre)"
               : "",
           tone:
             (String(row.documento || "").trim() || String(row.codigoTrabajador || "").trim()) &&
-            (!String(row.trabajador || "").trim() || row.dayFlags?.trabajador === "rojo")
+            (isNombreTrabajadorVacio(row.trabajador) || row.dayFlags?.trabajador === "rojo")
               ? "danger"
               : "",
           tip: row.tipTrabajador || ""
@@ -1173,12 +2051,12 @@ function downloadDetalleLikeFrontend() {
         },
         row.fecha || "",
         {
-          html: stackExportHtml(row.horasInicioDetalle),
+          value: stackExportText(row.horasInicioDetalle),
           tone: iniFlag === "rojo" ? "danger" : "",
           tip: row.tipHoraInicio || ""
         },
         {
-          html: stackExportHtml(row.horasFinDetalle),
+          value: stackExportText(row.horasFinDetalle),
           tone: finFlag === "rojo" ? "danger" : "",
           tip: row.tipHoraFin || ""
         },
@@ -1210,8 +2088,8 @@ function downloadDetalleLikeFrontend() {
     };
   });
 
-  downloadHtmlExcel({
-    filename: `QBerries_Detalle_${stamp}.xls`,
+  downloadXlsxExcel({
+    filename: `QBerries_Detalle_${stamp}.xlsx`,
     sheetName: "DetalleDiario",
     headers: [
       "Documento",
@@ -1234,42 +2112,66 @@ function downloadDetalleLikeFrontend() {
 
 function downloadResumenExcel() {
   const stamp = new Date().toISOString().slice(0, 10);
-  const mainFilters = readFilters();
-  const { groups } = getFilteredResumenData(state.validated, mainFilters);
+  const rowsData = getResumenTableRowsForExport();
 
-  if (!groups.length) {
+  if (!rowsData.length) {
     window.alert("No hay filas en el resumen con los filtros actuales.");
     return;
   }
 
-  const rows = groups.map((g) => ({
-    rowTone: g.errores > 0 ? "softDanger" : g.avisos > 0 ? "softWarn" : "",
+  const rows = rowsData.map((g) => ({
+    rowTone:
+      g.estadoKey === "no-asistio" || g.errores > 0
+        ? "softDanger"
+        : g.estadoKey === "falta-tarde" || g.estadoKey === "falta-manana" || g.estadoKey === "no-subio" || g.avisos > 0
+          ? "softWarn"
+          : g.estadoKey === "apoyo"
+            ? "softOk"
+            : "",
     cells: [
       g.fundo,
       g.supervisor,
+      g.sgLabel || "—",
       g.planillas,
       g.trabajadores,
+      { value: g.errores, tone: g.errores > 0 ? "danger" : "" },
+      { value: g.avisos, tone: g.avisos > 0 ? "warn" : "" },
+      { value: g.faltaManana ? "Falta" : "OK", tone: g.faltaManana ? "warn" : "ok" },
+      { value: g.faltaTarde ? "Falta" : "OK", tone: g.faltaTarde ? "warn" : "ok" },
       {
-        value: g.errores,
-        tone: g.errores > 0 ? "danger" : ""
+        value: g.estadoLabel,
+        tone:
+          g.estadoKey === "no-asistio"
+            ? "danger"
+            : g.estadoKey === "ok"
+              ? "ok"
+              : g.estadoKey === "apoyo"
+                ? "ok"
+                : "warn"
       },
       {
-        value: g.avisos,
-        tone: g.avisos > 0 ? "warn" : ""
-      },
-      {
-        value: g.apoyo
-          ? `Sí · ${(g.apoyoNombres || []).join(" · ")}`
-          : "No",
+        value: g.apoyo ? `Sí · ${(g.apoyoNombres || []).join(" · ")}` : "No",
         tone: g.apoyo ? "ok" : ""
       }
     ]
   }));
 
-  downloadHtmlExcel({
-    filename: `QBerries_Resumen_Supervisores_${stamp}.xls`,
+  downloadXlsxExcel({
+    filename: `QBerries_Resumen_Supervisores_${stamp}.xlsx`,
     sheetName: "Resumen",
-    headers: ["Fundo", "Supervisor", "Planillas", "Trabajadores", "Errores", "Extras", "Apoyo"],
+    headers: [
+      "Fundo",
+      "Supervisor",
+      "Sup. General",
+      "Planillas",
+      "Trabajadores",
+      "Errores",
+      "Extras",
+      "Mañana",
+      "Tarde",
+      "Estado",
+      "Apoyo equipo"
+    ],
     rows
   });
 }
@@ -1284,12 +2186,10 @@ function downloadHallazgosExcel() {
       !filters.macro &&
       !filters.supervisor &&
       !filters.fundo &&
-      !filters.fecha &&
       !filters.estado &&
       !filters.search;
     if (empty) return true;
     if (filters.supervisor && item.supervisor && item.supervisor !== filters.supervisor) return false;
-    if (filters.fecha && item.fecha && item.fecha !== filters.fecha) return false;
     if (filters.search) {
       const blob = `${item.documento || ""} ${item.trabajador || ""} ${(item.trabajadores || []).join(" ")}`.toLowerCase();
       if (!blob.includes(String(filters.search).toLowerCase())) return false;
@@ -1328,14 +2228,41 @@ function downloadHallazgosExcel() {
   (f.cecoVacio || []).forEach((i) =>
     add("CECO vacío", i, i.macroPartida || i.actividad || "Columna U", "", "danger")
   );
+  (f.documentoVacio || []).forEach((i) =>
+    add(
+      "Documento vacío",
+      i,
+      i.codigoTrabajador ? `Código ${i.codigoTrabajador}` : i.macroPartida || "",
+      i.fecha || "",
+      "danger"
+    )
+  );
+  (f.trabajadorVacio || []).forEach((i) =>
+    add(
+      "DNI sin nombre",
+      i,
+      i.codigoTrabajador ? `Código ${i.codigoTrabajador}` : i.macroPartida || "",
+      i.fecha || "",
+      "danger"
+    )
+  );
+  (f.actividadNoPermitida || []).forEach((i) =>
+    add(
+      "Actividad no permitida",
+      i,
+      i.macroPartida || "COSTO DE COSECHA",
+      i.actividad || "(vacía)",
+      "danger"
+    )
+  );
   (f.cesados || []).forEach((i) => add("Cesado", i, "", "", "warn"));
   (f.minoritaria || []).forEach((i) => add("Menoritaria", i, i.macroPartida, "", "warn"));
   (f.overBase || []).forEach((i) =>
     add(`Extra ${i.extra || ""}`.trim(), i, i.day || "Suma de Horas Pago", i.hours, "warn")
   );
 
-  downloadHtmlExcel({
-    filename: `QBerries_Hallazgos_${stamp}.xls`,
+  downloadXlsxExcel({
+    filename: `QBerries_Hallazgos_${stamp}.xlsx`,
     sheetName: "Hallazgos",
     headers: ["Tipo", "Documento", "Trabajador", "Supervisor", "Detalle", "Valor", "Fila"],
     rows: pushRows
@@ -1371,43 +2298,66 @@ function downloadReport(kind) {
 
 async function handleFile(file) {
   if (!file) return;
-  const buffer = await file.arrayBuffer();
-  const parsed = parseExcelBuffer(buffer, file.name);
-  state.parsed = parsed;
-  state.fileName = file.name;
-  state.selectedRowIndexes = [];
-  state.errorFocusMode = false;
-  state.warnFocusMode = false;
-  state.paseFocusMode = false;
-  state.dupFocusMode = false;
-  state.savedFiltersBeforeErrorFocus = null;
-  state.savedFiltersBeforeWarnFocus = null;
-  state.savedFiltersBeforePaseFocus = null;
-  state.savedFiltersBeforeDupFocus = null;
-  state.validated = validateDataset(parsed);
+  if (state.uploading) return;
+  state.uploading = true;
+  const pick = $("btnPickExcel");
+  const card = $("uploadDropCard");
+  if (pick) {
+    pick.disabled = true;
+    pick.setAttribute("aria-busy", "true");
+  }
+  card?.classList.add("is-busy");
+  try {
+    resetPlanillasFaltantesState();
+    const buffer = await file.arrayBuffer();
+    const parsed = parseExcelBuffer(buffer, file.name);
+    state.parsed = parsed;
+    state.fileName = file.name;
+    state.selectedRowIndexes = [];
+    state.errorFocusMode = false;
+    state.warnFocusMode = false;
+    state.paseFocusMode = false;
+    state.dupFocusMode = false;
+    state.savedFiltersBeforeErrorFocus = null;
+    state.savedFiltersBeforeWarnFocus = null;
+    state.savedFiltersBeforePaseFocus = null;
+    state.savedFiltersBeforeDupFocus = null;
+    state.validated = validateDataset(parsed);
 
-  $("uploadZone")?.classList.add("is-hidden");
-  $("validacionWorkspace")?.classList.remove("is-hidden");
+    $("uploadZone")?.classList.add("is-hidden");
+    $("validacionWorkspace")?.classList.remove("is-hidden");
 
-  populateFilters(state, { errorOnly: false });
-  refreshView();
+    resetActividadFilterState();
+    populateFilters(state, { errorOnly: false });
+    refreshView();
 
-  writeHistory({
-    fileName: file.name,
-    sheetName: parsed.sheetName,
-    rows: state.validated.kpis.total,
-    rojo: state.validated.kpis.rojo,
-    aviso: state.validated.kpis.aviso,
-    at: new Date().toLocaleString("es-PE")
-  });
-  renderHistory();
+    writeHistory({
+      fileName: file.name,
+      sheetName: parsed.sheetName,
+      rows: state.validated.kpis.total,
+      rojo: state.validated.kpis.rojo,
+      aviso: state.validated.kpis.aviso,
+      at: new Date().toLocaleString("es-PE")
+    });
+    renderHistory();
 
-  const costo = state.validated.kpis.costoCosecha;
-  const total = state.validated.kpis.total;
-  const metaCosto = state.parsed?.meta?.costoCosechaCount;
-  showSuccessModal(
-    `Listo. Costo de cosecha: ${costo}${metaCosto != null && metaCosto !== costo ? ` (lectura ${metaCosto})` : ""} · Total filas: ${total}. Los contadores cambian al filtrar.`
-  );
+    const costo = state.validated.kpis.costoCosecha;
+    const total = state.validated.kpis.total;
+    const metaCosto = state.parsed?.meta?.costoCosechaCount;
+    showSuccessModal(
+      `Listo. Costo de cosecha: ${costo}${metaCosto != null && metaCosto !== costo ? ` (lectura ${metaCosto})` : ""} · Total filas: ${total}. Los contadores cambian al filtrar.`
+    );
+  } catch (err) {
+    console.error("[tareo] upload failed", err);
+    window.alert(err?.message || "No se pudo leer el Excel. Revisa el archivo e inténtalo de nuevo.");
+  } finally {
+    state.uploading = false;
+    if (pick) {
+      pick.disabled = false;
+      pick.removeAttribute("aria-busy");
+    }
+    card?.classList.remove("is-busy");
+  }
 }
 
 function bindUpload() {
@@ -1444,26 +2394,33 @@ function bindUi() {
   [
     "fltSupervisor",
     "fltFundo",
-    "fltFecha",
     "fltEstado",
-    "fltTipoLote",
-    "fltSearch"
+    "fltTipoLote"
   ].forEach((id) => {
     $(id)?.addEventListener("input", refreshView);
     $(id)?.addEventListener("change", refreshView);
   });
 
+  // Búsqueda: debounce para no re-renderizar en cada tecla
+  let searchTimer = 0;
+  $("fltSearch")?.addEventListener("input", () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => refreshView({ keepPage: true }), 180);
+  });
+  $("fltSearch")?.addEventListener("change", () => refreshView({ keepPage: true }));
+
   $("btnMarkChina")?.addEventListener("click", () => applySessionTag("china"));
   $("btnMarkConv")?.addEventListener("click", () => applySessionTag("convencional"));
   $("btnSetVariedad")?.addEventListener("click", applyVariedad);
-  $("btnReportResumen")?.addEventListener("click", () => {
+  $("btnReportResumen")?.addEventListener("click", async () => {
     if (!state.validated) {
       window.alert("Primero sube un Excel de tareo.");
       return;
     }
-    syncResumenFiltersFromMain(state.validated);
+    resetPlanillasFaltantesState();
+    syncResumenFiltersFromMain(state.validated, readFilters());
     renderResumenView(state.validated, readFilters());
-    openResumenModal();
+    await openResumenModal(() => state.validated);
   });
   $("btnReportHallazgos")?.addEventListener("click", () => downloadReport("hallazgos"));
   $("btnSupervisoresErrores")?.addEventListener("click", () => openSupervisoresErroresModal());
@@ -1494,6 +2451,8 @@ function bindUi() {
     state.savedFiltersBeforeWarnFocus = null;
     state.savedFiltersBeforePaseFocus = null;
     state.savedFiltersBeforeDupFocus = null;
+    resetPlanillasFaltantesState();
+    resetActividadFilterState();
     closeResumenModal();
     $("validacionWorkspace")?.classList.add("is-hidden");
     $("uploadZone")?.classList.remove("is-hidden");
@@ -1524,6 +2483,26 @@ function bindUi() {
   $("btnRegresarDups")?.addEventListener("click", () => exitDupFocusMode({ restoreSaved: true }));
   $("btnRestaurarTodo")?.addEventListener("click", () => restoreAllFilters());
 
+  $("btnModulosCosecha")?.addEventListener("click", () => openModulosCosechaModal());
+  $("btnCloseModulosCosecha")?.addEventListener("click", closeModulosCosechaModal);
+  $("btnCloseModulosCosecha2")?.addEventListener("click", closeModulosCosechaModal);
+  $("btnExportModulosCosecha")?.addEventListener("click", exportModulosCosechaExcel);
+  document.querySelectorAll('[data-close-modal="modulos-cosecha"]').forEach((el) => {
+    el.addEventListener("click", closeModulosCosechaModal);
+  });
+
+  $("btnLotesHoy")?.addEventListener("click", () => openLotesHoyModal());
+  $("btnCloseLotesHoy")?.addEventListener("click", closeLotesHoyModal);
+  $("btnCloseLotesHoy2")?.addEventListener("click", closeLotesHoyModal);
+  $("btnExportLotesHoy")?.addEventListener("click", exportLotesHoyExcel);
+  $("lotesHoySearch")?.addEventListener("input", (e) => {
+    lotesHoyUiState.search = e.target?.value || "";
+    renderLotesHoyCards();
+  });
+  document.querySelectorAll('[data-close-modal="lotes-hoy"]').forEach((el) => {
+    el.addEventListener("click", closeLotesHoyModal);
+  });
+
   $("btnCloseSuccessModal")?.addEventListener("click", hideSuccessModal);
   $("btnCloseKpiHelp")?.addEventListener("click", hideKpiHelp);
   $("btnKpiHelpOk")?.addEventListener("click", hideKpiHelp);
@@ -1535,6 +2514,8 @@ function bindUi() {
       else if (which === "resumen") closeResumenModal();
       else if (which === "errores-personas") closeErroresPersonasModal();
       else if (which === "supervisores-errores") closeSupervisoresErroresModal();
+      else if (which === "modulos-cosecha") closeModulosCosechaModal();
+      else if (which === "lotes-hoy") closeLotesHoyModal();
       else if (which === "planillas-faltantes") {
         document.getElementById("modalPlanillasFaltantes").hidden = true;
       } else hideSuccessModal();
@@ -1549,6 +2530,9 @@ function bindUi() {
   });
 
   bindTablePager(() => refreshView({ keepPage: true }));
+
+  bindTareoActFilterUi();
+  syncActividadFilterButton();
 
   bindResumenUi({
     getValidated: () => state.validated,

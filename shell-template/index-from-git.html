@@ -49,20 +49,20 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/tokens.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/reset.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/app-shell.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/sidebar.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/topbar.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/shell-brand.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/validacion.css?v=20260908lotes2" />
-    <link rel="stylesheet" href="css/pases.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/tarjetas.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/reporte-trabajadores.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/produccion.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/jarras.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/unificacion-jarras.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/inicio.css?v=20260908prod1" />
+    <link rel="stylesheet" href="css/tokens.css?v=20260812a" />
+    <link rel="stylesheet" href="css/reset.css?v=20260812a" />
+    <link rel="stylesheet" href="css/app-shell.css?v=20260824f" />
+    <link rel="stylesheet" href="css/sidebar.css?v=20260824j" />
+    <link rel="stylesheet" href="css/topbar.css?v=20260824j" />
+    <link rel="stylesheet" href="css/shell-brand.css?v=20260812a" />
+    <link rel="stylesheet" href="css/validacion.css?v=20260831j" />
+    <link rel="stylesheet" href="css/pases.css?v=20260812a" />
+    <link rel="stylesheet" href="css/tarjetas.css?v=20260812a" />
+    <link rel="stylesheet" href="css/reporte-trabajadores.css?v=20260812a" />
+    <link rel="stylesheet" href="css/produccion.css?v=20260812a" />
+    <link rel="stylesheet" href="css/jarras.css?v=20260812w" />
+    <link rel="stylesheet" href="css/unificacion-jarras.css?v=20260817a" />
+    <link rel="stylesheet" href="css/inicio.css?v=20260812a" />
   </head>
   <body>
     <div id="applicationRoot" class="application-shell">
@@ -236,7 +236,7 @@
           <div class="topbar__primary">
             <div class="topbar__breadcrumb">
               <span class="topbar__breadcrumb-segment">QBerries</span>
-              <span class="topbar__breadcrumb-separator">·</span>
+              <span class="topbar__breadcrumb-separator">•</span>
               <span class="topbar__breadcrumb-segment topbar__breadcrumb-segment--active" id="txtBreadcrumbActive">Inicio</span>
             </div>
             <h1 class="topbar__title" id="txtPageTitle">Inicio</h1>
@@ -248,24 +248,24 @@
             <svg class="topbar-chip__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
             </svg>
-            <span id="txtTopbarDate">·</span>
+            <span id="txtTopbarDate">—</span>
           </div>
           <div class="topbar-chip" title="Hora del sistema">
             <svg class="topbar-chip__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
             </svg>
-            <span id="txtTopbarTime">·</span>
+            <span id="txtTopbarTime">—</span>
           </div>
           <button type="button" class="btn-live is-live" id="btnLive" title="Estado en vivo">
             <span class="btn-live__dot" aria-hidden="true"></span>
-            <span class="btn-live__text" id="txtLiveStatus">En vivo</span>
+            En vivo
           </button>
         </div>
       </header>
 
       <main class="main-content" id="dynamicModuleContainer">
         <div class="main-content__inner" id="dynamicModuleInner">
-          <!-- INICIO · dashboard trabajadores -->
+          <!-- INICIO — dashboard trabajadores -->
           <section class="view is-active" id="viewInicio" data-view="inicio">
             <div class="inicio-dash">
               <div class="inicio-hero">
@@ -427,7 +427,7 @@
                 </article>
                 <article class="rule-tile rule-tile--danger">
                   <span class="rule-tile__badge">Error</span>
-                  <strong class="rule-tile__value">? exacto</strong>
+                  <strong class="rule-tile__value">≠ exacto</strong>
                   <span class="rule-tile__label">Ej. 9.63</span>
                   <span class="rule-tile__note">Se marca en rojo</span>
                 </article>
@@ -523,93 +523,88 @@
 
                 <div class="toolbar toolbar--filters">
                   <div class="toolbar__filters">
-                    <label class="field">
-                      <select id="fltSupervisor" title="Supervisor" aria-label="Supervisor"><option value="">Supervisor</option></select>
+                    <label class="field has-tip" data-tip="Filtra la tabla por supervisor. Elige uno o deja Todos para ver toda la cuadrilla.">
+                      <span>Supervisor <i class="tip-dot" aria-hidden="true">i</i></span>
+                      <select id="fltSupervisor" aria-describedby="tipSupervisor"><option value="">Todos</option></select>
                     </label>
-                    <label class="field">
-                      <select id="fltFundo" title="Fundo" aria-label="Fundo"><option value="">Fundo</option></select>
+                    <label class="field has-tip" data-tip="Filtra por fundo / sede. Útil para revisar un campo a la vez.">
+                      <span>Fundo <i class="tip-dot" aria-hidden="true">i</i></span>
+                      <select id="fltFundo"><option value="">Todos</option></select>
                     </label>
-                    <label class="field field--actividad">
-                      <button type="button" class="rt-filter-btn tareo-act-btn" id="btnFltActividad" title="Actividad" aria-label="Actividad" data-placeholder="Actividad…">
-                        <span class="rt-filter-btn__text" id="btnFltActividadText">Actividad…</span>
-                        <span class="rt-filter-btn__icon" aria-hidden="true">?</span>
-                      </button>
+                    <label class="field has-tip" data-tip="Filtra por fecha del tareo. Si hay varias fechas, acota el día que quieres revisar.">
+                      <span>Fecha <i class="tip-dot" aria-hidden="true">i</i></span>
+                      <select id="fltFecha"><option value="">Todas</option></select>
                     </label>
-                    <label class="field field--estado">
-                      <select id="fltEstado" title="Estado horas" aria-label="Estado horas">
-                        <option value="">Estado horas</option>
+                    <label class="field has-tip" data-tip="Filtra por resultado: OK = 9.6 o 11.6 exacto, Posible pase &lt; 9.6, Advertencia = 10.1 / 10.6 / 12 exactos, Error ≠ exacto (ej. 11.37).">
+                      <span>Estado horas <i class="tip-dot" aria-hidden="true">i</i></span>
+                      <select id="fltEstado">
+                        <option value="">Todos</option>
                         <option value="ok">OK = 9.6 / 11.6</option>
                         <option value="posible-salida">Posible pase &lt; 9.6</option>
-                        <option value="aviso">Advertencia = 12</option>
+                        <option value="aviso">Advertencia ≤ 12</option>
                         <option value="rojo">Error &gt; 12</option>
                       </select>
                     </label>
-                  </div>
 
-                  <div class="focus-bars" aria-label="Resumen de hallazgos">
-                    <div class="error-focus" id="errorFocusBar" aria-live="polite">
-                      <span class="focus-chip__dot" aria-hidden="true"></span>
-                      <span class="error-focus__count" id="errorFocusCount">0 errores</span>
-                      <div class="error-focus__btns">
-                        <button type="button" class="btn btn--danger-soft btn--sm" id="btnVerErrores" title="Solo registros en rojo">Ver</button>
-                        <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarErrores" title="Volver a filtros previos">Atrás</button>
-                        <button type="button" class="btn btn--ghost btn--sm" id="btnRestaurarTodo" title="Limpiar todos los filtros">Reset</button>
+                    <div class="focus-bars">
+                      <div class="error-focus" id="errorFocusBar" aria-live="polite">
+                        <span class="error-focus__count" id="errorFocusCount">0 errores</span>
+                        <div class="error-focus__btns">
+                          <button type="button" class="btn btn--danger-soft btn--sm" id="btnVerErrores" title="Solo registros en rojo">
+                            Ver
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarErrores" title="Volver a filtros previos">
+                            Atrás
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm" id="btnRestaurarTodo" title="Limpiar todos los filtros">
+                            Reset
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    <div class="warn-focus" id="warnFocusBar" aria-live="polite">
-                      <span class="focus-chip__dot" aria-hidden="true"></span>
-                      <span class="warn-focus__count" id="warnFocusCount">0 advertencias</span>
-                      <div class="warn-focus__btns">
-                        <button type="button" class="btn btn--warn-soft btn--sm" id="btnVerAvisos" title="Solo registros en advertencia">Ver</button>
-                        <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarAvisos" title="Volver a filtros previos">Atrás</button>
+                      <div class="warn-focus" id="warnFocusBar" aria-live="polite">
+                        <span class="warn-focus__count" id="warnFocusCount">0 advertencias</span>
+                        <div class="warn-focus__btns">
+                          <button type="button" class="btn btn--warn-soft btn--sm" id="btnVerAvisos" title="Solo registros en advertencia">
+                            Ver
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarAvisos" title="Volver a filtros previos">
+                            Atrás
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    <div class="pase-focus" id="paseFocusBar" aria-live="polite">
-                      <span class="focus-chip__dot" aria-hidden="true"></span>
-                      <span class="pase-focus__count" id="paseFocusCount">0 posibles salidas</span>
-                      <div class="pase-focus__btns">
-                        <button type="button" class="btn btn--pase-soft btn--sm" id="btnVerPases" title="Solo registros con suma menor a 9.6 h">Ver</button>
-                        <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarPases" title="Volver a filtros previos">Atrás</button>
+                      <div class="pase-focus" id="paseFocusBar" aria-live="polite">
+                        <span class="pase-focus__count" id="paseFocusCount">0 posibles salidas</span>
+                        <div class="pase-focus__btns">
+                          <button type="button" class="btn btn--pase-soft btn--sm" id="btnVerPases" title="Solo registros con suma menor a 9.6 h">
+                            Ver
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarPases" title="Volver a filtros previos">
+                            Atrás
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    <div class="dup-focus" id="dupFocusBar" aria-live="polite">
-                      <span class="focus-chip__dot" aria-hidden="true"></span>
-                      <span class="dup-focus__count" id="dupFocusCount">0 duplicados</span>
-                      <div class="dup-focus__btns">
-                        <button type="button" class="btn btn--dup-soft btn--sm" id="btnVerDups" title="Solo turnos duplicados (mismo DNI + fecha + hora inicio)">Ver</button>
-                        <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarDups" title="Volver a filtros previos">Atrás</button>
-                      </div>
-                    </div>
-
-                    <div class="modulo-focus" id="moduloFocusBar">
-                      <span class="focus-chip__dot" aria-hidden="true"></span>
-                      <span class="modulo-focus__label">Módulos</span>
-                      <div class="modulo-focus__btns">
-                        <button type="button" class="btn btn--modulo-soft btn--sm" id="btnModulosCosecha" title="Trabajadores únicos de COSECHA por módulo (respeta filtro Fundo)">
-                          Módulo
-                        </button>
-                      </div>
-                    </div>
-
-                    <div class="lote-focus" id="loteFocusBar">
-                      <span class="focus-chip__dot" aria-hidden="true"></span>
-                      <span class="lote-focus__label">Lotes</span>
-                      <div class="lote-focus__btns">
-                        <button type="button" class="btn btn--lote-soft btn--sm" id="btnLotesHoy" title="Lotes del tareo con supervisor · cosecha · escanear · calidad (respeta filtro Fundo)">
-                          Hoy
-                        </button>
+                      <div class="dup-focus" id="dupFocusBar" aria-live="polite">
+                        <span class="dup-focus__count" id="dupFocusCount">0 duplicados</span>
+                        <div class="dup-focus__btns">
+                          <button type="button" class="btn btn--dup-soft btn--sm" id="btnVerDups" title="Solo turnos duplicados (mismo DNI + fecha + hora inicio)">
+                            Ver
+                          </button>
+                          <button type="button" class="btn btn--ghost btn--sm is-hidden" id="btnRegresarDups" title="Volver a filtros previos">
+                            Atrás
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   <div class="toolbar__actions">
-                    <button type="button" class="btn btn--ghost btn--sm" id="btnReportResumen">Resumen</button>
-                    <button type="button" class="btn btn--ghost btn--sm" id="btnReportHallazgos">Hallazgos</button>
-                    <button type="button" class="btn btn--ghost btn--sm" id="btnReportDetalle">Detalle</button>
-                    <button type="button" class="btn btn--ghost btn--sm" id="btnNewUpload">Otro Excel</button>
+                    <button type="button" class="btn btn--ghost btn--sm has-tip" id="btnReportResumen" data-tip="Abre el resumen visual por supervisor y fundo, con gráficos y errores.">Resumen</button>
+                    <button type="button" class="btn btn--ghost btn--sm has-tip" id="btnReportHallazgos" data-tip="Descarga solo hallazgos: errores de horas, horarios y duplicados.">Hallazgos</button>
+                    <button type="button" class="btn btn--ghost btn--sm has-tip" id="btnReportDetalle" data-tip="Exporta el detalle igual a la tabla (con Horas Inicio/Fin y suma).">Detalle</button>
+                    <button type="button" class="btn btn--ghost btn--sm has-tip" id="btnNewUpload" data-tip="Cierra este tareo y carga otro Excel.">Otro Excel</button>
                   </div>
                 </div>
 
@@ -630,7 +625,7 @@
                       <option value="100">100</option>
                     </select>
                   </label>
-                  <span class="table-pager__range" id="pagerRange">0 · 0 of 0</span>
+                  <span class="table-pager__range" id="pagerRange">0 – 0 of 0</span>
                   <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
                     <button type="button" class="table-pager__btn" id="pagerFirst" aria-label="Primera página" title="Primera">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
@@ -703,7 +698,7 @@
                       <option value="50">50</option>
                     </select>
                   </label>
-                  <span class="table-pager__range" id="historyPagerRange">0 · 0 of 0</span>
+                  <span class="table-pager__range" id="historyPagerRange">0 – 0 of 0</span>
                   <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
                     <button type="button" class="table-pager__btn" id="historyPagerFirst" aria-label="Primera página" title="Primera">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
@@ -753,7 +748,7 @@
                 <article class="rules-card">
                   <span class="rules-card__tag">Horarios</span>
                   <h3 class="rules-card__title">Turnos y descanso</h3>
-                  <p class="rules-card__text"><strong>LICAPA</strong> + actividades cosecha: 06:45?12:00 y tarde 13:00?17:21. <strong>LICAPA II / III</strong> (u otras actividades): 06:30?12:00 y tarde 13:00?17:06. Entre turnos <strong>1 h de descanso</strong>. Se leen Hora Inicio / Hora Fin en HH:MM.</p>
+                  <p class="rules-card__text"><strong>LICAPA:</strong> 06:45→12:00 y tarde 13:00→17:21. <strong>LICAPA II / III:</strong> 06:30→12:00 y tarde 13:00→17:06. Entre turnos <strong>1 h de descanso</strong>. Se leen Hora Inicio / Hora Fin en HH:MM.</p>
                 </article>
                 <article class="rules-card">
                   <span class="rules-card__tag">Calidad</span>
@@ -801,7 +796,7 @@
                 </div>
                 <div class="pases-kpi pases-kpi--motivo">
                   <span class="pases-kpi__label">Motivo más pedido</span>
-                  <div class="pases-kpi__motif" id="kpiPasesMotivos">·</div>
+                  <div class="pases-kpi__motif" id="kpiPasesMotivos">—</div>
                 </div>
               </div>
 
@@ -872,7 +867,7 @@
                       <option value="100">100</option>
                     </select>
                   </label>
-                  <span class="table-pager__range" id="pasesPagerRange">0 · 0 of 0</span>
+                  <span class="table-pager__range" id="pasesPagerRange">0 – 0 of 0</span>
                   <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
                     <button type="button" class="table-pager__btn" id="pasesPagerFirst" aria-label="Primera página" title="Primera">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
@@ -1002,7 +997,7 @@
                       <option value="100">100</option>
                     </select>
                   </label>
-                  <span class="table-pager__range" id="tarjetasPagerRange">0 · 0 of 0</span>
+                  <span class="table-pager__range" id="tarjetasPagerRange">0 – 0 of 0</span>
                   <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
                     <button type="button" class="table-pager__btn" id="tarjetasPagerFirst" aria-label="Primera página" title="Primera">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
@@ -1022,7 +1017,7 @@
             </div>
           </section>
 
-          <!-- PRODUCCI·N -->
+          <!-- PRODUCCIÓN -->
           <section class="view" id="viewProduccion" data-view="produccion" hidden>
             <div class="pases-module">
               <div class="pases-header">
@@ -1047,7 +1042,7 @@
               <div class="pases-kpis" aria-label="Resumen producción">
                 <div class="pases-kpi">
                   <span class="pases-kpi__label">Archivo</span>
-                  <span class="pases-kpi__value pases-kpi__value--sm" id="prodKpiFile">·</span>
+                  <span class="pases-kpi__value pases-kpi__value--sm" id="prodKpiFile">—</span>
                 </div>
                 <div class="pases-kpi">
                   <span class="pases-kpi__label">Grupos</span>
@@ -1062,16 +1057,16 @@
                   <span class="pases-kpi__value" id="prodKpiJarras">0</span>
                 </div>
               </div>
-              <span id="prodKpiListado" hidden>·</span>
+              <span id="prodKpiListado" hidden>—</span>
               <span id="prodListadoMetaInline" hidden></span>
               <span id="prodListadoMeta" hidden></span>
 
               <div class="qb-filters" role="search">
                 <div class="field">
                   <span>Grupo</span>
-                  <button type="button" class="rt-filter-btn" id="prodBtnGrupo" data-placeholder="Todos los grupos·">
-                    <span class="rt-filter-btn__text" id="prodBtnGrupoText">Todos los grupos·</span>
-                    <span class="rt-filter-btn__icon" aria-hidden="true">?</span>
+                  <button type="button" class="rt-filter-btn" id="prodBtnGrupo" data-placeholder="Todos los grupos…">
+                    <span class="rt-filter-btn__text" id="prodBtnGrupoText">Todos los grupos…</span>
+                    <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
                   </button>
                 </div>
                 <label class="field">
@@ -1115,7 +1110,7 @@
                   <p class="pases-empty" id="prodEmpty" hidden>
                     <span class="pases-empty__icon" aria-hidden="true"></span>
                     <span class="pases-empty__title">Sin producción</span>
-                    <span class="pases-empty__text">Usa ·Subir Excel· con Produccion_Licapa.</span>
+                    <span class="pases-empty__text">Usa «Subir Excel» con Produccion_Licapa.</span>
                   </p>
                 </div>
 
@@ -1129,7 +1124,7 @@
                       <option value="100">100</option>
                     </select>
                   </label>
-                  <span class="table-pager__range" id="prodPagerRange">0 · 0 of 0</span>
+                  <span class="table-pager__range" id="prodPagerRange">0 – 0 of 0</span>
                   <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
                     <button type="button" class="table-pager__btn" id="prodPagerFirst" aria-label="Primera página" title="Primera">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
@@ -1159,7 +1154,7 @@
                   <p class="pases-header__eyebrow">QBerries · Reportes</p>
                   <h2 class="pases-header__title">Reporte de Trabajadores</h2>
                   <p class="pases-header__sub">
-                    Sube el Excel de tareo. Filtra Fundo ? Supervisor ? Actividad y exporta.
+                    Sube el Excel de tareo. Filtra Fundo → Supervisor → Actividad y exporta.
                   </p>
                 </div>
                 <div class="pases-header__actions">
@@ -1173,7 +1168,7 @@
               <div class="pases-kpis" aria-label="Resumen del reporte">
                 <div class="pases-kpi">
                   <span class="pases-kpi__label">Archivo</span>
-                  <span class="pases-kpi__value pases-kpi__value--sm" id="rtKpiFile">·</span>
+                  <span class="pases-kpi__value pases-kpi__value--sm" id="rtKpiFile">—</span>
                 </div>
                 <div class="pases-kpi">
                   <span class="pases-kpi__label">Actividades</span>
@@ -1192,28 +1187,28 @@
               <div class="qb-filters" role="search">
                 <div class="field">
                   <span>Fundo</span>
-                  <button type="button" class="rt-filter-btn" id="rtBtnFundo" data-placeholder="Selecciona fundo(s)·">
-                    <span class="rt-filter-btn__text" id="rtBtnFundoText">Selecciona fundo(s)·</span>
-                    <span class="rt-filter-btn__icon" aria-hidden="true">?</span>
+                  <button type="button" class="rt-filter-btn" id="rtBtnFundo" data-placeholder="Selecciona fundo(s)…">
+                    <span class="rt-filter-btn__text" id="rtBtnFundoText">Selecciona fundo(s)…</span>
+                    <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
                   </button>
                 </div>
                 <div class="field">
                   <span>Supervisor</span>
-                  <button type="button" class="rt-filter-btn" id="rtBtnSupervisor" data-placeholder="Primero elige fundo·" disabled>
-                    <span class="rt-filter-btn__text" id="rtBtnSupervisorText">Primero elige fundo·</span>
-                    <span class="rt-filter-btn__icon" aria-hidden="true">?</span>
+                  <button type="button" class="rt-filter-btn" id="rtBtnSupervisor" data-placeholder="Primero elige fundo…" disabled>
+                    <span class="rt-filter-btn__text" id="rtBtnSupervisorText">Primero elige fundo…</span>
+                    <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
                   </button>
                 </div>
                 <div class="field">
                   <span>Actividad</span>
-                  <button type="button" class="rt-filter-btn" id="rtBtnActividad" data-placeholder="Primero elige supervisor·" disabled>
-                    <span class="rt-filter-btn__text" id="rtBtnActividadText">Primero elige supervisor·</span>
-                    <span class="rt-filter-btn__icon" aria-hidden="true">?</span>
+                  <button type="button" class="rt-filter-btn" id="rtBtnActividad" data-placeholder="Primero elige supervisor…" disabled>
+                    <span class="rt-filter-btn__text" id="rtBtnActividadText">Primero elige supervisor…</span>
+                    <span class="rt-filter-btn__icon" aria-hidden="true">▾</span>
                   </button>
                 </div>
                 <label class="field field--grow">
                   <span>Buscar / DNI</span>
-                  <input type="search" id="rtFltSearch" placeholder="Nombre o documento·" autocomplete="off" disabled />
+                  <input type="search" id="rtFltSearch" placeholder="Nombre o documento…" autocomplete="off" disabled />
                 </label>
               </div>
 
@@ -1240,8 +1235,8 @@
                   </table>
                   <p class="pases-empty" id="rtEmpty" hidden>
                     <span class="pases-empty__icon" aria-hidden="true"></span>
-                    <span class="pases-empty__title">A·n no hay data clasificada</span>
-                    <span class="pases-empty__text">Usa ·Subir Excel· y filtra fundo, supervisor y actividad.</span>
+                    <span class="pases-empty__title">Aún no hay data clasificada</span>
+                    <span class="pases-empty__text">Usa «Subir Excel» y filtra fundo, supervisor y actividad.</span>
                   </p>
                 </div>
 
@@ -1255,7 +1250,7 @@
                       <option value="100">100</option>
                     </select>
                   </label>
-                  <span class="table-pager__range" id="rtPagerRange">0 · 0 of 0</span>
+                  <span class="table-pager__range" id="rtPagerRange">0 – 0 of 0</span>
                   <div class="table-pager__nav" role="group" aria-label="Navegar páginas">
                     <button type="button" class="table-pager__btn" id="rtPagerFirst" aria-label="Primera página" title="Primera">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.41 16.59 13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6z"/></svg>
@@ -1285,7 +1280,7 @@
                   <p class="pases-header__eyebrow">QBerries · Registro</p>
                   <h2 class="pases-header__title">Trabajadores Jarras</h2>
                   <p class="pases-header__sub">
-                    Elige lote ? se llenan módulo y turno. Guías con jarras/jabas por trabajador. Se guarda solo en este dispositivo.
+                    Elige lote → se llenan módulo y turno. Guías con jarras/jabas por trabajador. Se guarda solo en este dispositivo.
                   </p>
                 </div>
                 <div class="pases-header__actions">
@@ -1318,7 +1313,7 @@
               </div>
 
               <div class="pases-meta-row">
-                <p class="pases-meta" id="tjMeta">Cargando catálogos·</p>
+                <p class="pases-meta" id="tjMeta">Cargando catálogos…</p>
                 <button type="button" class="btn btn--ghost btn--sm" id="btnTjClear">Vaciar registro</button>
               </div>
               <p class="pases-status" id="tjStatus" hidden></p>
@@ -1327,7 +1322,7 @@
                 <label class="field field--grow">
                   <span>Agregar grupo</span>
                   <div class="tj-add-grupo">
-                    <input type="text" id="tjAddGrupoInput" placeholder="Ej. Grupo LIC 03·" autocomplete="off" />
+                    <input type="text" id="tjAddGrupoInput" placeholder="Ej. Grupo LIC 03…" autocomplete="off" />
                     <button type="button" class="btn btn--primary btn--sm" id="btnTjAddGrupo">Agregar</button>
                   </div>
                 </label>
@@ -1345,7 +1340,7 @@
                 </label>
                 <label class="field field--grow">
                   <span>Buscar trabajador</span>
-                  <input type="search" id="tjFltSearch" placeholder="Nombre del trabajador·" autocomplete="off" />
+                  <input type="search" id="tjFltSearch" placeholder="Nombre del trabajador…" autocomplete="off" />
                 </label>
                 <div class="field qb-filters__tools-field">
                   <span>Vista</span>
@@ -1359,7 +1354,7 @@
             </div>
           </section>
 
-          <!-- UNIFICACI·N DE JARRAS -->
+          <!-- UNIFICACIÓN DE JARRAS -->
           <section class="view" id="viewUnificacionJarras" data-view="unificacion-jarras" hidden>
             <div class="pases-module">
               <div class="pases-header">
@@ -1378,7 +1373,7 @@
                 </div>
               </div>
 
-              <div class="pases-kpis" aria-label="Resumen unificaci·n">
+              <div class="pases-kpis" aria-label="Resumen unificación">
                 <div class="pases-kpi pases-kpi--ok">
                   <span class="pases-kpi__label">Suma</span>
                   <span class="pases-kpi__value" id="ujKpiSuma">0</span>
@@ -1393,7 +1388,7 @@
                 </div>
               </div>
 
-              <div class="uj-tabs" role="tablist" aria-label="Tipo de unificaci·n">
+              <div class="uj-tabs" role="tablist" aria-label="Tipo de unificación">
                 <button type="button" class="btn btn--secondary btn--sm is-active" data-uj-tab="suma">Suma de jarras</button>
                 <button type="button" class="btn btn--ghost btn--sm" data-uj-tab="descuento">Descuento jarras</button>
                 <button type="button" class="btn btn--ghost btn--sm" data-uj-tab="descarte">Descarte jarras</button>
@@ -1406,7 +1401,7 @@
               <p class="pases-status" id="ujStatus" hidden></p>
 
               <div class="uj-drop" id="ujDropZone" tabindex="0" role="button" aria-label="Subir Excel para unificar">
-                <div class="uj-drop__icon" aria-hidden="true">?</div>
+                <div class="uj-drop__icon" aria-hidden="true">↑</div>
                 <p class="uj-drop__title">Arrastra varios Excel o haz clic</p>
                 <p class="uj-drop__text">Formato DATA-SUPERVISORES: Supervisor, Tipo, Turno día/tarde, Totales, Lotes, Día, Hora.</p>
                 <button type="button" class="btn btn--primary" id="btnUjDropPick">Elegir Excel(s)</button>
@@ -1438,7 +1433,7 @@
                       </thead>
                       <tbody id="ujTableBody"></tbody>
                     </table>
-                    <p class="uj-table-empty" id="ujTableEmpty" hidden>Sin filas unificadas a·n.</p>
+                    <p class="uj-table-empty" id="ujTableEmpty" hidden>Sin filas unificadas aún.</p>
                   </div>
                 </div>
               </div>
@@ -1459,123 +1454,11 @@
     <div class="modal" id="modalTjConfirm" hidden>
       <div class="modal__backdrop" data-close-modal="tj-confirm"></div>
       <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tjConfirmTitle">
-        <h2 class="modal__title" id="tjConfirmTitle">·Seguro que deseas eliminar?</h2>
+        <h2 class="modal__title" id="tjConfirmTitle">¿Seguro que deseas eliminar?</h2>
         <p class="modal__text" id="tjConfirmText">Esta acción no se puede deshacer.</p>
         <div class="modal__actions" style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">
           <button type="button" class="btn btn--ghost" id="btnTjConfirmCancel">Cancelar</button>
-          <button type="button" class="btn btn--primary" id="btnTjConfirmOk">S·, eliminar</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal" id="modalModulosCosecha" hidden>
-      <div class="modal__backdrop" data-close-modal="modulos-cosecha"></div>
-      <div class="modal__dialog modal__dialog--errores modal__dialog--modulos" role="dialog" aria-modal="true" aria-labelledby="modulosCosechaTitle">
-        <button type="button" class="modal__close" id="btnCloseModulosCosecha" aria-label="Cerrar">·</button>
-        <p class="errores-modal__eyebrow">QBerries · COSECHA por módulo</p>
-        <h2 class="modal__title" id="modulosCosechaTitle">Trabajadores por módulo</h2>
-        <p class="errores-modal__hint" id="modulosCosechaHint">
-          Actividad exacta <b>COSECHA</b> · trabajadores únicos · respeta el filtro Fundo en tiempo real.
-        </p>
-        <p class="modulos-meta" id="modulosCosechaMeta"></p>
-
-        <div class="errores-modal__list-wrap">
-          <table class="errores-modal__table modulos-table" id="tblModulosCosecha">
-            <thead id="tblModulosCosechaHead"></thead>
-            <tbody id="tblModulosCosechaBody"></tbody>
-          </table>
-        </div>
-
-        <div class="errores-modal__footer">
-          <span class="errores-modal__count" id="modulosCosechaCount">0 módulos</span>
-          <div class="errores-modal__footer-actions">
-            <button type="button" class="btn btn--ghost" id="btnCloseModulosCosecha2">Cerrar</button>
-            <button type="button" class="btn btn--primary" id="btnExportModulosCosecha">Exportar Excel</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal modal--lotes" id="modalLotesHoy" hidden>
-      <div class="modal__backdrop" data-close-modal="lotes-hoy"></div>
-      <div class="modal__dialog modal__dialog--lotes" role="dialog" aria-modal="true" aria-labelledby="lotesHoyTitle">
-        <button type="button" class="modal__close" id="btnCloseLotesHoy" aria-label="Cerrar">·</button>
-        <header class="lotes-modal__head">
-          <div>
-            <p class="errores-modal__eyebrow">QBerries · Lotes del tareo</p>
-            <h2 class="modal__title" id="lotesHoyTitle">Lotes trabajando hoy</h2>
-            <p class="errores-modal__hint" id="lotesHoyHint">
-              Lote = <b>columna P</b> del Excel · detalle = <b>MODULO X - TURNO Y</b> (lotes-licapa). Conteo: cosecha, escanear y supervisor.
-            </p>
-          </div>
-          <p class="lotes-modal__meta" id="lotesHoyMeta"></p>
-        </header>
-
-        <div class="lotes-kpis" id="lotesHoyKpis" aria-label="Resumen lotes">
-          <div class="lotes-kpi">
-            <span class="lotes-kpi__label">Supervisores</span>
-            <span class="lotes-kpi__value" id="lotesKpiSup">0</span>
-          </div>
-          <div class="lotes-kpi">
-            <span class="lotes-kpi__label">Lotes</span>
-            <span class="lotes-kpi__value" id="lotesKpiLotes">0</span>
-          </div>
-          <div class="lotes-kpi lotes-kpi--cosecha">
-            <span class="lotes-kpi__label">Personas cosecha</span>
-            <span class="lotes-kpi__value" id="lotesKpiCosecha">0</span>
-          </div>
-          <div class="lotes-kpi lotes-kpi--scaner">
-            <span class="lotes-kpi__label">Personas escanear</span>
-            <span class="lotes-kpi__value" id="lotesKpiScaner">0</span>
-          </div>
-          <div class="lotes-kpi lotes-kpi--sup">
-            <span class="lotes-kpi__label">Supervisor act.</span>
-            <span class="lotes-kpi__value" id="lotesKpiCalidad">0</span>
-          </div>
-        </div>
-
-        <div class="lotes-toolbar">
-          <label class="field field--search lotes-search">
-            <input type="search" id="lotesHoySearch" placeholder="Buscar por supervisor, fundo, lote o módulo·" aria-label="Buscar lotes" autocomplete="off" />
-          </label>
-          <span class="lotes-toolbar__hint" id="lotesHoyCount">0 filas</span>
-        </div>
-
-        <div class="lotes-table-wrap" id="lotesHoyGrid">
-          <table class="lotes-table" id="tblLotesHoy">
-            <colgroup>
-              <col style="width: 28%" />
-              <col style="width: 8%" />
-              <col style="width: 10%" />
-              <col style="width: 18%" />
-              <col style="width: 9%" />
-              <col style="width: 9%" />
-              <col style="width: 9%" />
-              <col style="width: 9%" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Supervisor</th>
-                <th>Fundo</th>
-                <th>Lote</th>
-                <th title="Detalle oficial del lote (lotes-licapa)">Módulo - Turno</th>
-                <th class="lotes-th-num" title="Personas en actividad COSECHA">Cosecha</th>
-                <th class="lotes-th-num" title="Personas en actividad ESCANEAR / SCANER">Escanear</th>
-                <th class="lotes-th-num" title="Personas en SUPERVISOR DE COSECHA / ACOPIO">Supervisor</th>
-                <th class="lotes-th-num" title="Total personas ·nicas en ese lote">Total</th>
-              </tr>
-            </thead>
-            <tbody id="lotesHoyBody"></tbody>
-          </table>
-        </div>
-        <p class="lotes-empty" id="lotesHoyEmpty" hidden>Sin lotes con personal en este alcance.</p>
-
-        <div class="errores-modal__footer">
-          <span class="errores-modal__count" id="lotesHoyFooterMeta"></span>
-          <div class="errores-modal__footer-actions">
-            <button type="button" class="btn btn--ghost" id="btnCloseLotesHoy2">Cerrar</button>
-            <button type="button" class="btn btn--primary" id="btnExportLotesHoy">Exportar Excel</button>
-          </div>
+          <button type="button" class="btn btn--primary" id="btnTjConfirmOk">Sí, eliminar</button>
         </div>
       </div>
     </div>
@@ -1583,8 +1466,8 @@
     <div class="modal" id="modalSuccess" hidden>
       <div class="modal__backdrop" data-close-modal="success"></div>
       <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="modalSuccessTitle">
-        <div class="modal__icon" aria-hidden="true">?</div>
-        <h2 class="modal__title" id="modalSuccessTitle">Se subi· correctamente</h2>
+        <div class="modal__icon" aria-hidden="true">✓</div>
+        <h2 class="modal__title" id="modalSuccessTitle">Se subió correctamente</h2>
         <p class="modal__text" id="modalSuccessText"></p>
         <button type="button" class="btn btn--primary" id="btnCloseSuccessModal">Continuar</button>
       </div>
@@ -1593,7 +1476,7 @@
     <div class="modal" id="modalKpiHelp" hidden>
       <div class="modal__backdrop" data-close-modal="kpi"></div>
       <div class="modal__dialog modal__dialog--help" role="dialog" aria-modal="true" aria-labelledby="modalKpiHelpTitle">
-        <button type="button" class="modal__close" id="btnCloseKpiHelp" aria-label="Cerrar">·</button>
+        <button type="button" class="modal__close" id="btnCloseKpiHelp" aria-label="Cerrar">×</button>
         <div class="modal__help-icon" id="modalKpiHelpIcon" aria-hidden="true">i</div>
         <h2 class="modal__title" id="modalKpiHelpTitle">Indicador</h2>
         <div class="modal__help-body" id="modalKpiHelpBody"></div>
@@ -1604,14 +1487,14 @@
     <div class="modal" id="modalPlanillasFaltantes" hidden>
       <div class="modal__backdrop" data-close-modal="planillas-faltantes"></div>
       <div class="modal__dialog modal__dialog--errores" role="dialog" aria-modal="true" aria-labelledby="planillasFaltantesTitle">
-        <button type="button" class="modal__close" id="btnClosePlanillasFaltantes" aria-label="Cerrar">·</button>
+        <button type="button" class="modal__close" id="btnClosePlanillasFaltantes" aria-label="Cerrar">×</button>
         <p class="errores-modal__eyebrow">QBerries · LICAPA</p>
         <h2 class="modal__title" id="planillasFaltantesTitle">Supervisores sin cerrar planilla</h2>
         <p class="errores-modal__hint" id="planillasFaltantesHint">
-          <b>Activos</b> = s· trabajan ? deben cerrar planilla.
+          <b>Activos</b> = sí trabajan → deben cerrar planilla.
           Comparativa: <b>Total</b> trabajadores vs <b>Cerraron</b> (jornada completa) vs <b>Solo mañana</b> (enfermo/salida temprana OK).
-          Cerr· si al menos 1 trabajador tiene tarde; no cerr· si todos quedan solo en mañana (LICAPA 06:45·12:00 · II/III 06:30·12:00).
-          <b>No activos</b> = ya no trabajan ? no deben subir tareo (botón Av·same).
+          Cerró si al menos 1 trabajador tiene tarde; no cerró si todos quedan solo en mañana (LICAPA 06:45–12:00 · II/III 06:30–12:00).
+          <b>No activos</b> = ya no trabajan → no deben subir tareo (botón Avísame).
         </p>
 
         <div class="resumen-kpis resumen-kpis--inline" id="planillasFaltantesKpis" aria-label="Resumen planillas"></div>
@@ -1629,7 +1512,7 @@
             hidden
             title="Personas que ya no trabajan pero aparecen en el tareo"
           >
-            Av·same
+            Avísame
             <span class="planillas-avisame-btn__count" id="planillasAvisameCount" hidden></span>
           </button>
         </div>
@@ -1639,7 +1522,7 @@
             type="search"
             id="planillasFaltantesSearch"
             class="errores-modal__search"
-            placeholder="Buscar supervisor·"
+            placeholder="Buscar supervisor…"
             autocomplete="off"
           />
           <span class="errores-modal__count" id="planillasFaltantesCount"></span>
@@ -1677,72 +1560,124 @@
           <header class="resumen-shell__head">
             <div>
               <h2 class="resumen-shell__title" id="modalResumenTitle">Resumen de tareo</h2>
-              <p class="resumen-shell__subtitle">Supervisor · tareo mañana/tarde · no asisti· / apoyo</p>
+              <p class="resumen-shell__subtitle">Por supervisor y fundo · con errores y extras visibles</p>
             </div>
             <div class="resumen-shell__actions">
               <button type="button" class="btn btn--ghost btn--sm" id="btnResumenExport">Exportar Excel</button>
-              <button type="button" class="modal__close" id="btnCloseResumen" aria-label="Cerrar">·</button>
+              <button type="button" class="modal__close" id="btnCloseResumen" aria-label="Cerrar">×</button>
             </div>
           </header>
 
           <div class="resumen-filters">
-            <p class="resumen-filters__sync" id="resumenFiltersSync" aria-live="polite"></p>
-            <div class="resumen-filters__row resumen-filters__row--tools">
-              <label class="field">
-                <select id="resumenFltMacro" aria-label="Macro Partida"><option value="">Macro Partida</option></select>
-              </label>
-              <label class="field">
-                <select id="resumenFltActividad" aria-label="Actividad"><option value="">Actividad</option></select>
-              </label>
-              <label class="field field--search">
-                <input type="search" id="resumenSearch" placeholder="Buscar supervisor, fundo o estado·" aria-label="Buscar en resumen" autocomplete="off" />
-              </label>
-            </div>
-            <div class="resumen-status-tabs" role="tablist" aria-label="Filtrar por estado de tareo">
-              <button type="button" class="resumen-status-tab is-active" data-resumen-tab="todos">Todos <span data-resumen-count="todos">0</span></button>
-              <button type="button" class="resumen-status-tab" data-resumen-tab="falta-tarde">Falta tarde <span data-resumen-count="falta-tarde">0</span></button>
-              <button type="button" class="resumen-status-tab" data-resumen-tab="falta-manana">Falta mañana <span data-resumen-count="falta-manana">0</span></button>
-              <button type="button" class="resumen-status-tab" data-resumen-tab="no-asistio">No asisti· <span data-resumen-count="no-asistio">0</span></button>
-              <button type="button" class="resumen-status-tab" data-resumen-tab="apoyo">Est· de apoyo <span data-resumen-count="apoyo">0</span></button>
-              <button type="button" class="resumen-status-tab" data-resumen-tab="nuevo">Nuevos LICAPA <span data-resumen-count="nuevo">0</span></button>
-              <button type="button" class="resumen-status-tab" data-resumen-tab="otro-fundo">LICAPA II/III <span data-resumen-count="otro-fundo">0</span></button>
-              <button type="button" class="resumen-status-tab" data-resumen-tab="ok">OK <span data-resumen-count="ok">0</span></button>
-            </div>
-            <!-- Supervisor / Fundo vienen del tareo (no filtrar 2 veces) -->
-            <select id="resumenFltSupervisor" hidden aria-hidden="true"><option value="">Todos</option></select>
-            <select id="resumenFltFundo" hidden aria-hidden="true"><option value="">Todos</option></select>
+            <label class="field">
+              <span>Supervisor</span>
+              <select id="resumenFltSupervisor"><option value="">Todos</option></select>
+            </label>
+            <label class="field">
+              <span>Fundo</span>
+              <select id="resumenFltFundo"><option value="">Todos</option></select>
+            </label>
+            <label class="field">
+              <span>Macro Partida</span>
+              <select id="resumenFltMacro"><option value="">Todas</option></select>
+            </label>
+            <label class="field">
+              <span>Actividad</span>
+              <select id="resumenFltActividad"><option value="">Todas</option></select>
+            </label>
           </div>
 
-          <section class="resumen-card resumen-card--full">
-            <div class="resumen-card__head">
-              <h3 class="resumen-card__title">Resumen de Tareo</h3>
-              <p class="resumen-card__hint" id="resumenTableHint"></p>
-            </div>
-            <div class="resumen-kpis" id="resumenKpis"></div>
-            <div class="resumen-table-wrap">
-              <table class="resumen-table">
-                <thead>
+          <div class="resumen-grid">
+            <section class="resumen-card">
+              <div class="resumen-card__head">
+                <h3 class="resumen-card__title">Resumen de Tareo</h3>
+              </div>
+              <div class="resumen-kpis" id="resumenKpis"></div>
+              <div class="resumen-table-wrap">
+                <table class="resumen-table">
+                  <thead>
                     <tr>
                       <th>Fundo</th>
                       <th>Supervisor</th>
-                      <th>Sup. General</th>
                       <th>Planillas</th>
                       <th>Trabajadores</th>
                       <th>Errores</th>
                       <th>Extras</th>
-                      <th>Mañana</th>
-                      <th>Tarde</th>
-                      <th>Estado</th>
-                      <th title="·Tiene otro SUPERVISOR DE COSECHA como apoyo en su equipo?">Apoyo equipo</th>
+                      <th title="¿Tiene otro SUPERVISOR DE COSECHA como apoyo?">Apoyo</th>
                     </tr>
-                </thead>
-                <tbody id="resumenTableBody"></tbody>
-              </table>
-            </div>
-            <div class="table-pager table-pager--compact">
-              <span class="table-pager__range" id="resumenPagerRange">0 · 0 of 0</span>
-            </div>
-          </section>
+                  </thead>
+                  <tbody id="resumenTableBody"></tbody>
+                </table>
+              </div>
+              <div class="table-pager table-pager--compact">
+                <span class="table-pager__range" id="resumenPagerRange">0 – 0 of 0</span>
+              </div>
+            </section>
+
+            <section class="resumen-card" id="resumenRightCard">
+              <div class="resumen-card__head resumen-card__head--split" id="resumenChartsHead">
+                <h3 class="resumen-card__title">Personas por Actividad</h3>
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--sm"
+                  id="btnResumenPlanillasFaltantes"
+                  title="Ver quiénes faltan por cerrar planilla"
+                >
+                  Planillas faltantes
+                </button>
+              </div>
+
+              <div id="resumenChartsView">
+                <div class="resumen-chart-meta">
+                  <strong id="resumenChartTitle">QBerries</strong>
+                  <span id="resumenChartSubtitle">Total trabajadores: 0</span>
+                </div>
+                <div class="resumen-charts">
+                  <div class="resumen-chart-box">
+                    <canvas id="chartResumenMacro"></canvas>
+                  </div>
+                  <div class="resumen-chart-box">
+                    <canvas id="chartResumenEstado"></canvas>
+                  </div>
+                </div>
+              </div>
+
+              <div id="resumenFaltantesView" class="resumen-faltantes" hidden>
+                <div class="resumen-faltantes__toolbar">
+                  <button type="button" class="btn btn--ghost btn--sm" id="btnResumenFaltantesBack">← Regresar</button>
+                  <button type="button" class="btn btn--ghost btn--sm planillas-avisame-btn" id="btnResumenAvisame" hidden>
+                    Avísame
+                    <span class="planillas-avisame-btn__count" id="resumenAvisameCount" hidden></span>
+                  </button>
+                </div>
+                <h3 class="resumen-faltantes__title">Planillas: quiénes sí y quiénes no</h3>
+                <p class="resumen-faltantes__hint" id="resumenFaltantesHint">Comparativa por supervisor según filtros de arriba.</p>
+                <div class="resumen-faltantes__kpis" id="resumenFaltantesKpis"></div>
+                <div class="resumen-faltantes__tabs" role="tablist">
+                  <button type="button" class="resumen-faltantes__tab is-active" data-faltantes-tab="todos">Todos</button>
+                  <button type="button" class="resumen-faltantes__tab" data-faltantes-tab="falta-manana">Falta mañana</button>
+                  <button type="button" class="resumen-faltantes__tab" data-faltantes-tab="falta-tarde">Falta tarde</button>
+                  <button type="button" class="resumen-faltantes__tab" data-faltantes-tab="cerraron">Cerraron</button>
+                </div>
+                <div class="resumen-faltantes__list-wrap">
+                  <table class="resumen-faltantes__table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Supervisor</th>
+                        <th>Total</th>
+                        <th>Cerraron</th>
+                        <th>Solo mañana</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="resumenFaltantesBody"></tbody>
+                  </table>
+                  <p class="resumen-faltantes__empty" id="resumenFaltantesEmpty" hidden>Sin datos en este filtro.</p>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
     </div>
@@ -1750,7 +1685,7 @@
     <div class="modal" id="modalPaseDetail" hidden>
       <div class="modal__backdrop" data-close-modal="pase"></div>
       <div class="modal__dialog modal__dialog--pase" role="dialog" aria-modal="true" aria-labelledby="paseDetailTitle">
-        <button type="button" class="modal__close" id="btnClosePaseDetail" aria-label="Cerrar">·</button>
+        <button type="button" class="modal__close" id="btnClosePaseDetail" aria-label="Cerrar">×</button>
         <p class="pases-header__eyebrow">Detalle del pase</p>
         <h2 class="modal__title" id="paseDetailTitle">Pase</h2>
         <dl class="pase-detail" id="paseDetailBody"></dl>
@@ -1760,7 +1695,7 @@
     <div class="modal" id="modalTarjetaDetail" hidden>
       <div class="modal__backdrop" data-close-modal="tarjeta"></div>
       <div class="modal__dialog modal__dialog--tarjeta" role="dialog" aria-modal="true" aria-labelledby="tarjetaDetailTitle">
-        <button type="button" class="modal__close" id="btnCloseTarjetaDetail" aria-label="Cerrar">·</button>
+        <button type="button" class="modal__close" id="btnCloseTarjetaDetail" aria-label="Cerrar">×</button>
 
         <header class="tarjeta-sheet__head">
           <div class="tarjeta-sheet__head-copy">
@@ -1794,14 +1729,14 @@
           <div class="tj-resumen__grid">
             <section class="tj-resumen__card tj-resumen__card--wide">
               <h3 class="tj-resumen__card-title">Top guías con más jarras</h3>
-              <p class="tj-resumen__card-hint">Qu· guía concentra más carga (jarras) en el rango actual</p>
+              <p class="tj-resumen__card-hint">Qué guía concentra más carga (jarras) en el rango actual</p>
               <div class="tj-resumen__chart-wrap">
                 <canvas id="chartTarjetasGuias"></canvas>
               </div>
             </section>
             <section class="tj-resumen__card">
               <h3 class="tj-resumen__card-title">Jarras por módulo</h3>
-              <p class="tj-resumen__card-hint">D·nde se concentra la producción</p>
+              <p class="tj-resumen__card-hint">Dónde se concentra la producción</p>
               <div class="tj-resumen__chart-wrap">
                 <canvas id="chartTarjetasModulo"></canvas>
               </div>
@@ -1825,41 +1760,10 @@
       </div>
     </div>
 
-    <div class="modal" id="modalTareoActFilter" hidden>
-      <div class="modal__backdrop" data-close-modal="tareo-act"></div>
-      <div class="modal__dialog modal__dialog--rt-filter" role="dialog" aria-modal="true" aria-labelledby="tareoActFilterTitle">
-        <button type="button" class="modal__close" id="btnCloseTareoActFilter" aria-label="Cerrar">·</button>
-        <p class="rt-filter-modal__eyebrow">Filtro · Tareo</p>
-        <h2 class="modal__title" id="tareoActFilterTitle">Actividades</h2>
-        <p class="rt-filter-modal__hint" id="tareoActFilterHint">
-          Por defecto: cosecha. En LICAPA validan 06:45·12:00 / 13:00·17:21; en LICAPA II/III siguen 06:30·12:00 / 13:00·17:06.
-        </p>
-
-        <div class="rt-filter-modal__toolbar">
-          <input type="search" id="tareoActFilterSearch" class="rt-filter-modal__search" placeholder="Buscar actividad·" autocomplete="off" />
-          <div class="rt-filter-modal__bulk">
-            <button type="button" class="rt-filter-modal__link" id="btnTareoActDefault">Predeterminadas</button>
-            <button type="button" class="rt-filter-modal__link" id="btnTareoActAll">Todas</button>
-            <button type="button" class="rt-filter-modal__link" id="btnTareoActNone">Ninguna</button>
-          </div>
-        </div>
-
-        <div class="rt-filter-modal__list" id="tareoActFilterList" role="listbox" aria-multiselectable="true"></div>
-
-        <div class="rt-filter-modal__footer">
-          <span class="rt-filter-modal__count" id="tareoActFilterCount">0 seleccionadas</span>
-          <div class="rt-filter-modal__actions">
-            <button type="button" class="btn btn--ghost" id="btnTareoActCancel" data-close-modal="tareo-act">Cancelar</button>
-            <button type="button" class="btn btn--primary" id="btnTareoActApply">Aplicar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div class="modal" id="modalRtFilter" hidden>
       <div class="modal__backdrop" data-close-modal="rt-filter"></div>
       <div class="modal__dialog modal__dialog--rt-filter" role="dialog" aria-modal="true" aria-labelledby="rtFilterTitle">
-        <button type="button" class="modal__close" id="btnCloseRtFilter" aria-label="Cerrar">·</button>
+        <button type="button" class="modal__close" id="btnCloseRtFilter" aria-label="Cerrar">×</button>
         <p class="rt-filter-modal__eyebrow" id="rtFilterEyebrow">Filtro</p>
         <h2 class="modal__title" id="rtFilterTitle">Seleccionar</h2>
         <p class="rt-filter-modal__hint" id="rtFilterHint">Marca una o varias opciones.</p>
@@ -1887,13 +1791,13 @@
     <div class="modal" id="modalProdGrupo" hidden>
       <div class="modal__backdrop" data-close-modal="prod-grupo"></div>
       <div class="modal__dialog modal__dialog--rt-filter" role="dialog" aria-modal="true" aria-labelledby="prodGrupoTitle">
-        <button type="button" class="modal__close" id="btnCloseProdGrupo" aria-label="Cerrar">·</button>
+        <button type="button" class="modal__close" id="btnCloseProdGrupo" aria-label="Cerrar">×</button>
         <p class="rt-filter-modal__eyebrow">Filtro</p>
         <h2 class="modal__title" id="prodGrupoTitle">Grupo</h2>
-        <p class="rt-filter-modal__hint">Marca uno o varios grupos (columna F). Vac·o = todos.</p>
+        <p class="rt-filter-modal__hint">Marca uno o varios grupos (columna F). Vacío = todos.</p>
 
         <div class="rt-filter-modal__toolbar">
-          <input type="search" id="prodGrupoSearch" class="rt-filter-modal__search" placeholder="Buscar grupo·" autocomplete="off" />
+          <input type="search" id="prodGrupoSearch" class="rt-filter-modal__search" placeholder="Buscar grupo…" autocomplete="off" />
           <div class="rt-filter-modal__bulk">
             <button type="button" class="rt-filter-modal__link" id="btnProdGrupoAll">Todos</button>
             <button type="button" class="rt-filter-modal__link" id="btnProdGrupoNone">Ninguno</button>
@@ -1920,7 +1824,7 @@
             <div>
               <p class="tj-resumen__eyebrow">QBerries · Producción</p>
               <h2 class="tj-resumen__title" id="prodResumenTitle">Resumen jarras</h2>
-              <p class="tj-resumen__sub" id="prodResumenSub">Mejores y peores seg·n el filtro actual</p>
+              <p class="tj-resumen__sub" id="prodResumenSub">Mejores y peores según el filtro actual</p>
             </div>
             <button type="button" class="btn btn--ghost" id="btnCloseProdResumen">Cerrar</button>
           </header>
@@ -1944,7 +1848,7 @@
             </section>
             <section class="tj-resumen__card tj-resumen__card--wide">
               <h3 class="tj-resumen__card-title">Diferencia de jarras por grupo</h3>
-              <p class="tj-resumen__card-hint" id="prodResumenDiffHint">Actual - fecha anterior (mismo Excel)</p>
+              <p class="tj-resumen__card-hint" id="prodResumenDiffHint">Actual − fecha anterior (mismo Excel)</p>
               <div class="prod-resumen-compare" role="group" aria-label="Comparar fechas">
                 <label class="field">
                   <span>Fecha actual</span>
@@ -1969,14 +1873,14 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
-    <script type="module" src="js/shell.js?v=20260908prod1"></script>
-    <script type="module" src="js/validacion-app.js?v=20260908data1"></script>
-    <script type="module" src="js/pases-app.js?v=20260908prod1"></script>
-    <script type="module" src="js/tarjetas-app.js?v=20260908prod1"></script>
-    <script type="module" src="js/reporte-trabajadores-app.js?v=20260908prod1"></script>
-    <script type="module" src="js/produccion-app.js?v=20260908prod1"></script>
-    <script type="module" src="js/jarras-app.js?v=20260908prod1"></script>
-    <script src="js/unificacion-jarras-app.js?v=20260908prod1"></script>
-    <script src="js/inicio-app.js?v=20260908prod1"></script>
+    <script type="module" src="js/shell.js?v=20260824i"></script>
+    <script type="module" src="js/validacion-app.js?v=20260902e"></script>
+    <script type="module" src="js/pases-app.js?v=20260812a"></script>
+    <script type="module" src="js/tarjetas-app.js?v=20260812a"></script>
+    <script type="module" src="js/reporte-trabajadores-app.js?v=20260812a"></script>
+    <script type="module" src="js/produccion-app.js?v=20260821h"></script>
+    <script type="module" src="js/jarras-app.js?v=20260831q"></script>
+    <script src="js/unificacion-jarras-app.js?v=20260831q"></script>
+    <script src="js/inicio-app.js?v=20260819c"></script>
   </body>
 </html>

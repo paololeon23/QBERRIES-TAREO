@@ -1,6 +1,21 @@
 /** Tabla: una fila por persona/día con Suma de Horas Pago + reloj turnos. */
 
-import { matchExactHourStep, classifyDayHours, HOURS_LABEL, HOUR_BASE } from "./excel-parser.js?v=20260824a";
+import {
+  matchExactHourStep,
+  classifyDayHours,
+  HOURS_LABEL,
+  HOUR_BASE,
+  isNombreTrabajadorVacio
+} from "./excel-parser.js";
+import {
+  ACTIVIDADES_HORARIO_NUEVO,
+  isActividadHorarioNuevo,
+  matchActividadHorarioNuevoLabel,
+  normActividadHorario,
+  actividadHorarioKey
+} from "./horarios-cosecha.js";
+
+const ACT_SIN_ACTIVIDAD = "(Sin actividad)";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -25,6 +40,144 @@ function fillSelect(select, values, blankLabel) {
     .map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`)
     .join("")}`;
   if (values.includes(current)) select.value = current;
+}
+
+/** Estado del multi-select de actividades (tareo). */
+const actividadFilterState = {
+  available: [],
+  selected: [],
+  initialized: false
+};
+
+function uniqueActividades(rows) {
+  const set = new Set();
+  let hasBlank = false;
+  (rows || []).forEach((r) => {
+    const a = String(r.actividad || "").trim();
+    if (!a) hasBlank = true;
+    else set.add(a);
+  });
+  const list = [...set].sort((a, b) => a.localeCompare(b, "es"));
+  if (hasBlank) list.push(ACT_SIN_ACTIVIDAD);
+  return list;
+}
+
+/** Une actividades del Excel + las 9 predeterminadas (etiqueta canónica si no hay match). */
+function buildActividadOptions(excelActs) {
+  const byNorm = new Map();
+  excelActs.forEach((a) => {
+    const n = normActividadHorario(a);
+    if (n && !byNorm.has(n)) byNorm.set(n, a);
+  });
+
+  const options = [];
+  const seen = new Set();
+
+  ACTIVIDADES_HORARIO_NUEVO.forEach((label) => {
+    const match =
+      excelActs.find((a) => matchActividadHorarioNuevoLabel(a) === label) ||
+      excelActs.find((a) => isActividadHorarioNuevo(a) && normActividadHorario(a).includes(normActividadHorario(label))) ||
+      null;
+    const value = match || label;
+    const key = normActividadHorario(value);
+    if (seen.has(key)) return;
+    seen.add(key);
+    options.push(value);
+  });
+
+  excelActs.forEach((a) => {
+    const key = normActividadHorario(a);
+    if (seen.has(key)) return;
+    seen.add(key);
+    options.push(a);
+  });
+
+  return options;
+}
+
+/** Predeterminadas: las del set nuevo presentes en options + “(Sin actividad)” si hay. */
+export function defaultSelectedActividades(available) {
+  const list = available || [];
+  const picked = [];
+  ACTIVIDADES_HORARIO_NUEVO.forEach((label) => {
+    const found =
+      list.find((a) => matchActividadHorarioNuevoLabel(a) === label) ||
+      list.find((a) => actividadHorarioKey(a) === actividadHorarioKey(label));
+    if (found && !picked.includes(found)) picked.push(found);
+  });
+  if (list.includes(ACT_SIN_ACTIVIDAD) && !picked.includes(ACT_SIN_ACTIVIDAD)) {
+    picked.push(ACT_SIN_ACTIVIDAD);
+  }
+  return picked;
+}
+
+export function getActividadFilterState() {
+  return {
+    available: [...actividadFilterState.available],
+    selected: [...actividadFilterState.selected]
+  };
+}
+
+export function setSelectedActividades(selected) {
+  const avail = new Set(actividadFilterState.available.map((a) => actividadHorarioKey(a)));
+  actividadFilterState.selected = (selected || []).filter((a) =>
+    a === ACT_SIN_ACTIVIDAD
+      ? actividadFilterState.available.includes(ACT_SIN_ACTIVIDAD)
+      : avail.has(actividadHorarioKey(a))
+  );
+  syncActividadFilterButton();
+}
+
+export function resetActividadFilterState() {
+  actividadFilterState.available = [];
+  actividadFilterState.selected = [];
+  actividadFilterState.initialized = false;
+  syncActividadFilterButton();
+}
+
+export function resetActividadFilterToDefaults() {
+  actividadFilterState.selected = defaultSelectedActividades(actividadFilterState.available);
+  syncActividadFilterButton();
+}
+
+export function syncActividadFilterButton() {
+  const btn = document.getElementById("btnFltActividad");
+  const text = document.getElementById("btnFltActividadText");
+  if (!btn || !text) return;
+  const n = actividadFilterState.selected.length;
+  const total = actividadFilterState.available.length;
+  btn.classList.toggle("has-value", n > 0);
+  if (!n) {
+    text.textContent = btn.dataset.placeholder || "Actividad…";
+  } else if (n === total && total > 0) {
+    text.textContent = `Todas (${n})`;
+  } else if (n <= 2) {
+    text.textContent = actividadFilterState.selected.join(", ");
+  } else {
+    text.textContent = `${n} actividades`;
+  }
+}
+
+export function initActividadFilterFromRows(rows, { forceDefaults = true } = {}) {
+  const excelActs = uniqueActividades(rows);
+  actividadFilterState.available = buildActividadOptions(excelActs);
+  if (forceDefaults || !actividadFilterState.initialized) {
+    actividadFilterState.selected = defaultSelectedActividades(actividadFilterState.available);
+    actividadFilterState.initialized = true;
+  } else {
+    /* Conservar selección válida; completar defaults si quedó vacío */
+    const availNorm = new Set(actividadFilterState.available.map((a) => actividadHorarioKey(a)));
+    actividadFilterState.selected = actividadFilterState.selected.filter(
+      (a) =>
+        a === ACT_SIN_ACTIVIDAD
+          ? actividadFilterState.available.includes(ACT_SIN_ACTIVIDAD)
+          : availNorm.has(actividadHorarioKey(a))
+    );
+    if (!actividadFilterState.selected.length) {
+      actividadFilterState.selected = defaultSelectedActividades(actividadFilterState.available);
+    }
+  }
+  syncActividadFilterButton();
 }
 
 function tipAttr(text) {
@@ -123,6 +276,11 @@ export function collapseToDayRows(rows) {
     if (row.dayFlags?.ceco === "rojo") {
       agg.dayFlags = { ...(agg.dayFlags || {}), ceco: "rojo" };
       if (row.tipCeco) agg.tipCeco = row.tipCeco;
+    }
+    if (row.dayFlags?.actividad === "rojo") {
+      agg.dayFlags = { ...(agg.dayFlags || {}), actividad: "rojo" };
+      if (row.tipActividad) agg.tipActividad = row.tipActividad;
+      if (row.actividad) agg.actividad = row.actividad;
     }
     if (row.dayFlags?.documento === "rojo" || row.documentoVacio) {
       agg.dayFlags = { ...(agg.dayFlags || {}), documento: "rojo" };
@@ -285,22 +443,15 @@ export function populateFilters(state, options = {}) {
   fillSelect(
     document.getElementById("fltSupervisor"),
     [...new Set(rows.map((r) => r.supervisor).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
-    "Todos"
+    "Supervisor"
   );
   fillSelect(
     document.getElementById("fltFundo"),
     [...new Set(rows.map((r) => r.fundo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
-    "Todos"
+    "Fundo"
   );
-  fillSelect(
-    document.getElementById("fltFecha"),
-    [...new Set(rows.map((r) => r.fecha).filter(Boolean))].sort((a, b) => {
-      const pa = a.split("/").reverse().join("");
-      const pb = b.split("/").reverse().join("");
-      return pa.localeCompare(pb);
-    }),
-    "Todas"
-  );
+
+  initActividadFilterFromRows(allRows, { forceDefaults: !actividadFilterState.initialized });
 
   const estado = document.getElementById("fltEstado");
   if (estado && errorOnly) {
@@ -319,7 +470,7 @@ export function populateFilters(state, options = {}) {
     const prev = estado.value;
     estado.disabled = false;
     estado.innerHTML = `
-      <option value="">Todos</option>
+      <option value="">Estado horas</option>
       <option value="ok">OK = 9.6 / 11.6</option>
       <option value="posible-salida">Posible pase &lt; 9.6</option>
       <option value="aviso">Advertencia ≤ 12</option>
@@ -334,9 +485,10 @@ export function readFilters() {
   return {
     supervisor: document.getElementById("fltSupervisor")?.value || "",
     fundo: document.getElementById("fltFundo")?.value || "",
-    fecha: document.getElementById("fltFecha")?.value || "",
+    fecha: "",
     macro: "",
     actividad: "",
+    actividades: [...actividadFilterState.selected],
     dia: "",
     estado: document.getElementById("fltEstado")?.value || "",
     tipo: document.getElementById("fltTipoLote")?.value || "",
@@ -395,7 +547,7 @@ export function expandDuplicateRows(rows) {
 }
 
 export function clearAllFilterControls() {
-  ["fltSupervisor", "fltFundo", "fltFecha", "fltTipoLote"].forEach((id) => {
+  ["fltSupervisor", "fltFundo", "fltTipoLote"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -403,14 +555,38 @@ export function clearAllFilterControls() {
   if (estado && !estado.disabled) estado.value = "";
   const search = document.getElementById("fltSearch");
   if (search) search.value = "";
+  resetActividadFilterToDefaults();
 }
 
 export function filterRows(rows, filters) {
+  const hasActFilter = Array.isArray(filters.actividades);
+  const actSelected = hasActFilter
+    ? filters.actividades.map((a) => String(a || "").trim()).filter(Boolean)
+    : null;
+  const actSet = actSelected
+    ? new Set(
+        actSelected.map((a) =>
+          a === ACT_SIN_ACTIVIDAD ? ACT_SIN_ACTIVIDAD : actividadHorarioKey(a)
+        )
+      )
+    : null;
+  const allowBlank = Boolean(actSet?.has(ACT_SIN_ACTIVIDAD));
+
   return rows.filter((row) => {
     if (filters.supervisor && row.supervisor !== filters.supervisor) return false;
     if (filters.fundo && row.fundo !== filters.fundo) return false;
-    if (filters.fecha && row.fecha !== filters.fecha) return false;
     if (filters.macro && row.macroPartida !== filters.macro) return false;
+    if (actSet) {
+      if (!actSet.size) return false;
+      const raw = String(row.actividad || "").trim();
+      if (!raw) {
+        if (!allowBlank) return false;
+      } else {
+        const act = actividadHorarioKey(raw);
+        if (!act || !actSet.has(act)) return false;
+      }
+    }
+    if (filters.actividad && String(row.actividad || "").trim() !== filters.actividad) return false;
     if (filters.estado && row.status !== filters.estado) return false;
     if (filters.soloDuplicados && !(row.flags || []).includes("duplicado")) return false;
     if (filters.tipo) {
@@ -632,14 +808,23 @@ export function renderTable(state, filteredRows, options = {}) {
       );
       const trabEmpty =
         hasDocumento &&
-        (!String(row.trabajador || "").trim() || row.dayFlags?.trabajador === "rojo");
+        (isNombreTrabajadorVacio(row.trabajador) || row.dayFlags?.trabajador === "rojo");
       const tipTrabajador =
         row.tipTrabajador ||
         (trabEmpty
-          ? "Error: hay Código/Documento pero Trabajador está vacío. Completa el nombre del trabajador."
+          ? `Error: DNI/Código ${row.documento || row.codigoTrabajador || ""} sin nombre. Completa la columna Trabajador.`
           : "");
       const trabClass = trabEmpty ? "is-cell-danger has-tip has-tip--cell" : "";
-      const trabText = trabEmpty ? "(vacío)" : escapeHtml(row.trabajador);
+      const trabText = trabEmpty ? "(sin nombre)" : escapeHtml(row.trabajador);
+
+      const actInvalid = row.dayFlags?.actividad === "rojo" || (row.flags || []).includes("actividad-invalida");
+      const tipActividad =
+        row.tipActividad ||
+        (actInvalid
+          ? "Error: actividad no permitida en COSTO DE COSECHA (solo las 9 autorizadas)."
+          : "");
+      const actClass = actInvalid ? "is-cell-danger has-tip has-tip--cell" : "";
+      const actText = escapeHtml(row.actividad || "") || (actInvalid ? "(vacía)" : "");
 
       const sumaClass = `cell-suma${cellClass ? ` ${cellClass} has-tip has-tip--cell` : ""}`;
 
@@ -650,7 +835,7 @@ export function renderTable(state, filteredRows, options = {}) {
           <td>${escapeHtml(row.supervisor)}</td>
           <td>${escapeHtml(row.fundo)}</td>
           <td>${escapeHtml(row.macroPartida)}</td>
-          <td>${escapeHtml(row.actividad || "")}</td>
+          <td class="${actClass}"${actInvalid ? tipAttr(tipActividad) : ""}>${actText}</td>
           <td class="${cecoClass}"${cecoEmpty ? tipAttr(tipCeco) : ""}>${cecoText}</td>
           <td class="cell-fecha">${escapeHtml(row.fecha || "")}</td>
           ${stackTimesHtml(row.horasInicioDetalle, row.dayFlags?.horaInicio, row.tipHoraInicio)}

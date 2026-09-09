@@ -103,14 +103,16 @@ function resolveApiBases() {
   }
   const bases = [];
   try {
-    const host = window.location.hostname || "";
-    // Si estamos en el mismo sitio del proxy → same-origin (más rápido, HTTPS)
-    if (host === "pasessalida-qberries.netlify.app") {
-      bases.push("/api/permisos");
+    const host = String(window.location.hostname || "");
+    // En Netlify (este sitio u otro) usar proxy same-origin si existe
+    if (/\.netlify\.app$/i.test(host) || host === "localhost" || host === "127.0.0.1") {
+      // localhost: solo si el proxy local está activo (scripts/permisos-local-proxy);
+      // si falla, el caller cae al remoto oficial.
+      if (/\.netlify\.app$/i.test(host)) bases.push("/api/permisos");
     }
   } catch (_) {}
   bases.push(PERMISOS_API_BASE);
-  return bases;
+  return [...new Set(bases)];
 }
 
 async function fetchOnce(url) {

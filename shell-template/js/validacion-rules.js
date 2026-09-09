@@ -1,13 +1,13 @@
 /** Motor de reglas: valida suma del día (turnos) solo en COSTO DE COSECHA. */
 
-import { HOUR_BASE, HOURS_LABEL, classifyDayHours } from "./excel-parser.js?v=20260821e";
-import { countSupervisoresCosto } from "./validacion-kpi.js?v=20260901c";
-import { getHorariosCosecha } from "./horarios-cosecha.js?v=20260902a";
+import { HOUR_BASE, HOURS_LABEL, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js";
+import { countSupervisoresCosto } from "./validacion-kpi.js";
+import { getHorariosCosecha, isActividadHorarioNuevo } from "./horarios-cosecha.js";
 
 /**
- * Horarios COSTO DE COSECHA (por fundo — ver horarios-cosecha.js):
- * - LICAPA: 06:45→12:00, tarde 13:00→17:21, directo 06:45→16:21
- * - LICAPA II / III: 06:30→12:00, tarde 13:00→17:06, directo 06:30→16:06
+ * Horarios COSTO DE COSECHA (por actividad — ver horarios-cosecha.js):
+ * - Actividades cosecha (preseleccionadas): 06:45→12:00 / 13:00→17:21
+ * - Otras: 06:30→12:00 / 13:00→17:06
  */
 const REST_GAP_MIN = 60;
 
@@ -97,6 +97,7 @@ export function validateDataset(parsed) {
     cecoVacio: [],
     documentoVacio: [],
     trabajadorVacio: [],
+    actividadNoPermitida: [],
     supervisorAlerts: []
   };
 
@@ -260,7 +261,7 @@ export function validateDataset(parsed) {
     const second = uniqueStarts[1];
     const cutCount = uniqueStarts.length;
     const sample = first || ordered[0];
-    const hz = getHorariosCosecha(sample?.fundo);
+    const hz = getHorariosCosecha(sample?.fundo, sample?.actividad);
     const hardProblems = [];
     const softProblems = [];
 
@@ -442,12 +443,35 @@ export function validateDataset(parsed) {
       row.tipCeco = "";
     }
 
+    // COSTO DE COSECHA: actividad debe ser una de las 9 permitidas
+    if (row.esCostoCosecha && !isActividadHorarioNuevo(row.actividad)) {
+      const actTxt = String(row.actividad || "").trim() || "(vacía)";
+      row.dayFlags.actividad = "rojo";
+      row.tipActividad =
+        `Error: actividad “${actTxt}” no permitida en COSTO DE COSECHA. ` +
+        "Solo: CALIDAD, COSECHA, ESTIBA KIA, EVALUADOR DE PESOS Y CALIBRES, LAVADO DE JARRAS, PROYECCIÓN, SCANER, SUPERVISOR DE ACOPIO, SUPERVISOR DE COSECHA.";
+      if (!row.flags.includes("rojo")) row.flags.push("rojo");
+      if (!row.flags.includes("actividad-invalida")) row.flags.push("actividad-invalida");
+      findings.actividadNoPermitida.push({
+        documento: row.documento,
+        trabajador: row.trabajador,
+        supervisor: row.supervisor,
+        fundo: row.fundo || "",
+        macroPartida: row.macroPartida,
+        actividad: row.actividad || "",
+        rowIndex: row.rowIndex
+      });
+    } else {
+      row.dayFlags.actividad = row.dayFlags.actividad || "ok";
+      if (!row.tipActividad) row.tipActividad = "";
+    }
+
     // Documento vacío con Código Trabajador (= Documento) → error
-    // Trabajador vacío con identidad (Documento o Código) → error
+    // DNI/Código con nombre vacío o "NO VERIFICADO" → error
     const codigoOk = String(row.codigoTrabajador || "").trim();
     const docCellOk = String(row.documentoCell || "").trim();
     const docOk = String(row.documento || "").trim(); // ya con fallback al código
-    const trabOk = String(row.trabajador || "").trim();
+    const trabOk = !isNombreTrabajadorVacio(row.trabajador);
     const docVacio = Boolean(row.documentoVacio) || (Boolean(codigoOk || docOk) && !docCellOk);
 
     if (row.esCostoCosecha && docVacio && (codigoOk || docOk)) {
@@ -474,15 +498,16 @@ export function validateDataset(parsed) {
 
     if (row.esCostoCosecha && docOk && !trabOk) {
       row.dayFlags.trabajador = "rojo";
-      row.tipTrabajador = codigoOk
-        ? `Error: hay Código/Documento (${docOk}) pero Trabajador está vacío.`
-        : "Error: hay Documento pero Trabajador está vacío. Completa el nombre del trabajador.";
+      const nombreRaw = String(row.trabajador || "").trim();
+      row.tipTrabajador = nombreRaw
+        ? `Error: DNI/Código ${docOk} sin nombre válido (“${nombreRaw}”). Debe figurar el nombre del trabajador.`
+        : `Error: DNI/Código ${docOk} sin nombre. Completa la columna Trabajador.`;
       if (!row.flags.includes("rojo")) row.flags.push("rojo");
       if (!row.flags.includes("sin-trabajador")) row.flags.push("sin-trabajador");
       findings.trabajadorVacio.push({
         documento: row.documento,
         codigoTrabajador: codigoOk,
-        trabajador: "",
+        trabajador: nombreRaw || "(vacío)",
         supervisor: row.supervisor,
         macroPartida: row.macroPartida,
         actividad: row.actividad || "",

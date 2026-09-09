@@ -328,8 +328,22 @@ function ensureProduccionNav() {
   tickClock();
   window.setInterval(tickClock, 1000);
 
+  function syncOnlineUi() {
+    if (!liveBtn) return;
+    const online = typeof navigator !== "undefined" ? navigator.onLine !== false : true;
+    liveBtn.classList.toggle("is-live", online);
+    liveBtn.classList.toggle("is-offline", !online);
+    liveBtn.title = online
+      ? "Conexión en línea"
+      : "Sin conexión — Pases/Tarjetas usarán caché local si existe";
+    const txt = document.getElementById("txtLiveStatus");
+    if (txt) txt.textContent = online ? "En vivo" : "Sin red";
+  }
+  syncOnlineUi();
+  window.addEventListener("online", syncOnlineUi);
+  window.addEventListener("offline", syncOnlineUi);
+
   liveBtn?.addEventListener("click", () => {
-    liveBtn.classList.toggle("is-live");
-    liveBtn.title = liveBtn.classList.contains("is-live") ? "Estado en vivo" : "Pausado";
+    syncOnlineUi();
   });
 })();

@@ -212,6 +212,17 @@
   animation: live-pulse 1.6s ease infinite;
 }
 
+.btn-live.is-offline {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.btn-live.is-offline .btn-live__dot {
+  background: #ef4444;
+  animation: none;
+}
+
 @keyframes live-pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.45);

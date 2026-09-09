@@ -12,7 +12,7 @@ import {
   findLoteMeta,
   loteDisplay,
   loteSearchBlob
-} from "./jarras-parser.js?v=20260812e";
+} from "./jarras-parser.js";
 
 const STORE_KEY = "qb-trabajadores-jarras-v2";
 
