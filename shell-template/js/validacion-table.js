@@ -6,14 +6,14 @@ import {
   HOURS_LABEL,
   HOUR_BASE,
   isNombreTrabajadorVacio
-} from "./excel-parser.js";
+} from "./excel-parser.js?v=20260909b1";
 import {
   ACTIVIDADES_HORARIO_NUEVO,
   isActividadHorarioNuevo,
   matchActividadHorarioNuevoLabel,
   normActividadHorario,
   actividadHorarioKey
-} from "./horarios-cosecha.js";
+} from "./horarios-cosecha.js?v=20260909b1";
 
 const ACT_SIN_ACTIVIDAD = "(Sin actividad)";
 

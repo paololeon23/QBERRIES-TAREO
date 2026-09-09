@@ -1,7 +1,7 @@
 /** Orquestación: upload, modal, reportes, historial. */
 
-import { parseExcelBuffer, matchExactHourStep, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js";
-import { validateDataset } from "./validacion-rules.js";
+import { parseExcelBuffer, matchExactHourStep, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js?v=20260909b1";
+import { validateDataset } from "./validacion-rules.js?v=20260909b1";
 import {
   populateFilters,
   readFilters,
@@ -21,7 +21,7 @@ import {
   resetActividadFilterState,
   defaultSelectedActividades,
   syncActividadFilterButton
-} from "./validacion-table.js";
+} from "./validacion-table.js?v=20260909b1";
 import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js";
 import {
   openResumenModal,
@@ -33,8 +33,8 @@ import {
   getResumenTableRowsForExport,
   resetPlanillasFaltantesState,
   isAdminCosechaSupervisor
-} from "./validacion-resumen.js";
-import { isActividadHorarioNuevo } from "./horarios-cosecha.js";
+} from "./validacion-resumen.js?v=20260909b1";
+import { isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260909b1";
 import { getCurrentRoute } from "./shell.js";
 
 const HISTORY_KEY = "qb-validacion-history";
@@ -929,7 +929,9 @@ function workerUniqueKey(row) {
 
 /**
  * COSECHA (exacta) + Fundo del filtro (exacto) o todos.
- * Agrupa por módulo (col O) y cuenta trabajadores únicos.
+ * Cada persona cuenta en UN solo módulo: donde pisó primero
+ * (primera hora de inicio; empate → primera fila Excel).
+ * Así: suma de módulos = total de personas únicas.
  */
 function buildModulosCosechaReport() {
   const rows = state.validated?.rows || [];
@@ -942,22 +944,38 @@ function buildModulosCosechaReport() {
     return true;
   });
 
-  const byKey = new Map();
-  const globalWorkers = new Set();
+  /** worker → primer piso (módulo) */
+  const firstStep = new Map();
 
   scoped.forEach((row) => {
     const wKey = workerUniqueKey(row);
     if (!wKey) return;
-    globalWorkers.add(wKey);
 
     const modulo = String(row.modulo || "").trim() || "(sin módulo)";
     const fundo = String(row.fundo || "").trim() || "(sin fundo)";
     const groupKey = fundoFiltro ? modulo : `${fundo}||${modulo}`;
+    const startMin =
+      row.horaInicioMin != null && Number.isFinite(row.horaInicioMin)
+        ? row.horaInicioMin
+        : Number.POSITIVE_INFINITY;
+    const excelRow = Number(row.excelRow ?? row.rowIndex ?? 0) || 0;
 
-    if (!byKey.has(groupKey)) {
-      byKey.set(groupKey, { fundo, modulo, workers: new Set() });
+    const prev = firstStep.get(wKey);
+    if (
+      !prev ||
+      startMin < prev.startMin ||
+      (startMin === prev.startMin && excelRow > 0 && (prev.excelRow === 0 || excelRow < prev.excelRow))
+    ) {
+      firstStep.set(wKey, { fundo, modulo, groupKey, startMin, excelRow });
     }
-    byKey.get(groupKey).workers.add(wKey);
+  });
+
+  const byKey = new Map();
+  firstStep.forEach((slot, wKey) => {
+    if (!byKey.has(slot.groupKey)) {
+      byKey.set(slot.groupKey, { fundo: slot.fundo, modulo: slot.modulo, workers: new Set() });
+    }
+    byKey.get(slot.groupKey).workers.add(wKey);
   });
 
   const items = [...byKey.values()]
@@ -974,13 +992,14 @@ function buildModulosCosechaReport() {
       return a.modulo.localeCompare(b.modulo, "es", { numeric: true });
     });
 
+  const totalUnicos = firstStep.size;
   const sumaModulos = items.reduce((s, it) => s + it.cantidad, 0);
 
   return {
     fundoFiltro: fundoFiltro || "",
     showFundo: !fundoFiltro,
     items,
-    totalUnicos: globalWorkers.size,
+    totalUnicos,
     sumaModulos,
     filasFuente: scoped.length
   };
@@ -996,8 +1015,8 @@ function renderModulosCosechaTable() {
 
   if (hint) {
     hint.innerHTML = report.fundoFiltro
-      ? `Actividad exacta <b>COSECHA</b> · Fundo exacto <b>${escapeHtml(report.fundoFiltro)}</b> · trabajadores únicos por módulo.`
-      : `Actividad exacta <b>COSECHA</b> · <b>Todos</b> los fundos · trabajadores únicos por fundo/módulo.`;
+      ? `Actividad exacta <b>COSECHA</b> · Fundo exacto <b>${escapeHtml(report.fundoFiltro)}</b> · 1 persona = 1 módulo (donde pisó primero).`
+      : `Actividad exacta <b>COSECHA</b> · <b>Todos</b> los fundos · 1 persona = 1 módulo (donde pisó primero).`;
   }
 
   if (meta) {

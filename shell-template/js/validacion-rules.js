@@ -1,8 +1,8 @@
 /** Motor de reglas: valida suma del día (turnos) solo en COSTO DE COSECHA. */
 
-import { HOUR_BASE, HOURS_LABEL, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js";
+import { HOUR_BASE, HOURS_LABEL, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js?v=20260909b1";
 import { countSupervisoresCosto } from "./validacion-kpi.js";
-import { getHorariosCosecha, isActividadHorarioNuevo } from "./horarios-cosecha.js";
+import { getHorariosCosecha, isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260909b1";
 
 /**
  * Horarios COSTO DE COSECHA (por actividad — ver horarios-cosecha.js):

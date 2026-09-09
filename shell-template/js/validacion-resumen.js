@@ -1,11 +1,11 @@
 /** Vista Resumen: tabla por supervisor/fundo + gráfico + errores. */
 
-import { collapseToDayRows } from "./validacion-table.js";
+import { collapseToDayRows } from "./validacion-table.js?v=20260909b1";
 import {
   getHorariosCosecha,
   horarioMananaLabel,
   horarioTardeLabel
-} from "./horarios-cosecha.js";
+} from "./horarios-cosecha.js?v=20260909b1";
 import {
   countScanerCosto,
   countCosechaCosto,
