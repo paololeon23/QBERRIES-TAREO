@@ -1,7 +1,7 @@
 {
   "fundo": "LICAPA",
-  "updated": "2026-09-08",
-  "nota": "Lista oficial Supervisor General LICAPA. Quien aparezca en tareo LICAPA y no esté aquí = Nuevo (sin lista). LICAPA II/III no pertenecen a estos grupos.",
+  "updated": "2026-09-14",
+  "nota": "Lista oficial Supervisor General LICAPA (23 supervisores que tarean). Quien aparezca en tareo LICAPA y no esté aquí = Nuevo (sin lista) en rojo. Admins de cosecha NO van en esta lista. LICAPA II/III no pertenecen a estos grupos.",
   "grupos": [
     {
       "general": {
@@ -9,21 +9,24 @@
         "nombre": "PONCE RUIZ ISIDRO"
       },
       "miembros": [
-        { "dni": "77534125", "nombre": "HERRERA ALBERCA PAMELA" },
         {
-          "dni": "70559269",
-          "nombre": "LLAQUE ARGOMEDO GENESIS GUILIANA KEIKO",
-          "alias": ["LLAQUE ARGOMEDO GENESIS", "LLAQUE ARGOMEDO GÉNESIS"]
+          "dni": "43583858",
+          "nombre": "PLASENCIA CORREA NADIA YVONNE",
+          "alias": ["CORREA PLASENCIA NADIA YVONNE", "PLASENCIA CORREA NADIA IVONNE"]
         },
         {
-          "dni": "63249902",
-          "nombre": "GUARNIZ MARREROS NELIXA VIVIANA",
-          "alias": ["HUARNIZ MARREROS NELIXZA", "MARREROS GUARNIZ NELIXA VIVIANA", "GUARNIZ MARREROS NELIXZA"]
+          "dni": "76774075",
+          "nombre": "NAVEZ CARBAJAL YOVER OSWALDO",
+          "alias": ["YOVER NAVEZ CARBAJAL", "NAVEZ CARBAJAL YOVER"]
         },
         {
-          "dni": "43558894",
-          "nombre": "DIAZ VARAS FANNY DEL MILAGRO",
-          "alias": ["DIAZ VARAS FANNY"]
+          "dni": "76986313",
+          "nombre": "VILCA BRICEÑO ALEXANDRA MARIA LAURA",
+          "alias": [
+            "BRICEÑO DE LEONARDO VILCA ALEXANDRA MARIA LAURA",
+            "VILCA BRICEÑO ALEXANDRA",
+            "VILCA BRICEÑO ALEXANDRA MARIA LAURA"
+          ]
         },
         {
           "dni": "47117035",
@@ -31,65 +34,25 @@
           "alias": ["DAVILA VERGARA KELINDA ELIZABETH", "VERGARA DAVILA KELINDA"]
         },
         {
-          "dni": "43583858",
-          "nombre": "PLASENCIA CORREA NADIA YVONNE",
-          "alias": ["CORREA PLASENCIA NADIA YVONNE", "PLASENCIA CORREA NADIA IVONNE"]
-        },
-        {
           "dni": "74942842",
           "nombre": "FUENTES VALIENTE DEIMAR ULISES",
-          "alias": ["VALIENTE FUENTES DEIMAR ULISES", "FUENTES VALIENTE DEYMAR ULICES", "VALIENTE FUENTES DEYMAR ULICES"]
-        }
-      ]
-    },
-    {
-      "general": {
-        "dni": "19085520",
-        "nombre": "RODRIGUEZ GUTIERREZ SANTOS RUBEN"
-      },
-      "miembros": [
-        {
-          "dni": "71405307",
-          "nombre": "ANTICONA SOTO CRISTHIAN ALEXANDER",
-          "alias": ["ANTICONA SOTO CRISTIAM ALEXANDER"]
+          "alias": [
+            "VALIENTE FUENTES DEIMAR ULISES",
+            "FUENTES VALIENTE DEYMAR ULICES",
+            "VALIENTE FUENTES DEYMAR ULICES"
+          ]
         },
-        {
-          "dni": "60467254",
-          "nombre": "RIOS MEDINA DAHIRA MICAELA",
-          "alias": ["MEDINA RIOS DAHIRA MICAELA"]
-        },
-        { "dni": "71880419", "nombre": "CUEVA GUILLERMO KENNET ANDERSON" },
         {
           "dni": "48268173",
           "nombre": "NORIEGA PONTE MICELY",
           "alias": ["PONTE NORIEGA MICELY"]
         },
+        { "dni": "77534125", "nombre": "HERRERA ALBERCA PAMELA" },
         {
-          "dni": "73634792",
-          "nombre": "TRONCOSO SANCHEZ HENRY BRAULIO",
-          "alias": ["SANCHEZ TRONCOSO JENRY BRAULIO", "TRONCOSO SANCHEZ HENRY BRAULIO", "SANCHEZ TRONCOSO HENRY BRAULIO"]
-        },
-        {
-          "dni": "68836174",
-          "nombre": "REBAZA SALINAS ALEXANDER YONATHAN",
-          "alias": ["REBASA SALINAS ALEXANDER JONATAN", "REBAZA SALINAS ALEXANDER JONATAN"]
-        },
-        {
-          "dni": "75141739",
-          "nombre": "ROJAS AREDO YERSI YEN",
-          "alias": ["AREDO ROJAS YERSI YEN", "ROJAS AREDO YERSI YAM"]
-        },
-        {
-          "dni": "70135405",
-          "nombre": "CASIANO CABRERA JAYNI PAMELA",
-          "alias": ["CABRERA CASIANO JAYNI PAMELA", "CASIANO CABRERA PAMELA"]
-        },
-        {
-          "dni": "70757242",
-          "nombre": "UCEDA ARIAS JOEL ALEXANDER",
-          "alias": ["ARIAS UCEDA JOEL ALEXANDER", "UCEDA AREAS JOEL", "UCEDA ARIAS JOEL"]
-        },
-        { "dni": "71806261", "nombre": "LEON TRIGOSO JHONY ANDRONICO" }
+          "dni": "70559269",
+          "nombre": "LLAQUE ARGOMEDO GENESIS GUILIANA KEIKO",
+          "alias": ["LLAQUE ARGOMEDO GENESIS", "LLAQUE ARGOMEDO GÉNESIS"]
+        }
       ]
     },
     {
@@ -99,9 +62,19 @@
       },
       "miembros": [
         {
+          "dni": "48533707",
+          "nombre": "JULCA GAMBOA DILMER ELICER",
+          "alias": ["GAMBOA JULCA DILMER ELICER", "DILMER JULCA GAMBOA"]
+        },
+        {
           "dni": "77146080",
           "nombre": "CHACON BERMUDEZ NADIA SARAHI",
           "alias": ["CHACÓN BERMUDEZ NADIA", "CHACON BERMUDEZ NADIA"]
+        },
+        {
+          "dni": "76261283",
+          "nombre": "LUCANO MALCA MOISES",
+          "alias": ["MALCA LUCANO MOISES", "MOISÉS LUCANO MALCA", "MOISES LUCANO MALCA"]
         },
         {
           "dni": "45372928",
@@ -114,29 +87,23 @@
           "alias": ["CABRERA RODRIGUEZ KENYI JENNY", "RODRIGUEZ CABRERA KENYI"]
         },
         {
-          "dni": "74291763",
-          "nombre": "HUARIPATA RAMIREZ PATRICK ALEJANDRO",
-          "alias": ["RAMIREZ HUARIPATA PATRICK ALEJANDRO", "HUARIPATA RAMÍREZ PATRICK"]
-        },
-        {
           "dni": "48446147",
           "nombre": "HILARIO AVALOS EVELYN",
           "alias": ["AVALOS HILARIO EVELYN"]
         },
         {
-          "dni": "48533707",
-          "nombre": "JULCA GAMBOA DILMER ELICER",
-          "alias": ["GAMBOA JULCA DILMER ELICER", "DILMER JULCA GAMBOA"]
+          "dni": "73634792",
+          "nombre": "TRONCOSO SANCHEZ HENRY BRAULIO",
+          "alias": [
+            "SANCHEZ TRONCOSO JENRY BRAULIO",
+            "TRONCOSO SANCHEZ HENRY BRAULIO",
+            "SANCHEZ TRONCOSO HENRY BRAULIO"
+          ]
         },
         {
-          "dni": "76261283",
-          "nombre": "LUCANO MALCA MOISES",
-          "alias": ["MALCA LUCANO MOISES", "MOISÉS LUCANO MALCA", "MOISES LUCANO MALCA"]
-        },
-        {
-          "dni": "77160560",
-          "nombre": "HUAMAN ESPARZA EDELMIRA",
-          "alias": ["ESPARZA HUAMAN EDELMIRA"]
+          "dni": "45206311",
+          "nombre": "CHAVEZ ALVA CARLOS ENRIQUE",
+          "alias": ["ALVA CHAVEZ CARLOS ENRIQUE"]
         }
       ]
     },
@@ -147,36 +114,48 @@
       },
       "miembros": [
         {
-          "dni": "76774075",
-          "nombre": "NAVEZ CARBAJAL YOVER OSWALDO",
-          "alias": ["YOVER NAVEZ CARBAJAL"]
+          "dni": "70135405",
+          "nombre": "CASIANO CABRERA JAYNI PAMELA",
+          "alias": ["CABRERA CASIANO JAYNI PAMELA", "CASIANO CABRERA PAMELA"]
         },
+        {
+          "dni": "70192702",
+          "nombre": "PURIZAGA SAAVEDRA PIERRE OSNAR",
+          "alias": [
+            "SAAVEDRA PURIZAGA PIERRE OSNAR",
+            "PURIZAGA SAAVEDRA PIERRE",
+            "SAAVEDRA PURIZAGA PIERRE"
+          ]
+        },
+        {
+          "dni": "63249902",
+          "nombre": "GUARNIZ MARREROS NELIXA VIVIANA",
+          "alias": [
+            "HUARNIZ MARREROS NELIXZA",
+            "MARREROS GUARNIZ NELIXA VIVIANA",
+            "GUARNIZ MARREROS NELIXZA",
+            "GUARNIZ MARREROS NELIXA"
+          ]
+        },
+        {
+          "dni": "75141739",
+          "nombre": "ROJAS AREDO YERSI YEN",
+          "alias": ["AREDO ROJAS YERSI YEN", "ROJAS AREDO YERSI YAM"]
+        },
+        { "dni": "71806261", "nombre": "LEON TRIGOSO JHONY ANDRONICO" },
         {
           "dni": "60741145",
           "nombre": "PAREDES GALARRETA CRISTHIAN JEANPIER",
-          "alias": ["CRISTIAN PAREDES GALARRETA"]
+          "alias": [
+            "PAREDES GALARRETA CRISTIAN",
+            "CRISTIAN PAREDES GALARRETA",
+            "PAREDES GALARRETA CRISTHIAN"
+          ]
         },
         {
-          "dni": "76986313",
-          "nombre": "VILCA BRICEÑO ALEXANDRA MARIA LAURA",
-          "alias": ["BRICEÑO DE LEONARDO VILCA ALEXANDRA MARIA LAURA", "VILCA BRICEÑO ALEXANDRA"]
-        },
-        { "dni": "61512235", "nombre": "HERRERA ALBERCA MARIELA" },
-        { "dni": "70875214", "nombre": "VEGA BENITES WILMER CHANEL" },
-        {
-          "dni": "79192702",
-          "nombre": "PURIZAGA SAAVEDRA PIERRE OSNAR",
-          "alias": ["SAAVEDRA PURIZAGA PIERRE OSNAR", "PURIZAGA SAAVEDRA PIERRE", "SAAVEDRA PURIZAGA PIERRE"]
-        },
-        {
-          "dni": "45206311",
-          "nombre": "CHAVEZ ALVA CARLOS ENRIQUE",
-          "alias": ["ALVA CHAVEZ CARLOS ENRIQUE"]
-        },
-        {
-          "dni": "74959924",
-          "nombre": "ARMAS DIAZ CRISTIAN DANIEL",
-          "alias": ["CRISTIAN DANIEL ARMAS DIAZ"]
+          "dni": "43558894",
+          "nombre": "DIAZ VARAS FANNY DEL MILAGRO",
+          "alias": ["DIAZ VARAS FANNY"]
         }
       ]
     }

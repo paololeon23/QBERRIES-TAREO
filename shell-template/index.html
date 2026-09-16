@@ -8,9 +8,9 @@
     <meta http-equiv="Expires" content="0" />
     <title>QBerries</title>
     <script>
-      /* QBerries no debe quedar atrapado por el Service Worker de AGV-MI (caché vieja sin Producción). */
+      /* Quita Service Workers / cachés de otras apps (AGV, etc.) que rompen esta pantalla. */
       (function () {
-        var KEY = "qb-shell-cleared-sw-20260812";
+        var KEY = "qb-shell-cleared-sw-20260912";
         try {
           if (sessionStorage.getItem(KEY)) return;
           sessionStorage.setItem(KEY, "1");
@@ -26,15 +26,9 @@
             );
           }),
           caches.keys().then(function (keys) {
-            return Promise.all(
-              keys
-                .filter(function (k) {
-                  return String(k).indexOf("agv-mi-") === 0;
-                })
-                .map(function (k) {
-                  return caches.delete(k);
-                })
-            );
+            return Promise.all(keys.map(function (k) {
+              return caches.delete(k);
+            }));
           })
         ])
           .then(function () {
@@ -55,7 +49,7 @@
     <link rel="stylesheet" href="css/sidebar.css?v=20260908prod1" />
     <link rel="stylesheet" href="css/topbar.css?v=20260908prod1" />
     <link rel="stylesheet" href="css/shell-brand.css?v=20260908prod1" />
-    <link rel="stylesheet" href="css/validacion.css?v=20260908lotes2" />
+    <link rel="stylesheet" href="css/validacion.css?v=20260915vis542" />
     <link rel="stylesheet" href="css/pases.css?v=20260908prod1" />
     <link rel="stylesheet" href="css/tarjetas.css?v=20260908prod1" />
     <link rel="stylesheet" href="css/reporte-trabajadores.css?v=20260908prod1" />
@@ -1472,10 +1466,10 @@
       <div class="modal__backdrop" data-close-modal="modulos-cosecha"></div>
       <div class="modal__dialog modal__dialog--errores modal__dialog--modulos" role="dialog" aria-modal="true" aria-labelledby="modulosCosechaTitle">
         <button type="button" class="modal__close" id="btnCloseModulosCosecha" aria-label="Cerrar">·</button>
-        <p class="errores-modal__eyebrow">QBerries · COSECHA por módulo</p>
-        <h2 class="modal__title" id="modulosCosechaTitle">Trabajadores por módulo</h2>
+        <p class="errores-modal__eyebrow">QBerries · Módulos</p>
+        <h2 class="modal__title" id="modulosCosechaTitle">Por módulo</h2>
         <p class="errores-modal__hint" id="modulosCosechaHint">
-          Actividad exacta <b>COSECHA</b> · 1 persona = módulo donde pisó primero · respeta el filtro Fundo.
+          Actividad <b>COSECHA</b> · únicos · sin duplicados · rojo = neto tras salida
         </p>
         <p class="modulos-meta" id="modulosCosechaMeta"></p>
 
@@ -1486,11 +1480,14 @@
           </table>
         </div>
 
+        <div class="modulos-aviso" id="modulosCosechaAvisos" hidden></div>
+
         <div class="errores-modal__footer">
           <span class="errores-modal__count" id="modulosCosechaCount">0 módulos</span>
           <div class="errores-modal__footer-actions">
             <button type="button" class="btn btn--ghost" id="btnCloseModulosCosecha2">Cerrar</button>
-            <button type="button" class="btn btn--primary" id="btnExportModulosCosecha">Exportar Excel</button>
+            <button type="button" class="btn btn--ghost" id="btnToggleModulosDetalle">Detalle</button>
+            <button type="button" class="btn btn--primary" id="btnExportModulosCosecha">Excel</button>
           </div>
         </div>
       </div>
@@ -1702,7 +1699,7 @@
               <button type="button" class="resumen-status-tab is-active" data-resumen-tab="todos">Todos <span data-resumen-count="todos">0</span></button>
               <button type="button" class="resumen-status-tab" data-resumen-tab="falta-tarde">Falta tarde <span data-resumen-count="falta-tarde">0</span></button>
               <button type="button" class="resumen-status-tab" data-resumen-tab="falta-manana">Falta mañana <span data-resumen-count="falta-manana">0</span></button>
-              <button type="button" class="resumen-status-tab" data-resumen-tab="no-asistio">No asisti· <span data-resumen-count="no-asistio">0</span></button>
+              <button type="button" class="resumen-status-tab" data-resumen-tab="no-asistio">No tareó <span data-resumen-count="no-asistio">0</span></button>
               <button type="button" class="resumen-status-tab" data-resumen-tab="apoyo">Est· de apoyo <span data-resumen-count="apoyo">0</span></button>
               <button type="button" class="resumen-status-tab" data-resumen-tab="nuevo">Nuevos LICAPA <span data-resumen-count="nuevo">0</span></button>
               <button type="button" class="resumen-status-tab" data-resumen-tab="otro-fundo">LICAPA II/III <span data-resumen-count="otro-fundo">0</span></button>
@@ -1727,7 +1724,7 @@
                       <th>Supervisor</th>
                       <th>Sup. General</th>
                       <th>Planillas</th>
-                      <th>Trabajadores</th>
+                      <th>Cosechadores</th>
                       <th>Errores</th>
                       <th>Extras</th>
                       <th>Mañana</th>
@@ -1970,7 +1967,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
     <script type="module" src="js/shell.js?v=20260908prod1"></script>
-    <script type="module" src="js/validacion-app.js?v=20260909mod2"></script>
+    <script type="module" src="js/validacion-app.js?v=20260916c804b"></script>
     <script type="module" src="js/pases-app.js?v=20260908prod1"></script>
     <script type="module" src="js/tarjetas-app.js?v=20260908prod1"></script>
     <script type="module" src="js/reporte-trabajadores-app.js?v=20260908prod1"></script>

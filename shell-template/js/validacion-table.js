@@ -203,12 +203,27 @@ function stackTimesHtml(times, flag, tip) {
 
 /** Clave de día: nunca mezclar dos fechas distintas. */
 function dayViewKey(row) {
-  if (row.fecha) return `${row.documento}|${row.fecha}|${row.macroPartida || ""}`;
+  const doc = String(row.documento || "").trim();
+  const id =
+    doc ||
+    (String(row.codigoTrabajador || "").replace(/\D/g, "")
+      ? `c:${String(row.codigoTrabajador || "").replace(/\D/g, "")}`
+      : "") ||
+    (String(row.trabajador || "").trim()
+      ? `n:${String(row.trabajador || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toUpperCase()
+          .replace(/\s+/g, " ")
+          .trim()}`
+      : "") ||
+    `row-${row.excelRow || row.rowIndex || "?"}`;
+  if (row.fecha) return `${id}|${row.fecha}|${row.macroPartida || ""}`;
   if (row.fechaSerial != null) {
-    return `${row.documento}|serial-${row.fechaSerial}|${row.macroPartida || ""}`;
+    return `${id}|serial-${row.fechaSerial}|${row.macroPartida || ""}`;
   }
   const clock = row.horaInicioTexto || row.horaInicioKey || `row-${row.excelRow || row.rowIndex}`;
-  return `${row.documento}|sin-fecha|${clock}|${row.macroPartida || ""}`;
+  return `${id}|sin-fecha|${clock}|${row.macroPartida || ""}`;
 }
 
 /** Agrupa turnos del mismo DNI + fecha + macro en una sola fila de vista. */

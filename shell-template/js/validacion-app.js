@@ -21,7 +21,7 @@ import {
   resetActividadFilterState,
   defaultSelectedActividades,
   syncActividadFilterButton
-} from "./validacion-table.js?v=20260909b1";
+} from "./validacion-table.js?v=20260916p1";
 import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js";
 import {
   openResumenModal,
@@ -32,8 +32,12 @@ import {
   getFilteredResumenData,
   getResumenTableRowsForExport,
   resetPlanillasFaltantesState,
-  isAdminCosechaSupervisor
-} from "./validacion-resumen.js?v=20260909b1";
+  isAdminCosechaSupervisor,
+  personaUnicaKey,
+  keysConSupervisorCosecha,
+  esExcluidoDeCosechadores,
+  collectCosechadoresUnicosKeys
+} from "./validacion-resumen.js?v=20260916c804b";
 import { isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260909b1";
 import { getCurrentRoute } from "./shell.js";
 
@@ -921,69 +925,365 @@ function isActividadCosechaExact(actividad) {
 }
 
 function workerUniqueKey(row) {
-  const doc = String(row.documento || "").trim();
-  if (doc) return `d:${doc}`;
-  const name = normExactToken(row.trabajador);
-  return name ? `n:${name}` : "";
+  // Misma clave que Resumen (DNI → código → nombre)
+  return personaUnicaKey(row);
+}
+
+/** Filas del alcance fundo (todas las actividades) para alinear con KPI Resumen. */
+function rowsAlcanceFundo(fundoFiltro = "") {
+  const fundoNorm = normExactToken(fundoFiltro);
+  return (state.validated?.rows || []).filter((row) => {
+    if (fundoNorm && normExactToken(row.fundo) !== fundoNorm) return false;
+    return true;
+  });
+}
+
+/** Personas únicas cosecha al estilo Resumen (misma regla: sin supervisor dual). */
+function collectResumenCosechaKeys(fundoFiltro = "") {
+  return collectCosechadoresUnicosKeys(rowsAlcanceFundo(fundoFiltro));
+}
+
+/** Solo módulos reales (MODULO 1, 2, 5…). No QBERRIES 01 ni otros textos. */
+function isModuloCosechaValido(modulo) {
+  const raw = String(modulo || "").trim();
+  if (!raw) return false;
+  const key = normExactToken(raw);
+  if (!key || key.includes("QBERRIES")) return false;
+  if (key === "(SIN MODULO)" || key === "SIN MODULO") return false;
+  return /MODULO\s*\d+/.test(key) || /^M\s*\d+$/.test(key);
+}
+
+function moduloCosechaLabel(row) {
+  const modulo = String(row?.modulo || "").trim();
+  return isModuloCosechaValido(modulo) ? modulo : "";
+}
+
+/** Vista del modal módulos: resumen (COSECHA) | detalle (actividades). */
+const modulosUiState = { view: "resumen" };
+
+/** Actividades permitidas en vista detalle (pivote). */
+const ACTIVIDADES_DETALLE_MODULO = new Set([
+  "COSECHA",
+  "ESTIBA KIA",
+  "SCANER",
+  "SUPERVISOR DE COSECHA",
+  "CALIDAD"
+]);
+
+/** Etiqueta canónica de actividad (evita SCANER/SCANNER duplicados). */
+function actividadDetalleLabel(actividad) {
+  const a = normExactToken(actividad);
+  if (!a) return "";
+  if (a === "SCANNER" || a === "ESCANER" || a === "ESCANEAR") return "SCANER";
+  if (a.includes("SUPERVISOR") && a.includes("COSECHA")) return "SUPERVISOR DE COSECHA";
+  if (a.includes("CALIDAD")) return "CALIDAD";
+  if (a.includes("ESTIBA") && a.includes("KIA")) return "ESTIBA KIA";
+  if (a === "COSECHA") return "COSECHA";
+  return a;
+}
+
+/**
+ * Tabla detallada tipo pivote:
+ * Módulo × Fundo × Actividad → personas únicas.
+ * Si se movió, cuenta en destino. En origen COSECHA (solo si hubo salida):
+ * "inicio → neto (quedaron después HH:MM)" con horas/cantidades del Excel del día.
+ */
+function buildModulosDetalleReport() {
+  const rows = state.validated?.rows || [];
+  const fundoFiltro = String(readFilters().fundo || "").trim();
+  const fundoNorm = normExactToken(fundoFiltro);
+  const excluirCosecha = keysConSupervisorCosecha(rowsAlcanceFundo(fundoFiltro));
+
+  /** wKey → { mods, actsByMod } */
+  const byWorker = new Map();
+  let filasFuente = 0;
+
+  rows.forEach((row) => {
+    if (fundoNorm && normExactToken(row.fundo) !== fundoNorm) return;
+    const actividad = actividadDetalleLabel(row.actividad);
+    if (!actividad || !ACTIVIDADES_DETALLE_MODULO.has(actividad)) return;
+    const wKey = workerUniqueKey(row);
+    if (!wKey) return;
+    const modulo = moduloCosechaLabel(row);
+    if (!modulo) return;
+
+    filasFuente += 1;
+    const fundo = String(row.fundo || "").trim() || "(sin fundo)";
+    const groupKey = `${normExactToken(fundo)}||${normExactToken(modulo)}`;
+    const supervisor = String(row.supervisor || "").trim() || "(sin supervisor)";
+    const startMin =
+      row.horaInicioMin != null && Number.isFinite(row.horaInicioMin)
+        ? row.horaInicioMin
+        : Number.POSITIVE_INFINITY;
+
+    if (!byWorker.has(wKey)) {
+      byWorker.set(wKey, { mods: new Map(), actsByMod: new Map() });
+    }
+    const w = byWorker.get(wKey);
+    const prev = w.mods.get(groupKey);
+    if (!prev || startMin < prev.startMin) {
+      w.mods.set(groupKey, { fundo, modulo, startMin, supervisor });
+    }
+    if (!w.actsByMod.has(groupKey)) w.actsByMod.set(groupKey, new Set());
+    // Supervisor con fila COSECHA extra: no inflar conteo de cosechadores
+    if (actividad === "COSECHA" && esExcluidoDeCosechadores(row, excluirCosecha)) return;
+    w.actsByMod.get(groupKey).add(actividad);
+  });
+
+  const buckets = new Map();
+  const visitMap = new Map(); // bKey → Set(wKey) actividad en ese módulo (inicio)
+  const leaveHoraByMod = new Map(); // groupKey → min hora destino (salieron)
+  const moveMap = new Map();
+
+  byWorker.forEach((w, wKey) => {
+    const modList = [...w.mods.entries()];
+    if (!modList.length) return;
+
+    let first = modList[0];
+    let last = modList[0];
+    modList.forEach((entry) => {
+      const t = entry[1].startMin;
+      if (t < first[1].startMin) first = entry;
+      if (t > last[1].startMin) last = entry;
+    });
+
+    const [firstKey, firstMeta] = first;
+    const [assignKey, assignMeta] = last;
+
+    // Visitas (inicio) por módulo + actividad
+    w.actsByMod.forEach((acts, gKey) => {
+      const meta = w.mods.get(gKey);
+      if (!meta) return;
+      acts.forEach((actividad) => {
+        const bKey = `${gKey}||${actividad}`;
+        if (!visitMap.has(bKey)) visitMap.set(bKey, new Set());
+        visitMap.get(bKey).add(wKey);
+      });
+    });
+
+    if (firstKey !== assignKey) {
+      const supervisor = firstMeta.supervisor || assignMeta.supervisor || "(sin supervisor)";
+      if (!isAdminCosechaSupervisor(supervisor)) {
+        const moveKey = [
+          normExactToken(supervisor),
+          firstKey,
+          assignKey
+        ].join("||");
+        if (!moveMap.has(moveKey)) {
+          moveMap.set(moveKey, {
+            supervisor,
+            moduloDesde: firstMeta.modulo,
+            moduloHacia: assignMeta.modulo,
+            horaHaciaMin: assignMeta.startMin,
+            cosechadores: 0
+          });
+        }
+        moveMap.get(moveKey).cosechadores += 1;
+      }
+
+      const prevH = leaveHoraByMod.get(firstKey);
+      if (
+        prevH == null ||
+        (Number.isFinite(assignMeta.startMin) && assignMeta.startMin < prevH)
+      ) {
+        leaveHoraByMod.set(firstKey, assignMeta.startMin);
+      }
+    }
+
+    const acts = w.actsByMod.get(assignKey) || new Set();
+    acts.forEach((actividad) => {
+      const bKey = `${assignKey}||${actividad}`;
+      if (!buckets.has(bKey)) {
+        buckets.set(bKey, {
+          fundo: assignMeta.fundo,
+          modulo: assignMeta.modulo,
+          groupKey: assignKey,
+          actividad,
+          workers: new Set()
+        });
+      }
+      buckets.get(bKey).workers.add(wKey);
+    });
+  });
+
+  // Asegurar filas de origen COSECHA aunque neto < inicio
+  visitMap.forEach((workers, bKey) => {
+    if (buckets.has(bKey)) return;
+    const parts = bKey.split("||");
+    const actividad = parts[parts.length - 1];
+    if (actividad !== "COSECHA") return;
+    const groupKey = parts.slice(0, -1).join("||");
+    // buscar meta de algún worker
+    let meta = null;
+    for (const wKey of workers) {
+      const w = byWorker.get(wKey);
+      meta = w?.mods?.get(groupKey);
+      if (meta) break;
+    }
+    if (!meta) return;
+    buckets.set(bKey, {
+      fundo: meta.fundo,
+      modulo: meta.modulo,
+      groupKey,
+      actividad,
+      workers: new Set() // neto 0 posible
+    });
+  });
+
+  const items = [...buckets.entries()]
+    .map(([bKey, g]) => {
+      const inicio = visitMap.get(bKey)?.size || g.workers.size;
+      const cantidad = g.workers.size;
+      const horaMin = leaveHoraByMod.get(g.groupKey);
+      const salieron = inicio > cantidad;
+      return {
+        fundo: g.fundo,
+        modulo: g.modulo,
+        actividad: g.actividad,
+        cantidad,
+        inicio,
+        salieron,
+        horaDespues: salieron ? minutesToClock(horaMin) : ""
+      };
+    })
+    .filter((it) => it.cantidad > 0 || (it.actividad === "COSECHA" && it.inicio > 0))
+    .sort((a, b) => {
+      const mm = a.modulo.localeCompare(b.modulo, "es", { numeric: true });
+      if (mm) return mm;
+      const ff = a.fundo.localeCompare(b.fundo, "es");
+      if (ff) return ff;
+      const order = [
+        "CALIDAD",
+        "COSECHA",
+        "ESTIBA KIA",
+        "SCANER",
+        "SUPERVISOR DE COSECHA"
+      ];
+      const ia = order.indexOf(a.actividad);
+      const ib = order.indexOf(b.actividad);
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      return a.actividad.localeCompare(b.actividad, "es");
+    });
+
+  const movers = [...moveMap.values()]
+    .sort((a, b) => {
+      const ss = a.supervisor.localeCompare(b.supervisor, "es");
+      if (ss) return ss;
+      return a.moduloDesde.localeCompare(b.moduloDesde, "es", { numeric: true });
+    });
+
+  const sumaCuentas = items.reduce((s, it) => s + it.cantidad, 0);
+  const sumaCosecha = items
+    .filter((it) => it.actividad === "COSECHA")
+    .reduce((s, it) => s + it.cantidad, 0);
+  const modulos = new Set(items.map((it) => `${normExactToken(it.fundo)}||${normExactToken(it.modulo)}`));
+
+  return {
+    fundoFiltro: fundoFiltro || "",
+    items,
+    movers,
+    totalUnicos: byWorker.size,
+    sumaCuentas,
+    sumaCosecha,
+    modulosCount: modulos.size,
+    filasFuente
+  };
 }
 
 /**
  * COSECHA (exacta) + Fundo del filtro (exacto) o todos.
- * Cada persona cuenta en UN solo módulo: donde pisó primero
- * (primera hora de inicio; empate → primera fila Excel).
- * Así: suma de módulos = total de personas únicas.
+ * Cada persona cuenta en UN solo módulo: el destino (última hora).
+ * Si empezó en M3 y luego M5 → cuenta en M5; M3 muestra el neto en rojo.
+ * Avisos: por supervisor (de → a, horas, N cosechadores).
  */
 function buildModulosCosechaReport() {
   const rows = state.validated?.rows || [];
   const fundoFiltro = String(readFilters().fundo || "").trim();
   const fundoNorm = normExactToken(fundoFiltro);
+  const alcance = rowsAlcanceFundo(fundoFiltro);
+  const excluir = keysConSupervisorCosecha(alcance);
 
   const scoped = rows.filter((row) => {
     if (!isActividadCosechaExact(row.actividad)) return false;
+    if (!moduloCosechaLabel(row)) return false;
     if (fundoNorm) return normExactToken(row.fundo) === fundoNorm;
     return true;
   });
 
-  /** worker → primer piso (módulo) */
+  /** worker → módulo destino (última hora de inicio entre módulos) */
+  const assigned = new Map();
+  /** worker → primer módulo (más temprano) — para avisos de movimiento */
   const firstStep = new Map();
+  /** groupKey → visitas */
+  const visits = new Map();
+  /** worker → Map(groupKey → { modulo, fundo, startMin, supervisor }) */
+  const workerMods = new Map();
 
   scoped.forEach((row) => {
     const wKey = workerUniqueKey(row);
-    if (!wKey) return;
+    if (!wKey || esExcluidoDeCosechadores(row, excluir)) return;
 
-    const modulo = String(row.modulo || "").trim() || "(sin módulo)";
+    const modulo = moduloCosechaLabel(row);
+    if (!modulo) return;
+    const documento = String(row.documento || "").trim();
+    const trabajador = String(row.trabajador || "").trim();
     const fundo = String(row.fundo || "").trim() || "(sin fundo)";
     const groupKey = fundoFiltro ? modulo : `${fundo}||${modulo}`;
+    const supervisor = String(row.supervisor || "").trim() || "(sin supervisor)";
     const startMin =
       row.horaInicioMin != null && Number.isFinite(row.horaInicioMin)
         ? row.horaInicioMin
         : Number.POSITIVE_INFINITY;
     const excelRow = Number(row.excelRow ?? row.rowIndex ?? 0) || 0;
 
-    const prev = firstStep.get(wKey);
-    if (
-      !prev ||
-      startMin < prev.startMin ||
-      (startMin === prev.startMin && excelRow > 0 && (prev.excelRow === 0 || excelRow < prev.excelRow))
-    ) {
-      firstStep.set(wKey, { fundo, modulo, groupKey, startMin, excelRow });
+    if (!visits.has(groupKey)) {
+      visits.set(groupKey, { fundo, modulo, workers: new Map() });
+    }
+    const visitBucket = visits.get(groupKey);
+    if (!visitBucket.workers.has(wKey)) {
+      visitBucket.workers.set(wKey, { documento, trabajador, supervisor });
+    }
+
+    if (!workerMods.has(wKey)) workerMods.set(wKey, new Map());
+    const wMods = workerMods.get(wKey);
+    const prevMod = wMods.get(groupKey);
+    if (!prevMod || startMin < prevMod.startMin) {
+      wMods.set(groupKey, { fundo, modulo, startMin, supervisor, excelRow, documento, trabajador });
     }
   });
 
-  const byKey = new Map();
-  firstStep.forEach((slot, wKey) => {
-    if (!byKey.has(slot.groupKey)) {
-      byKey.set(slot.groupKey, { fundo: slot.fundo, modulo: slot.modulo, workers: new Set() });
-    }
-    byKey.get(slot.groupKey).workers.add(wKey);
+  workerMods.forEach((mods, wKey) => {
+    let first = null;
+    let last = null;
+    mods.forEach((meta, groupKey) => {
+      const slot = { ...meta, groupKey };
+      if (!first || meta.startMin < first.startMin) first = slot;
+      if (!last || meta.startMin > last.startMin) last = slot;
+    });
+    if (first) firstStep.set(wKey, first);
+    if (last) assigned.set(wKey, last);
   });
 
-  const items = [...byKey.values()]
-    .map((g) => ({
-      fundo: g.fundo,
-      modulo: g.modulo,
-      cantidad: g.workers.size
-    }))
+  const items = [...visits.entries()]
+    .map(([groupKey, g]) => {
+      let asignados = 0;
+      let reubicadosCount = 0; // pisaron aquí pero cuentan en otro (salieron)
+      g.workers.forEach((_info, wKey) => {
+        const slot = assigned.get(wKey);
+        if (!slot) return;
+        if (slot.groupKey === groupKey) asignados += 1;
+        else reubicadosCount += 1;
+      });
+      return {
+        fundo: g.fundo,
+        modulo: g.modulo,
+        cantidad: asignados,
+        pisaronAqui: g.workers.size,
+        reubicadosCount,
+        /** Neto reducido porque gente salió a otro módulo */
+        salieron: reubicadosCount > 0
+      };
+    })
     .sort((a, b) => {
       if (!fundoFiltro) {
         const ff = a.fundo.localeCompare(b.fundo, "es");
@@ -992,87 +1292,333 @@ function buildModulosCosechaReport() {
       return a.modulo.localeCompare(b.modulo, "es", { numeric: true });
     });
 
-  const totalUnicos = firstStep.size;
+  /** supervisor + de (primero) → a (destino) */
+  const moveMap = new Map();
+  assigned.forEach((dest, wKey) => {
+    const origin = firstStep.get(wKey);
+    if (!origin || origin.groupKey === dest.groupKey) return;
+    const supervisor = dest.supervisor || origin.supervisor || "(sin supervisor)";
+    const moveKey = [
+      normExactToken(supervisor),
+      origin.groupKey,
+      dest.groupKey
+    ].join("||");
+    if (!moveMap.has(moveKey)) {
+      moveMap.set(moveKey, {
+        supervisor,
+        moduloDesde: origin.modulo,
+        fundoDesde: origin.fundo,
+        moduloHacia: dest.modulo,
+        fundoHacia: dest.fundo,
+        horaDesdeMin: origin.startMin,
+        horaHaciaMin: dest.startMin,
+        workers: new Set()
+      });
+    }
+    const m = moveMap.get(moveKey);
+    m.workers.add(wKey);
+    if (Number.isFinite(origin.startMin) && origin.startMin < m.horaDesdeMin) {
+      m.horaDesdeMin = origin.startMin;
+    }
+    if (Number.isFinite(dest.startMin) && dest.startMin < m.horaHaciaMin) {
+      m.horaHaciaMin = dest.startMin;
+    }
+  });
+
+  const movers = [...moveMap.values()]
+    .map((m) => ({
+      supervisor: m.supervisor,
+      moduloDesde: m.moduloDesde,
+      fundoDesde: m.fundoDesde,
+      moduloHacia: m.moduloHacia,
+      fundoHacia: m.fundoHacia,
+      horaDesde: minutesToClock(m.horaDesdeMin),
+      horaHacia: minutesToClock(m.horaHaciaMin),
+      cosechadores: m.workers.size
+    }))
+    .sort((a, b) => {
+      const ss = a.supervisor.localeCompare(b.supervisor, "es");
+      if (ss) return ss;
+      const md = a.moduloDesde.localeCompare(b.moduloDesde, "es", { numeric: true });
+      if (md) return md;
+      return a.moduloHacia.localeCompare(b.moduloHacia, "es", { numeric: true });
+    });
+
+  const totalUnicos = assigned.size;
   const sumaModulos = items.reduce((s, it) => s + it.cantidad, 0);
+  const totalReubicados = movers.reduce((s, m) => s + m.cosechadores, 0);
+
+  const sinDniMap = new Map();
+  assigned.forEach((slot, wKey) => {
+    if (wKey.startsWith("d:")) return;
+    const k = wKey;
+    if (sinDniMap.has(k)) return;
+    sinDniMap.set(k, {
+      trabajador: slot.trabajador || "(sin nombre)",
+      documento: "",
+      codigo: wKey.startsWith("c:") ? wKey.slice(2) : "",
+      modulo: slot.modulo || "",
+      fundo: slot.fundo || "",
+      supervisor: slot.supervisor || ""
+    });
+  });
+  // También filas COSECHA del alcance sin DNI (por si no entraron a assigned)
+  scoped.forEach((row) => {
+    const doc = String(row.documento || "").trim();
+    if (doc) return;
+    const wKey = workerUniqueKey(row);
+    if (!wKey || wKey.startsWith("d:") || sinDniMap.has(wKey)) return;
+    sinDniMap.set(wKey, {
+      trabajador: String(row.trabajador || "").trim() || "(sin nombre)",
+      documento: "",
+      codigo: String(row.codigoTrabajador || "").replace(/\D/g, ""),
+      modulo: moduloCosechaLabel(row) || "",
+      fundo: String(row.fundo || "").trim(),
+      supervisor: String(row.supervisor || "").trim() || "(sin supervisor)"
+    });
+  });
+  const sinDni = [...sinDniMap.values()].sort((a, b) =>
+    a.trabajador.localeCompare(b.trabajador, "es")
+  );
+
+  const resumenKeys = collectResumenCosechaKeys(fundoFiltro);
+  const modulosKeys = new Set(assigned.keys());
+  const extraVsResumen = [];
+  modulosKeys.forEach((k) => {
+    if (resumenKeys.has(k)) return;
+    let info = null;
+    assigned.forEach((slot, wKey) => {
+      if (wKey === k) info = slot;
+    });
+    extraVsResumen.push({
+      documento: info?.documento || "",
+      trabajador: info?.trabajador || k,
+      modulo: info?.modulo || "",
+      motivo: "En módulos, no en KPI Resumen"
+    });
+  });
+  const faltanEnModulos = [];
+  resumenKeys.forEach((k) => {
+    if (!modulosKeys.has(k)) {
+      faltanEnModulos.push({ documento: k, motivo: "En Resumen, sin módulo válido COSECHA" });
+    }
+  });
 
   return {
     fundoFiltro: fundoFiltro || "",
     showFundo: !fundoFiltro,
     items,
+    movers,
+    totalReubicados,
     totalUnicos,
     sumaModulos,
-    filasFuente: scoped.length
+    filasFuente: scoped.length,
+    resumenCosechadores: resumenKeys.size,
+    sinDni,
+    extraVsResumen,
+    faltanEnModulos
   };
 }
 
+function minutesToClock(min) {
+  if (min == null || !Number.isFinite(min) || min === Number.POSITIVE_INFINITY) return "—";
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 function renderModulosCosechaTable() {
-  const report = buildModulosCosechaReport();
+  const isDetalle = modulosUiState.view === "detalle";
   const head = $("tblModulosCosechaHead");
   const body = $("tblModulosCosechaBody");
   const meta = $("modulosCosechaMeta");
   const count = $("modulosCosechaCount");
   const hint = $("modulosCosechaHint");
+  const avisos = $("modulosCosechaAvisos");
+  const title = $("modulosCosechaTitle");
+  const btnToggle = $("btnToggleModulosDetalle");
 
-  if (hint) {
-    hint.innerHTML = report.fundoFiltro
-      ? `Actividad exacta <b>COSECHA</b> · Fundo exacto <b>${escapeHtml(report.fundoFiltro)}</b> · 1 persona = 1 módulo (donde pisó primero).`
-      : `Actividad exacta <b>COSECHA</b> · <b>Todos</b> los fundos · 1 persona = 1 módulo (donde pisó primero).`;
+  if (btnToggle) {
+    btnToggle.textContent = isDetalle ? "Resumen" : "Detalle";
+  }
+  if (title) {
+    title.textContent = isDetalle ? "Detalle por actividad" : "Por módulo";
   }
 
+  if (isDetalle) {
+    const report = buildModulosDetalleReport();
+
+    if (hint) hint.innerHTML = `5 actividades · sin duplicar · neto en destino`;
+    if (meta) {
+      meta.textContent = `${report.fundoFiltro || "todos"} · ${report.modulosCount} mód. · COSECHA ${report.sumaCosecha}`;
+    }
+
+    if (avisos) {
+      // Lista dinámica: solo aparece si hoy hay movimientos reales
+      if (!report.movers?.length) {
+        avisos.hidden = true;
+        avisos.innerHTML = "";
+      } else {
+        avisos.hidden = false;
+        avisos.innerHTML = `
+          <p class="modulos-aviso__title">Supervisores con cambio de módulo</p>
+          <ul class="modulos-aviso__list">${report.movers
+            .map(
+              (m) =>
+                `<li><strong>${escapeHtml(m.supervisor)}</strong>: ${escapeHtml(m.moduloDesde)} - ${escapeHtml(m.moduloHacia)}</li>`
+            )
+            .join("")}</ul>`;
+      }
+    }
+
+    if (head) {
+      head.innerHTML = `<tr><th>Módulo</th><th>Fundo</th><th>Actividad</th><th>Cant.</th></tr>`;
+    }
+
+    if (body) {
+      if (!report.items.length) {
+        body.innerHTML = `<tr><td colspan="4" class="errores-modal__empty">Sin datos.</td></tr>`;
+      } else {
+        let prevMod = null;
+        let prevFundo = null;
+        const rowsHtml = report.items
+          .map((it) => {
+            const showMod = it.modulo !== prevMod;
+            const showFundo = showMod || it.fundo !== prevFundo;
+            prevMod = it.modulo;
+            prevFundo = it.fundo;
+            const rowClass = showMod ? " class=\"modulos-detalle__group\"" : "";
+            let cantHtml = String(it.cantidad);
+            // Solo si hoy hubo salida real de este módulo (números/hora del Excel)
+            if (it.actividad === "COSECHA" && it.salieron && it.inicio > it.cantidad) {
+              const hora =
+                it.horaDespues && it.horaDespues !== "—" ? it.horaDespues : "";
+              const nota = hora
+                ? ` <small>(quedaron después ${escapeHtml(hora)})</small>`
+                : "";
+              cantHtml = `<span class="modulos-num--rojo">${it.inicio} → ${it.cantidad}${nota}</span>`;
+            }
+            return `<tr${rowClass}>
+              <td class="modulos-detalle__mod">${showMod ? escapeHtml(it.modulo) : ""}</td>
+              <td>${showFundo ? escapeHtml(it.fundo) : ""}</td>
+              <td>${escapeHtml(it.actividad)}</td>
+              <td>${cantHtml}</td>
+            </tr>`;
+          })
+          .join("");
+        body.innerHTML =
+          rowsHtml +
+          `<tr class="modulos-table__total"><td colspan="3">TOTAL COSECHA</td><td>${report.sumaCosecha}</td></tr>`;
+      }
+    }
+
+    if (count) count.textContent = `COSECHA ${report.sumaCosecha}`;
+    return report;
+  }
+
+  const report = buildModulosCosechaReport();
+
+  if (hint) {
+    hint.innerHTML = `COSECHA · únicos (DNI/nombre) · sin duplicados · <b style="color:#b91c1c">rojo</b> = neto tras salida`;
+  }
   if (meta) {
-    const scopeTxt = report.fundoFiltro ? `Fundo: ${report.fundoFiltro}` : "Fundo: todos";
-    meta.textContent = `${scopeTxt} · ${report.filasFuente} filas COSECHA · ${report.items.length} módulos`;
+    const f = report.fundoFiltro || "todos";
+    const r = report.resumenCosechadores;
+    meta.textContent =
+      r != null
+        ? `${f} · ${report.items.length} mód. · ${report.totalUnicos} únicos (Resumen ${r})`
+        : `${f} · ${report.items.length} mód. · ${report.totalUnicos} únicos`;
   }
 
   if (head) {
     head.innerHTML = report.showFundo
-      ? `<tr><th>Fundo</th><th>Módulo</th><th>Cantidad de trabajadores</th></tr>`
-      : `<tr><th>Módulo</th><th>Cantidad de trabajadores</th></tr>`;
+      ? `<tr><th>Fundo</th><th>Módulo</th><th>Neto</th><th>Inicio</th><th>Salieron</th></tr>`
+      : `<tr><th>Módulo</th><th>Neto</th><th>Inicio</th><th>Salieron</th></tr>`;
   }
 
   if (body) {
     if (!report.items.length) {
-      const cols = report.showFundo ? 3 : 2;
-      body.innerHTML = `<tr><td colspan="${cols}" class="errores-modal__empty">Sin trabajadores COSECHA para este alcance.</td></tr>`;
+      const cols = report.showFundo ? 5 : 4;
+      body.innerHTML = `<tr><td colspan="${cols}" class="errores-modal__empty">Sin datos.</td></tr>`;
     } else {
       const rowsHtml = report.items
-        .map((it) =>
-          report.showFundo
-            ? `<tr>
-                <td>${escapeHtml(it.fundo)}</td>
-                <td>${escapeHtml(it.modulo)}</td>
-                <td>${it.cantidad}</td>
-              </tr>`
-            : `<tr>
-                <td>${escapeHtml(it.modulo)}</td>
-                <td>${it.cantidad}</td>
-              </tr>`
-        )
+        .map((it) => {
+          const warnClass = it.salieron ? " class=\"modulos-table__warn\"" : "";
+          const cantHtml = it.salieron
+            ? `<span class="modulos-num--rojo" title="Inicio ${it.pisaronAqui}">${it.cantidad}</span>`
+            : String(it.cantidad);
+          const reuCell =
+            it.reubicadosCount > 0
+              ? `<span class="modulos-reu-badge">${it.reubicadosCount}</span>`
+              : "0";
+          return report.showFundo
+            ? `<tr${warnClass}><td>${escapeHtml(it.fundo)}</td><td>${escapeHtml(it.modulo)}</td><td>${cantHtml}</td><td>${it.pisaronAqui}</td><td>${reuCell}</td></tr>`
+            : `<tr${warnClass}><td>${escapeHtml(it.modulo)}</td><td>${cantHtml}</td><td>${it.pisaronAqui}</td><td>${reuCell}</td></tr>`;
+        })
         .join("");
 
       const totalRow = report.showFundo
-        ? `<tr class="modulos-table__total">
-            <td colspan="2">TOTAL DE TRABAJADORES ÚNICOS</td>
-            <td>${report.totalUnicos}</td>
-          </tr>`
-        : `<tr class="modulos-table__total">
-            <td>TOTAL DE TRABAJADORES ÚNICOS</td>
-            <td>${report.totalUnicos}</td>
-          </tr>`;
+        ? `<tr class="modulos-table__total"><td colspan="2">TOTAL</td><td>${report.totalUnicos}</td><td>—</td><td>${report.totalReubicados || 0}</td></tr>`
+        : `<tr class="modulos-table__total"><td>TOTAL</td><td>${report.totalUnicos}</td><td>—</td><td>${report.totalReubicados || 0}</td></tr>`;
 
       body.innerHTML = rowsHtml + totalRow;
     }
   }
 
-  if (count) {
-    const n = report.items.length;
-    count.textContent =
-      n === 1
-        ? `1 módulo · ${report.totalUnicos} únicos`
-        : `${n} módulos · ${report.totalUnicos} únicos`;
+  if (avisos) {
+    const blocks = [];
+    if (report.sinDni?.length) {
+      blocks.push(`
+        <p class="modulos-aviso__title">Sin DNI (${report.sinDni.length})</p>
+        <ul class="modulos-aviso__list">${report.sinDni
+          .map((p) => {
+            const extra = [
+              p.codigo ? `cód. ${p.codigo}` : "",
+              p.modulo || "",
+              p.supervisor || ""
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            return `<li><strong>${escapeHtml(p.trabajador)}</strong>${extra ? ` — ${escapeHtml(extra)}` : ""}</li>`;
+          })
+          .join("")}</ul>`);
+    }
+    if (report.extraVsResumen?.length) {
+      blocks.push(`
+        <p class="modulos-aviso__title">Solo en módulos (no en Resumen)</p>
+        <ul class="modulos-aviso__list">${report.extraVsResumen
+          .map(
+            (p) =>
+              `<li><strong>${escapeHtml(p.trabajador || p.documento)}</strong> (${escapeHtml(p.documento)})</li>`
+          )
+          .join("")}</ul>`);
+    }
+    if (report.movers?.length) {
+      blocks.push(`
+        <p class="modulos-aviso__title">Movimientos</p>
+        <ul class="modulos-aviso__list">${report.movers
+          .map(
+            (m) =>
+              `<li><strong>${escapeHtml(m.supervisor)}</strong>: ${escapeHtml(m.moduloDesde)} ${escapeHtml(m.horaDesde)} → ${escapeHtml(m.moduloHacia)} ${escapeHtml(m.horaHacia)} · ${m.cosechadores}</li>`
+          )
+          .join("")}</ul>`);
+    }
+    if (!blocks.length) {
+      avisos.hidden = true;
+      avisos.innerHTML = "";
+    } else {
+      avisos.hidden = false;
+      avisos.innerHTML = blocks.join("");
+    }
   }
 
+  if (count) count.textContent = `${report.totalUnicos} únicos`;
   return report;
+}
+
+function toggleModulosDetalleView() {
+  modulosUiState.view = modulosUiState.view === "detalle" ? "resumen" : "detalle";
+  renderModulosCosechaTable();
 }
 
 function openModulosCosechaModal() {
@@ -1082,6 +1628,7 @@ function openModulosCosechaModal() {
   }
   const modal = $("modalModulosCosecha");
   if (!modal) return;
+  modulosUiState.view = "resumen";
   renderModulosCosechaTable();
   modal.hidden = false;
 }
@@ -1586,34 +2133,122 @@ function exportModulosCosechaExcel() {
     window.alert("Primero sube un Excel de tareo.");
     return;
   }
-  const report = buildModulosCosechaReport();
+
   const stamp = new Date().toISOString().slice(0, 10);
+
+  if (modulosUiState.view === "detalle") {
+    const report = buildModulosDetalleReport();
+    const fundoTag = report.fundoFiltro
+      ? report.fundoFiltro.replace(/\s+/g, "-")
+      : "TODOS";
+    const headers = ["Módulo", "Fundo", "Actividad", "Cant."];
+    const rows = report.items.map((it) => ({
+      cells: [
+        { value: it.modulo },
+        { value: it.fundo },
+        { value: it.actividad },
+        { value: it.cantidad }
+      ]
+    }));
+    rows.push({
+      cells: [
+        { value: "TOTAL COSECHA" },
+        { value: "" },
+        { value: "" },
+        { value: report.sumaCosecha }
+      ]
+    });
+
+    try {
+      downloadXlsxExcel({
+        filename: `cosecha-modulos-detalle-${fundoTag}-${stamp}.xlsx`,
+        sheetName: "Detalle módulos",
+        headers,
+        rows
+      });
+    } catch (err) {
+      window.alert(err?.message || "No se pudo exportar Excel.");
+    }
+    return;
+  }
+
+  const report = buildModulosCosechaReport();
   const fundoTag = report.fundoFiltro
     ? report.fundoFiltro.replace(/\s+/g, "-")
     : "TODOS";
 
   const headers = report.showFundo
-    ? ["Fundo", "Módulo", "Cantidad de trabajadores"]
-    : ["Módulo", "Cantidad de trabajadores"];
+    ? ["Fundo", "Módulo", "Neto", "Inicio", "Salieron"]
+    : ["Módulo", "Neto", "Inicio", "Salieron"];
 
   const rows = report.items.map((it) => ({
     cells: report.showFundo
-      ? [{ value: it.fundo }, { value: it.modulo }, { value: it.cantidad }]
-      : [{ value: it.modulo }, { value: it.cantidad }]
+      ? [
+          { value: it.fundo },
+          { value: it.modulo },
+          { value: it.cantidad },
+          { value: it.pisaronAqui },
+          { value: it.reubicadosCount }
+        ]
+      : [
+          { value: it.modulo },
+          { value: it.cantidad },
+          { value: it.pisaronAqui },
+          { value: it.reubicadosCount }
+        ]
   }));
 
   rows.push({
     cells: report.showFundo
       ? [
-          { value: "TOTAL DE TRABAJADORES ÚNICOS" },
+          { value: "TOTAL" },
           { value: "" },
-          { value: report.totalUnicos }
+          { value: report.totalUnicos },
+          { value: "" },
+          { value: report.totalReubicados || 0 }
         ]
       : [
-          { value: "TOTAL DE TRABAJADORES ÚNICOS" },
-          { value: report.totalUnicos }
+          { value: "TOTAL" },
+          { value: report.totalUnicos },
+          { value: "" },
+          { value: report.totalReubicados || 0 }
         ]
   });
+
+  if (report.movers.length) {
+    rows.push({ cells: [{ value: "" }] });
+    rows.push({
+      cells: [{ value: "AVISO: movimientos de supervisor" }]
+    });
+    rows.push({
+      cells: [
+        { value: "Supervisor" },
+        { value: "De módulo" },
+        { value: "Hora desde" },
+        { value: "A módulo" },
+        { value: "Hora hacia" },
+        { value: "Cosechadores" }
+      ]
+    });
+    report.movers.forEach((m) => {
+      const desde = report.showFundo
+        ? `${m.fundoDesde} · ${m.moduloDesde}`
+        : m.moduloDesde;
+      const hacia = report.showFundo
+        ? `${m.fundoHacia} · ${m.moduloHacia}`
+        : m.moduloHacia;
+      rows.push({
+        cells: [
+          { value: m.supervisor },
+          { value: desde },
+          { value: m.horaDesde },
+          { value: hacia },
+          { value: m.horaHacia },
+          { value: m.cosechadores }
+        ]
+      });
+    });
+  }
 
   try {
     downloadXlsxExcel({
@@ -2152,7 +2787,7 @@ function downloadResumenExcel() {
       g.supervisor,
       g.sgLabel || "—",
       g.planillas,
-      g.trabajadores,
+      g.cosechadores ?? g.trabajadores ?? 0,
       { value: g.errores, tone: g.errores > 0 ? "danger" : "" },
       { value: g.avisos, tone: g.avisos > 0 ? "warn" : "" },
       { value: g.faltaManana ? "Falta" : "OK", tone: g.faltaManana ? "warn" : "ok" },
@@ -2183,7 +2818,7 @@ function downloadResumenExcel() {
       "Supervisor",
       "Sup. General",
       "Planillas",
-      "Trabajadores",
+      "Cosechadores",
       "Errores",
       "Extras",
       "Mañana",
@@ -2505,6 +3140,7 @@ function bindUi() {
   $("btnModulosCosecha")?.addEventListener("click", () => openModulosCosechaModal());
   $("btnCloseModulosCosecha")?.addEventListener("click", closeModulosCosechaModal);
   $("btnCloseModulosCosecha2")?.addEventListener("click", closeModulosCosechaModal);
+  $("btnToggleModulosDetalle")?.addEventListener("click", toggleModulosDetalleView);
   $("btnExportModulosCosecha")?.addEventListener("click", exportModulosCosechaExcel);
   document.querySelectorAll('[data-close-modal="modulos-cosecha"]').forEach((el) => {
     el.addEventListener("click", closeModulosCosechaModal);

@@ -1,13 +1,12 @@
 /** Vista Resumen: tabla por supervisor/fundo + gráfico + errores. */
 
-import { collapseToDayRows } from "./validacion-table.js?v=20260909b1";
+import { collapseToDayRows } from "./validacion-table.js?v=20260916p1";
 import {
   getHorariosCosecha,
   horarioMananaLabel,
   horarioTardeLabel
 } from "./horarios-cosecha.js?v=20260909b1";
 import {
-  countScanerCosto,
   countCosechaCosto,
   countAuxiliarCalidad,
   countSupervisoresCalidad,
@@ -38,14 +37,31 @@ const SUPERVISORES_EXCLUIDOS_VALIDACION_DNI = new Set([
 ]);
 
 /** Administradores de cosecha (no cosecha de campo): al final de tablas + otro color. */
-const ADMIN_COSECHA_DNI = new Set(["76769404", "48462734", "75078541", "78199416"]);
+const ADMIN_COSECHA_DNI = new Set([
+  "76769404",
+  "48462734",
+  "75078541",
+  "78199416",
+  "42992833", // PONCE RUIZ ISIDRO
+  "70656198" // VARGAS DIAZ ALDRIN
+]);
 const ADMIN_COSECHA_NOMBRES = [
   "LAIZA PASTOR SARAI SIORELA",
   "PASTOR LAIZA SARAI SIORELA",
   "ARAMBULO RAZURI MIGUEL FERNANDO",
   "RAZURI ARAMBULO MIGUEL FERNANDO",
   "LEON VARGAS DEYSI TATIANA",
-  "MARTINEZ REYES WILSON ALFREDO"
+  "MARTINEZ REYES WILSON ALFREDO",
+  "POLO VILLANUEVA JHRODY MICHAEL",
+  "VILLANUEVA POLO JHRODY MICHAEL",
+  "LEON ANTUNEZ CRISTOPHER PAOLO",
+  "ANTUNEZ LEON CRISTOPHER PAOLO",
+  "PONCE RUIZ ISIDRO",
+  "RODRIGUEZ GUTIERREZ SANTOS RUBEN",
+  "GUTIERREZ RODRIGUEZ SANTOS RUBEN",
+  "VARGAS DIAZ ALDRIN KERVIN",
+  "VARGAS DIAZ ALDRIN",
+  "DIAZ VARGAS ALDRIN KERVIN"
 ];
 
 /** Personal LICAPA II — no Avísame ni validación de planillas LICAPA I. */
@@ -207,7 +223,8 @@ let planillasFaltantesResumenTab = "todos";
 let resumenUiState = {
   allRows: [],
   tab: "todos",
-  search: ""
+  search: "",
+  validated: null
 };
 
 function destroyChart(chart) {
@@ -225,7 +242,13 @@ function escapeHtml(value) {
 }
 
 function isActividadSupervisorCosecha(actividad) {
-  return normNombreKpi(actividad) === "SUPERVISOR DE COSECHA";
+  const key = normNombreKpi(actividad);
+  if (key === "SUPERVISOR DE COSECHA") return true;
+  // dayRows pueden venir unidos: "SUPERVISOR DE COSECHA / COSECHA"
+  return String(actividad || "")
+    .split("/")
+    .map((p) => normNombreKpi(p))
+    .some((p) => p === "SUPERVISOR DE COSECHA");
 }
 
 /**
@@ -334,11 +357,131 @@ export function resetPlanillasFaltantesState() {
   planillasFaltantesView = "faltantes";
 }
 
+/** Clave única de persona: DNI → código → nombre (evita perder a quien no tiene documento). */
+export function personaUnicaKey(row) {
+  const doc = String(row?.documento || "").trim();
+  if (doc) return `d:${doc}`;
+  const cod = String(row?.codigoTrabajador || "").replace(/\D/g, "");
+  if (cod) return `c:${cod}`;
+  const name = String(row?.trabajador || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  if (name) return `n:${name}`;
+  return "";
+}
+
+function fechaPersonaKey(row) {
+  const f = String(row?.fecha || "").trim();
+  if (f) return f;
+  if (row?.fechaSerial != null && Number.isFinite(Number(row.fechaSerial))) {
+    return `s:${row.fechaSerial}`;
+  }
+  return "";
+}
+
+function actividadEsCosechaResumen(actividad) {
+  const act = String(actividad || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  return act
+    .split("/")
+    .map((p) => p.trim())
+    .some((p) => p === "cosecha");
+}
+
+/**
+ * Quienes tarearon SUPERVISOR DE COSECHA (mismo día si hay fecha).
+ * Dinámico: sirve para cualquier Excel / día.
+ */
+export function keysConSupervisorCosecha(rows) {
+  const byDay = new Set();
+  const any = new Set();
+  (rows || []).forEach((row) => {
+    if (!isActividadSupervisorCosecha(row?.actividad)) return;
+    const k = personaUnicaKey(row);
+    if (!k) return;
+    any.add(k);
+    const f = fechaPersonaKey(row);
+    byDay.add(f ? `${f}|${k}` : `*|${k}`);
+  });
+  return { byDay, any };
+}
+
+/** true si esa persona no debe contar como “solo cosechador” ese día. */
+export function esExcluidoDeCosechadores(row, excluir) {
+  const k = personaUnicaKey(row);
+  if (!k || !excluir) return !k;
+  const f = fechaPersonaKey(row);
+  if (f && excluir.byDay.has(`${f}|${k}`)) return true;
+  if (excluir.byDay.has(`*|${k}`)) return true;
+  // Sin fecha en la fila de cosecha: si alguna vez fue supervisor en el alcance, excluir
+  if (!f && excluir.any.has(k)) return true;
+  return false;
+}
+
+/**
+ * Cosechadores únicos (1 persona = 1) en filas ya filtradas por fundo/macro.
+ * Solo COSECHA; excluye a quien también tareó como SUPERVISOR DE COSECHA el mismo día.
+ */
+export function countCosechadoresUnicos(rows) {
+  const excluir = keysConSupervisorCosecha(rows);
+  const set = new Set();
+  (rows || []).forEach((row) => {
+    if (!actividadEsCosechaResumen(row.actividad)) return;
+    const k = personaUnicaKey(row);
+    if (!k || esExcluidoDeCosechadores(row, excluir)) return;
+    set.add(k);
+  });
+  return set.size;
+}
+
+/** Set de claves de cosechadores únicos (misma regla que el KPI). */
+export function collectCosechadoresUnicosKeys(rows) {
+  const excluir = keysConSupervisorCosecha(rows);
+  const set = new Set();
+  (rows || []).forEach((row) => {
+    if (!actividadEsCosechaResumen(row.actividad)) return;
+    const k = personaUnicaKey(row);
+    if (!k || esExcluidoDeCosechadores(row, excluir)) return;
+    set.add(k);
+  });
+  return set;
+}
+
+/** Recalcula cosechadores por supervisor + total global desde filas crudas. */
+function recountCosechadoresByGrupo(groups, rows) {
+  const excluir = keysConSupervisorCosecha(rows);
+  const byKey = new Map();
+  const global = new Set();
+  (rows || []).forEach((row) => {
+    if (!actividadEsCosechaResumen(row.actividad)) return;
+    const pKey = personaUnicaKey(row);
+    if (!pKey || esExcluidoDeCosechadores(row, excluir)) return;
+    const gKey = `${row.fundo || "(sin fundo)"}||${row.supervisor || "(sin supervisor)"}`;
+    if (!byKey.has(gKey)) byKey.set(gKey, new Set());
+    byKey.get(gKey).add(pKey);
+    global.add(pKey);
+  });
+  (groups || []).forEach((g) => {
+    const gKey = `${g.fundo}||${g.supervisor}`;
+    g.cosechadores = byKey.get(gKey)?.size || 0;
+  });
+  return global.size;
+}
+
 /** Agrupa persona-día por Fundo + Supervisor. */
 export function buildResumenGroups(dayRows, apoyoMap = null) {
   const map = new Map();
   const trabajadoresGlobal = new Set();
+  const cosechadoresGlobal = new Set();
 
+  const excluirSup = keysConSupervisorCosecha(dayRows);
   dayRows.forEach((row) => {
     const fundo = row.fundo || "(sin fundo)";
     const supervisor = row.supervisor || "(sin supervisor)";
@@ -349,6 +492,7 @@ export function buildResumenGroups(dayRows, apoyoMap = null) {
         supervisor,
         planillas: 0,
         trabajadores: new Set(),
+        cosechadores: new Set(),
         errores: 0,
         avisos: 0,
         ok: 0
@@ -356,9 +500,17 @@ export function buildResumenGroups(dayRows, apoyoMap = null) {
     }
     const g = map.get(key);
     g.planillas += 1;
-    if (row.documento) {
-      g.trabajadores.add(String(row.documento));
-      trabajadoresGlobal.add(String(row.documento));
+    const pKey = personaUnicaKey(row);
+    if (pKey) {
+      g.trabajadores.add(pKey);
+      trabajadoresGlobal.add(pKey);
+      if (
+        actividadEsCosechaResumen(row.actividad) &&
+        !esExcluidoDeCosechadores(row, excluirSup)
+      ) {
+        g.cosechadores.add(pKey);
+        cosechadoresGlobal.add(pKey);
+      }
     }
     const isError =
       row.status === "rojo" ||
@@ -381,6 +533,7 @@ export function buildResumenGroups(dayRows, apoyoMap = null) {
         supervisor: g.supervisor,
         planillas: g.planillas,
         trabajadores: g.trabajadores.size,
+        cosechadores: g.cosechadores.size,
         errores: g.errores,
         avisos: g.avisos,
         ok: g.ok,
@@ -401,6 +554,7 @@ export function buildResumenGroups(dayRows, apoyoMap = null) {
       fundos: new Set(groups.map((g) => g.fundo)).size,
       supervisores: new Set(groups.map((g) => g.supervisor)).size,
       trabajadores: trabajadoresGlobal.size,
+      cosechadores: cosechadoresGlobal.size,
       errores: groups.reduce((s, g) => s + g.errores, 0),
       avisos: groups.reduce((s, g) => s + g.avisos, 0),
       conApoyo: groups.filter((g) => g.apoyo).length
@@ -648,6 +802,131 @@ function resolveSupervisorGeneralMeta(nombre, dni, fundo) {
     generalNombre: "",
     generalDni: ""
   };
+}
+
+/** Miembros oficiales (23) de Supervisor General LICAPA. */
+function listOfficialLicapaMiembros() {
+  const out = [];
+  (Array.isArray(supervisoresGeneralesLicapa) ? supervisoresGeneralesLicapa : []).forEach((g) => {
+    const generalNombre = String(g?.general?.nombre || "").trim();
+    const generalDni = String(g?.general?.dni || "").replace(/\D/g, "");
+    (Array.isArray(g?.miembros) ? g.miembros : []).forEach((m) => {
+      out.push({
+        dni: String(m?.dni || "").replace(/\D/g, ""),
+        nombre: String(m?.nombre || "").trim(),
+        alias: [
+          ...(Array.isArray(m?.alias) ? m.alias : []),
+          ...(Array.isArray(m?.aliases) ? m.aliases : [])
+        ].filter(Boolean),
+        generalNombre,
+        generalDni
+      });
+    });
+  });
+  return out;
+}
+
+function collectPresentSupervisorKeys(allRows, validated) {
+  const keys = new Set();
+  const statusMap = validated ? getSupervisoresPlanillaStatus(validated) : null;
+  (allRows || []).forEach((row) => {
+    if (!row || row.isAdminCosecha) return;
+    if (row.sgKey === "otro-fundo") return;
+
+    const fundoKey = String(row.fundo || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/\s+/g, " ")
+      .trim();
+    if (fundoKey === "LICAPA II" || fundoKey === "LICAPA III") return;
+
+    const name = row.supervisor || "";
+    const nk = normNombreKpi(name);
+    if (nk) keys.add(nk);
+    const tok = nombreTokensKey(name);
+    if (tok) keys.add("tok:" + tok);
+
+    if (statusMap) {
+      const st = lookupStatusSupervisor(statusMap, name);
+      (st && st.dnis ? st.dnis : []).forEach((d) => {
+        const dKey = String(d || "").replace(/\D/g, "");
+        if (dKey) keys.add("d:" + dKey);
+      });
+    }
+  });
+  return keys;
+}
+function officialMiembroPresente(m, keys) {
+  if (!m) return false;
+  if (m.dni && keys.has(`d:${m.dni}`)) return true;
+  const names = [m.nombre, ...(m.alias || [])].filter(Boolean);
+  for (const n of names) {
+    const nk = normNombreKpi(n);
+    if (nk && keys.has(nk)) return true;
+    const tok = nombreTokensKey(n);
+    if (tok && keys.has(`tok:${tok}`)) return true;
+  }
+  // match flexible contra keys tok:*
+  for (const n of names) {
+    let hit = false;
+    keys.forEach((k) => {
+      if (hit || !String(k).startsWith("tok:")) return;
+      if (nombresEquivalentes(n, String(k).slice(4).split(" ").join(" "))) hit = true;
+    });
+    if (hit) return true;
+  }
+  return false;
+}
+
+function getMissingOfficialLicapaSupervisors(allRows, validated) {
+  const official = listOfficialLicapaMiembros();
+  const keys = collectPresentSupervisorKeys(allRows, validated);
+  return official
+    .filter((m) => m.nombre && !officialMiembroPresente(m, keys))
+    .sort((a, b) => {
+      const gg = a.generalNombre.localeCompare(b.generalNombre, "es");
+      if (gg) return gg;
+      return a.nombre.localeCompare(b.nombre, "es");
+    });
+}
+
+function paintResumenFaltanLista() {
+  const host = document.getElementById("resumenFaltanLista");
+  const ul = document.getElementById("resumenFaltanListaUl");
+  const countEl = document.getElementById("resumenFaltanListaCount");
+  if (!host || !ul) return;
+
+  const missing = getMissingOfficialLicapaSupervisors(
+    resumenUiState.allRows || [],
+    resumenUiState.validated
+  );
+  const totalOfficial = listOfficialLicapaMiembros().length || 23;
+
+  if (countEl) countEl.textContent = String(missing.length);
+
+  if (!missing.length) {
+    host.hidden = true;
+    ul.innerHTML = "";
+    return;
+  }
+
+  host.hidden = false;
+  const titleEl = host.querySelector(".resumen-faltan-lista__title");
+  if (titleEl) {
+    titleEl.innerHTML = `Faltan de la lista oficial (<span id="resumenFaltanListaCount">${missing.length}</span> de ${totalOfficial})`;
+  } else if (countEl) {
+    countEl.textContent = String(missing.length);
+  }
+
+  ul.innerHTML = missing
+    .map(
+      (m) => `<li class="resumen-faltan-lista__li">
+        <span class="resumen-faltan-lista__name">${escapeHtml(m.nombre)}</span>
+        <span class="resumen-faltan-lista__meta">${escapeHtml(m.dni || "—")} · ${escapeHtml(m.generalNombre || "—")}</span>
+      </li>`
+    )
+    .join("");
 }
 
 function nombresEquivalentes(a, b) {
@@ -1287,6 +1566,10 @@ export function getFilteredResumenData(validated, mainFilters = {}) {
   /* Apoyo siempre del alcance actual (fundo/macro/supervisor), nunca de un Excel anterior. */
   const apoyoMap = buildApoyoSupervisionMap(baseFiltered);
   const { groups, kpis } = buildResumenGroups(dayRows, apoyoMap);
+  /* Cosechadores = únicos COSECHA del alcance; sin quien también es SUPERVISOR DE COSECHA. */
+  const cosechadoresUnicos = recountCosechadoresByGrupo(groups, baseFiltered);
+  kpis.cosechadores = cosechadoresUnicos;
+  kpis.trabajadores = Math.max(kpis.trabajadores || 0, cosechadoresUnicos);
   return {
     groups,
     kpis,
@@ -1323,25 +1606,23 @@ export function renderResumenView(validated, mainFilters = {}) {
       kpiHost.innerHTML = `
       <div class="resumen-kpi resumen-kpi--calidad"><span class="resumen-kpi__label">Aux. Calidad</span><span class="resumen-kpi__value">${calidadPersonas}</span></div>
       <div class="resumen-kpi resumen-kpi--calidad"><span class="resumen-kpi__label">Sup. Calidad</span><span class="resumen-kpi__value">${calidadSupervisores}</span></div>
-      <div class="resumen-kpi"><span class="resumen-kpi__label">Trabajadores</span><span class="resumen-kpi__value">${kpis.trabajadores}</span></div>
+      <div class="resumen-kpi"><span class="resumen-kpi__label">Cosechadores</span><span class="resumen-kpi__value">${kpis.cosechadores ?? kpis.trabajadores}</span></div>
       <div class="resumen-kpi resumen-kpi--danger"><span class="resumen-kpi__label">Errores</span><span class="resumen-kpi__value">${kpis.errores}</span></div>
       <div class="resumen-kpi resumen-kpi--warn"><span class="resumen-kpi__label">Extras</span><span class="resumen-kpi__value">${kpis.avisos}</span></div>
     `;
     } else {
-      const supervisoresKpi = visibleGroups.length;
-      const scanerKpi = countScanerCosto(equiposBase);
-      const cosechaKpi = countCosechaCosto(equiposBase);
+      const cosechaEquipos = countCosechaCosto(equiposBase);
+      const cosechadores = kpis.cosechadores ?? countCosechadoresUnicos(baseFiltered);
       kpiHost.innerHTML = `
-      <div class="resumen-kpi"><span class="resumen-kpi__label">Supervisores</span><span class="resumen-kpi__value">${supervisoresKpi}</span></div>
-      <div class="resumen-kpi"><span class="resumen-kpi__label">Scaner</span><span class="resumen-kpi__value">${scanerKpi}</span></div>
-      <div class="resumen-kpi"><span class="resumen-kpi__label">Cosecha</span><span class="resumen-kpi__value">${cosechaKpi}</span></div>
-      <div class="resumen-kpi"><span class="resumen-kpi__label">Trabajadores</span><span class="resumen-kpi__value">${kpis.trabajadores}</span></div>
+      <div class="resumen-kpi"><span class="resumen-kpi__label">Cosecha</span><span class="resumen-kpi__value">${cosechaEquipos}</span></div>
+      <div class="resumen-kpi"><span class="resumen-kpi__label">Cosechadores</span><span class="resumen-kpi__value">${cosechadores}</span></div>
       <div class="resumen-kpi resumen-kpi--danger"><span class="resumen-kpi__label">Errores</span><span class="resumen-kpi__value">${kpis.errores}</span></div>
       <div class="resumen-kpi resumen-kpi--warn"><span class="resumen-kpi__label">Extras</span><span class="resumen-kpi__value">${kpis.avisos}</span></div>
     `;
     }
   }
 
+  resumenUiState.validated = validated;
   resumenUiState.allRows = buildResumenEnrichedRows(validated, visibleGroups, baseFiltered);
   paintResumenTable();
 }
@@ -1357,6 +1638,8 @@ function resumenEstadoBadge(row) {
     return `<span class="resumen-badge resumen-badge--admin">Admin cosecha</span>`;
   }
   const map = {
+    tareo: ["resumen-badge--ok", "Tareó"],
+    "no-tareo": ["resumen-badge--danger", "No tareó"],
     ok: ["resumen-badge--ok", "OK"],
     "falta-tarde": ["resumen-badge--warn", "Falta tarde"],
     "falta-manana": ["resumen-badge--warn", "Falta mañana"],
@@ -1391,8 +1674,20 @@ function resolveResumenEstado({ sinPlanilla, esApoyo, faltaManana, faltaTarde, c
 }
 
 function attachSupervisorGeneral(row, dni = "") {
-  const sg = resolveSupervisorGeneralMeta(row.supervisor, dni, row.fundo);
   const isAdmin = isAdminCosechaSupervisor(row.supervisor, dni);
+  /* Admins de cosecha: no mezclar con lista / Nuevo (sin lista). */
+  if (isAdmin) {
+    return {
+      ...row,
+      sgKey: "admin",
+      sgLabel: "Admin cosecha",
+      sgTone: "admin",
+      generalNombre: "",
+      generalDni: "",
+      isAdminCosecha: true
+    };
+  }
+  const sg = resolveSupervisorGeneralMeta(row.supervisor, dni, row.fundo);
   return {
     ...row,
     sgKey: sg.sgKey,
@@ -1400,12 +1695,44 @@ function attachSupervisorGeneral(row, dni = "") {
     sgTone: sg.sgTone,
     generalNombre: sg.generalNombre,
     generalDni: sg.generalDni,
-    isAdminCosecha: isAdmin
+    isAdminCosecha: false
   };
 }
 
+function matchOfficialToGrupo(m, groups, statusMap) {
+  if (!m || !groups?.length) return null;
+  const dni = String(m.dni || "").replace(/\D/g, "");
+  const names = [m.nombre, ...(m.alias || [])].filter(Boolean);
+
+  for (const g of groups) {
+    const st = lookupStatusSupervisor(statusMap, g.supervisor);
+    const dnis = (st?.dnis || []).map((d) => String(d || "").replace(/\D/g, "")).filter(Boolean);
+    if (dni && dnis.includes(dni)) return g;
+
+    const gName = g.supervisor || "";
+    for (const n of names) {
+      if (normNombreKpi(n) === normNombreKpi(gName)) return g;
+      if (nombreTokensKey(n) && nombreTokensKey(n) === nombreTokensKey(gName)) return g;
+      if (nombresEquivalentes(n, gName)) return g;
+    }
+  }
+
+  // Match by DNI in status map → find group with same supervisor name
+  if (dni && statusMap?.byDni instanceof Map && statusMap.byDni.has(dni)) {
+    const st = statusMap.byDni.get(dni);
+    const hit = groups.find((g) => normNombreKpi(g.supervisor) === normNombreKpi(st?.nombre));
+    if (hit) return hit;
+    // soft: token match
+    const hit2 = groups.find((g) => nombresEquivalentes(g.supervisor, st?.nombre));
+    if (hit2) return hit2;
+  }
+  return null;
+}
+
 /**
- * Filas de la tabla: grupos con planilla + apoyo sin grupo + catálogo sin tareo.
+ * Filas de la tabla:
+ * - Los 23 oficiales SIEMPRE (Tareó / No tareó)
+ * - Luego no autorizados (Nuevo), apoyo, II/III, admins
  */
 function buildResumenEnrichedRows(validated, visibleGroups, baseFiltered) {
   const statusMap = getSupervisoresPlanillaStatus(validated);
@@ -1414,12 +1741,99 @@ function buildResumenEnrichedRows(validated, visibleGroups, baseFiltered) {
       ? planillasFaltantesState.personasApoyoHoy
       : collectPersonasApoyoHoy(baseFiltered || validated?.rows || []);
   const apoyoKeys = personasApoyoHoyKeys(personasApoyo);
-  const seen = new Set();
+  const groups = visibleGroups || [];
   const rows = [];
+  const claimed = new Set();
 
-  visibleGroups.forEach((g) => {
-    const key = `${normNombreKpi(g.fundo)}||${normNombreKpi(g.supervisor)}`;
-    seen.add(normNombreKpi(g.supervisor));
+  // 1) Los 23 fijos siempre
+  listOfficialLicapaMiembros().forEach((m) => {
+    if (!m?.nombre) return;
+    if (isAdminCosechaSupervisor(m.nombre, m.dni)) return;
+
+    const g = matchOfficialToGrupo(m, groups, statusMap);
+    if (g) {
+      const claimKey = `${normNombreKpi(g.fundo)}||${normNombreKpi(g.supervisor)}`;
+      claimed.add(claimKey);
+      claimed.add(normNombreKpi(g.supervisor));
+      claimed.add(normNombreKpi(m.nombre));
+      (m.alias || []).forEach((a) => claimed.add(normNombreKpi(a)));
+
+      const st = lookupStatusSupervisor(statusMap, g.supervisor, m.dni);
+      const sinPlanilla = !st || !(st.planillas > 0);
+      const esApoyo = apoyoKeys.has(normNombreKpi(g.supervisor));
+      const faltaManana = supervisorFaltaCerrarManana(st);
+      const faltaTarde = supervisorFaltaCerrarTarde(st);
+      const cerro = Boolean(st?.cerro || (st?.cerradas || 0) > 0);
+      // Detalle mañana/tarde se mantiene; Estado = Tareó
+      resolveResumenEstado({ sinPlanilla, esApoyo, faltaManana, faltaTarde, cerro });
+
+      rows.push(
+        attachSupervisorGeneral(
+          {
+            fundo: g.fundo || "LICAPA",
+            supervisor: m.nombre,
+            planillas: g.planillas,
+            trabajadores: g.trabajadores,
+            cosechadores: g.cosechadores ?? 0,
+            errores: g.errores,
+            avisos: g.avisos,
+            apoyo: Boolean(g.apoyo),
+            apoyoNombres: g.apoyoNombres || [],
+            faltaManana,
+            faltaTarde,
+            esApoyo,
+            estadoKey: "tareo",
+            estadoLabel: "Tareó",
+            tareoHoy: true,
+            isOficialLista: true,
+            rowKind: "oficial-tareo",
+            sortKey: `0||${normNombreKpi(m.generalNombre)}||${normNombreKpi(m.nombre)}`
+          },
+          m.dni || ""
+        )
+      );
+      return;
+    }
+
+    claimed.add(normNombreKpi(m.nombre));
+    (m.alias || []).forEach((a) => claimed.add(normNombreKpi(a)));
+    rows.push(
+      attachSupervisorGeneral(
+        {
+          fundo: "LICAPA",
+          supervisor: m.nombre,
+          planillas: 0,
+          trabajadores: 0,
+          cosechadores: 0,
+          errores: 0,
+          avisos: 0,
+          apoyo: false,
+          apoyoNombres: [],
+          faltaManana: true,
+          faltaTarde: true,
+          esApoyo: false,
+          estadoKey: "no-tareo",
+          estadoLabel: "No tareó",
+          tareoHoy: false,
+          isOficialLista: true,
+          rowKind: "oficial-faltante",
+          sortKey: `0||${normNombreKpi(m.generalNombre)}||${normNombreKpi(m.nombre)}`
+        },
+        m.dni || ""
+      )
+    );
+  });
+
+  // 2) Resto del tareo que NO es de los 23 (nuevos / otros)
+  groups.forEach((g) => {
+    const claimKey = `${normNombreKpi(g.fundo)}||${normNombreKpi(g.supervisor)}`;
+    if (claimed.has(claimKey) || claimed.has(normNombreKpi(g.supervisor))) return;
+    if (isAdminCosechaSupervisor(g.supervisor)) return;
+    if (isSupervisorExcluidoResumen(g.supervisor)) return;
+
+    // Si matchea algún oficial, ya salió arriba
+    if (listOfficialLicapaMiembros().some((m) => matchOfficialToGrupo(m, [g], statusMap))) return;
+
     const st = lookupStatusSupervisor(statusMap, g.supervisor);
     const sinPlanilla = !st || !(st.planillas > 0);
     const esApoyo = apoyoKeys.has(normNombreKpi(g.supervisor));
@@ -1428,6 +1842,7 @@ function buildResumenEnrichedRows(validated, visibleGroups, baseFiltered) {
     const cerro = Boolean(st?.cerro || (st?.cerradas || 0) > 0);
     const estado = resolveResumenEstado({ sinPlanilla, esApoyo, faltaManana, faltaTarde, cerro });
     const dniGuess = (st?.dnis && st.dnis[0]) || "";
+    claimed.add(normNombreKpi(g.supervisor));
     rows.push(
       attachSupervisorGeneral(
         {
@@ -1435,6 +1850,7 @@ function buildResumenEnrichedRows(validated, visibleGroups, baseFiltered) {
           supervisor: g.supervisor,
           planillas: g.planillas,
           trabajadores: g.trabajadores,
+          cosechadores: g.cosechadores ?? 0,
           errores: g.errores,
           avisos: g.avisos,
           apoyo: Boolean(g.apoyo),
@@ -1443,101 +1859,75 @@ function buildResumenEnrichedRows(validated, visibleGroups, baseFiltered) {
           faltaTarde,
           esApoyo,
           ...estado,
+          tareoHoy: true,
+          isOficialLista: false,
           rowKind: "grupo",
-          sortKey: key
+          sortKey: `1||${normNombreKpi(g.fundo)}||${normNombreKpi(g.supervisor)}`
         },
         dniGuess
       )
     );
   });
 
-  // Apoyo sin fila propia
-  personasApoyo.forEach((p, pKey) => {
-    if (!pKey || seen.has(pKey)) return;
-    if (isSupervisorExcluidoResumen(p.nombre)) return;
-    seen.add(pKey);
-    const st = lookupStatusSupervisor(statusMap, p.nombre, p.dni);
-    const sinPlanilla = !st || !(st.planillas > 0);
+  // 3) Admins (si aparecen en tareo)
+  groups.forEach((g) => {
+    if (!isAdminCosechaSupervisor(g.supervisor)) return;
+    if (claimed.has(normNombreKpi(g.supervisor))) return;
+    claimed.add(normNombreKpi(g.supervisor));
+    const st = lookupStatusSupervisor(statusMap, g.supervisor);
     const faltaManana = supervisorFaltaCerrarManana(st);
     const faltaTarde = supervisorFaltaCerrarTarde(st);
-    const cerro = Boolean(st?.cerro || (st?.cerradas || 0) > 0);
-    const estado = resolveResumenEstado({
-      sinPlanilla,
-      esApoyo: true,
-      faltaManana,
-      faltaTarde,
-      cerro
-    });
-    const fundo = p.fundo || st?.fundo || "LICAPA";
     rows.push(
       attachSupervisorGeneral(
         {
-          fundo,
-          supervisor: p.nombre,
-          planillas: st?.planillas || 0,
-          trabajadores: st?.trabajadores || 0,
-          errores: 0,
-          avisos: 0,
-          apoyo: false,
-          apoyoNombres: [],
+          fundo: g.fundo,
+          supervisor: g.supervisor,
+          planillas: g.planillas,
+          trabajadores: g.trabajadores,
+          cosechadores: g.cosechadores ?? 0,
+          errores: g.errores,
+          avisos: g.avisos,
+          apoyo: Boolean(g.apoyo),
+          apoyoNombres: g.apoyoNombres || [],
           faltaManana,
           faltaTarde,
-          esApoyo: true,
-          ...estado,
-          rowKind: "apoyo",
-          sortKey: `${normNombreKpi(fundo)}||${pKey}`
-        },
-        p.dni || ""
-      )
-    );
-  });
-
-  // Catálogo activo sin tareo → No asistió
-  const activeCatalog = planillasFaltantesState.activeCatalog || [];
-  activeCatalog.forEach((s) => {
-    const pKey = normNombreKpi(s.nombre);
-    if (!pKey || seen.has(pKey)) return;
-    if (isSupervisorExcluidoResumen(s.nombre)) return;
-    if (apoyoKeys.has(pKey)) return;
-    const st = lookupStatusSupervisor(statusMap, s.nombre, s.dni);
-    if (st && st.planillas > 0) return;
-    seen.add(pKey);
-    const fundo = s.fundo || "LICAPA";
-    rows.push(
-      attachSupervisorGeneral(
-        {
-          fundo,
-          supervisor: s.nombre,
-          planillas: 0,
-          trabajadores: 0,
-          errores: 0,
-          avisos: 0,
-          apoyo: false,
-          apoyoNombres: [],
-          faltaManana: true,
-          faltaTarde: true,
           esApoyo: false,
-          estadoKey: "no-asistio",
-          estadoLabel: "No asistió",
-          rowKind: "faltante",
-          sortKey: `${normNombreKpi(fundo)}||${pKey}`
+          estadoKey: "tareo",
+          estadoLabel: "Tareó",
+          tareoHoy: true,
+          isOficialLista: false,
+          rowKind: "admin",
+          sortKey: `9||${normNombreKpi(g.supervisor)}`
         },
-        s.dni || ""
+        (st?.dnis && st.dnis[0]) || ""
       )
     );
   });
 
   rows.sort((a, b) => {
-    // Administradores de cosecha siempre al final
     const aa = a.isAdminCosecha ? 1 : 0;
     const bb = b.isAdminCosecha ? 1 : 0;
     if (aa !== bb) return aa - bb;
-    const pri = { "no-asistio": 0, apoyo: 1, "no-subio": 2, "falta-tarde": 3, "falta-manana": 4, ok: 5 };
+    // Oficiales primero; no-tareo en rojo arriba dentro de oficiales
+    const ofA = a.isOficialLista ? 0 : 1;
+    const ofB = b.isOficialLista ? 0 : 1;
+    if (ofA !== ofB) return ofA - ofB;
+    const pri = {
+      "no-tareo": 0,
+      "no-asistio": 1,
+      nuevo: 2,
+      apoyo: 3,
+      "no-subio": 4,
+      "falta-tarde": 5,
+      "falta-manana": 6,
+      tareo: 7,
+      ok: 8
+    };
     const pa = pri[a.estadoKey] ?? 9;
     const pb = pri[b.estadoKey] ?? 9;
     if (pa !== pb) return pa - pb;
-    const ff = String(a.fundo).localeCompare(String(b.fundo), "es");
-    if (ff) return ff;
+    const gg = String(a.sgLabel || "").localeCompare(String(b.sgLabel || ""), "es");
+    if (gg) return gg;
     return String(a.supervisor).localeCompare(String(b.supervisor), "es");
   });
 
@@ -1559,7 +1949,7 @@ function getResumenVisibleRows() {
   const filtered = (resumenUiState.allRows || []).filter((row) => {
     if (tab === "falta-tarde" && !row.faltaTarde) return false;
     if (tab === "falta-manana" && !row.faltaManana) return false;
-    if (tab === "no-asistio" && row.estadoKey !== "no-asistio") return false;
+    if (tab === "no-asistio" && row.estadoKey !== "no-asistio" && row.estadoKey !== "no-tareo") return false;
     if (tab === "apoyo" && !(row.esApoyo || row.estadoKey === "apoyo")) return false;
     if (tab === "nuevo" && row.sgKey !== "nuevo") return false;
     if (tab === "otro-fundo" && row.sgKey !== "otro-fundo") return false;
@@ -1587,7 +1977,7 @@ function updateResumenTabCounts() {
     todos: all.length,
     "falta-tarde": all.filter((r) => r.faltaTarde).length,
     "falta-manana": all.filter((r) => r.faltaManana).length,
-    "no-asistio": all.filter((r) => r.estadoKey === "no-asistio").length,
+    "no-asistio": all.filter((r) => r.estadoKey === "no-asistio" || r.estadoKey === "no-tareo").length,
     apoyo: all.filter((r) => r.esApoyo || r.estadoKey === "apoyo").length,
     nuevo: all.filter((r) => r.sgKey === "nuevo").length,
     "otro-fundo": all.filter((r) => r.sgKey === "otro-fundo").length,
@@ -1616,7 +2006,7 @@ function paintResumenTable() {
       todos: "Todos los supervisores del alcance",
       "falta-tarde": "Filas con tareo de tarde pendiente",
       "falta-manana": "Filas con tareo de mañana pendiente",
-      "no-asistio": "No asistieron / no subieron planilla",
+      "no-asistio": "Oficiales de la lista que hoy no tarearon",
       apoyo: "Están de apoyo (sin grupo propio o marcados apoyo)",
       nuevo: "LICAPA nuevos · no están en lista de Supervisor General",
       "otro-fundo": "Vienen de LICAPA II o LICAPA III",
@@ -1637,15 +2027,17 @@ function paintResumenTable() {
           const apoyoClass = g.apoyo ? " is-cell-apoyo" : "";
           const sgClass =
             g.sgKey === "nuevo"
-              ? " is-cell-warn"
+              ? " is-cell-danger"
               : g.sgKey === "otro-fundo"
                 ? " is-cell-muted"
                 : g.sgKey === "lista"
                   ? " is-cell-apoyo"
-                  : "";
+                  : g.sgKey === "admin"
+                    ? " is-cell-muted"
+                    : "";
           const rowTone = g.isAdminCosecha
             ? "is-row-admin-cosecha"
-            : g.estadoKey === "no-asistio" || g.errores > 0 || g.sgKey === "nuevo"
+            : g.estadoKey === "no-tareo" || g.sgKey === "nuevo" || g.estadoKey === "no-asistio" || g.errores > 0
               ? "is-row-danger"
               : g.estadoKey === "apoyo"
                 ? "is-row-apoyo"
@@ -1654,13 +2046,15 @@ function paintResumenTable() {
                   : "";
           const supLabel = g.isAdminCosecha
             ? `${escapeHtml(g.supervisor)} <span class="resumen-admin-tag">Admin</span>`
-            : escapeHtml(g.supervisor);
+            : g.sgKey === "nuevo"
+              ? `${escapeHtml(g.supervisor)} <span class="resumen-admin-tag resumen-nuevo-tag">Sin lista</span>`
+              : escapeHtml(g.supervisor);
           return `<tr class="${rowTone}">
               <td>${escapeHtml(g.fundo)}</td>
               <td>${supLabel}</td>
               <td class="${sgClass}" title="${escapeAttr(g.generalDni ? `${g.sgLabel} · ${g.generalDni}` : g.sgLabel || "")}">${escapeHtml(g.sgLabel || "—")}</td>
               <td>${g.planillas}</td>
-              <td>${g.trabajadores}</td>
+              <td>${g.cosechadores ?? g.trabajadores ?? 0}</td>
               <td class="${errClass}">${g.errores}</td>
               <td class="${warnClass}">${g.avisos}</td>
               <td>${resumenTurnoBadge(g.faltaManana)}</td>

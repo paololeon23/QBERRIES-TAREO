@@ -1337,8 +1337,74 @@ table.data-table.data-table--excel {
   color: #145a34;
 }
 
+.modulos-table tbody tr.modulos-table__warn td {
+  background: #fff8eb;
+}
+
+.modulos-num--rojo {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 800;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.modulos-num--rojo small {
+  font-weight: 700;
+  font-size: 0.72rem;
+  opacity: 0.92;
+}
+
+.modulos-aviso {
+  margin: 0.85rem 0 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #f0c36d;
+  background: #fff8eb;
+  border-radius: 10px;
+  max-height: 140px;
+  overflow: auto;
+}
+
+.modulos-aviso__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #8a5a00;
+}
+
+.modulos-aviso__list {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: 0.74rem;
+  color: #3f3f46;
+  line-height: 1.35;
+}
+
+.modulos-aviso__list li + li {
+  margin-top: 0.35rem;
+}
+
+.modulos-aviso__dni {
+  color: #71717a;
+  font-weight: 600;
+}
+
+.modulos-detalle__group td {
+  border-top: 2px solid #cfe8d8;
+}
+
+.modulos-detalle__mod {
+  font-weight: 800;
+  color: #145a34;
+  white-space: nowrap;
+}
+
 .modal__dialog--modulos {
-  width: min(560px, 96vw);
+  width: min(900px, 96vw);
 }
 
 .lote-focus {
@@ -4101,6 +4167,65 @@ table.data-table.data-table--excel {
   letter-spacing: 0.02em;
   text-transform: uppercase;
   vertical-align: middle;
+}
+
+.resumen-nuevo-tag {
+  border-color: #f1aeb5;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.resumen-faltan-lista {
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #f1aeb5;
+  border-radius: 0.65rem;
+  background: #fef2f2;
+}
+
+.resumen-faltan-lista__title {
+  margin: 0 0 0.25rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #991b1b;
+}
+
+.resumen-faltan-lista__hint {
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+  color: #7f1d1d;
+}
+
+.resumen-faltan-lista__ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.resumen-faltan-lista__li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.45rem;
+  background: #fff;
+  border: 1px solid #fecaca;
+}
+
+.resumen-faltan-lista__name {
+  font-weight: 750;
+  color: #7f1d1d;
+  font-size: 0.84rem;
+}
+
+.resumen-faltan-lista__meta {
+  font-size: 0.72rem;
+  color: #9f1239;
+  font-variant-numeric: tabular-nums;
 }
 
 .lotes-table tr.is-row-admin-cosecha td {
