@@ -252,6 +252,17 @@ function isActividadSupervisorCosecha(actividad) {
 }
 
 /**
+ * Titular: quien tareó SUPERVISOR DE COSECHA ES el supervisor (col. W),
+ * no un apoyo bajo otro nombre.
+ */
+export function esFilaSupervisorTitular(row) {
+  const trabKey = normNombreKpi(row?.trabajador);
+  const supKey = normNombreKpi(row?.supervisor);
+  if (!trabKey || !supKey) return false;
+  return trabKey === supKey;
+}
+
+/**
  * Apoyo supervisión: trabajador con actividad SUPERVISOR DE COSECHA
  * bajo OTRO supervisor (ej. ANTICONA → REBAZA).
  * Se recalcula SIEMPRE con las filas recibidas (sin cache).

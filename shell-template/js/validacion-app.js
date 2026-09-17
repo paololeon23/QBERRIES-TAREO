@@ -36,8 +36,9 @@ import {
   personaUnicaKey,
   keysConSupervisorCosecha,
   esExcluidoDeCosechadores,
+  esFilaSupervisorTitular,
   collectCosechadoresUnicosKeys
-} from "./validacion-resumen.js?v=20260916c804b";
+} from "./validacion-resumen.js?v=20260917s17";
 import { isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260909b1";
 import { getCurrentRoute } from "./shell.js";
 
@@ -985,7 +986,9 @@ function actividadDetalleLabel(actividad) {
 /**
  * Tabla detallada tipo pivote:
  * Módulo × Fundo × Actividad → personas únicas.
- * Si se movió, cuenta en destino. En origen COSECHA (solo si hubo salida):
+ * SUPERVISOR DE COSECHA = pivote Excel: Actividad COSECHA → Supervisor único por módulo.
+ * Ejemplo LICAPA M4 = 17 (cuadrillas), no las 19 personas que tarearon esa actividad.
+ * Si se movió, COSECHA cuenta en destino. En origen COSECHA (solo si hubo salida):
  * "inicio → neto (quedaron después HH:MM)" con horas/cantidades del Excel del día.
  */
 function buildModulosDetalleReport() {
@@ -996,18 +999,16 @@ function buildModulosDetalleReport() {
 
   /** wKey → { mods, actsByMod } */
   const byWorker = new Map();
+  /** groupKey → { fundo, modulo, keys: Set(supervisorNorm) } */
+  const supervisorPorModulo = new Map();
   let filasFuente = 0;
 
   rows.forEach((row) => {
     if (fundoNorm && normExactToken(row.fundo) !== fundoNorm) return;
     const actividad = actividadDetalleLabel(row.actividad);
     if (!actividad || !ACTIVIDADES_DETALLE_MODULO.has(actividad)) return;
-    const wKey = workerUniqueKey(row);
-    if (!wKey) return;
     const modulo = moduloCosechaLabel(row);
     if (!modulo) return;
-
-    filasFuente += 1;
     const fundo = String(row.fundo || "").trim() || "(sin fundo)";
     const groupKey = `${normExactToken(fundo)}||${normExactToken(modulo)}`;
     const supervisor = String(row.supervisor || "").trim() || "(sin supervisor)";
@@ -1015,6 +1016,22 @@ function buildModulosDetalleReport() {
       row.horaInicioMin != null && Number.isFinite(row.horaInicioMin)
         ? row.horaInicioMin
         : Number.POSITIVE_INFINITY;
+
+    if (isActividadCosechaExact(row.actividad)) {
+      const sKey = normExactToken(supervisor);
+      if (sKey && sKey !== "(SIN SUPERVISOR)") {
+        if (!supervisorPorModulo.has(groupKey)) {
+          supervisorPorModulo.set(groupKey, { fundo, modulo, keys: new Set() });
+        }
+        supervisorPorModulo.get(groupKey).keys.add(sKey);
+      }
+    }
+
+    if (actividad === "SUPERVISOR DE COSECHA") return;
+    const wKey = workerUniqueKey(row);
+    if (!wKey) return;
+
+    filasFuente += 1;
 
     if (!byWorker.has(wKey)) {
       byWorker.set(wKey, { mods: new Map(), actsByMod: new Map() });
@@ -1128,6 +1145,18 @@ function buildModulosDetalleReport() {
       actividad,
       workers: new Set() // neto 0 posible
     });
+  });
+
+  supervisorPorModulo.forEach((g, groupKey) => {
+    const bKey = `${groupKey}||SUPERVISOR DE COSECHA`;
+    buckets.set(bKey, {
+      fundo: g.fundo,
+      modulo: g.modulo,
+      groupKey,
+      actividad: "SUPERVISOR DE COSECHA",
+      workers: g.keys
+    });
+    visitMap.set(bKey, new Set(g.keys));
   });
 
   const items = [...buckets.entries()]
@@ -1448,7 +1477,7 @@ function renderModulosCosechaTable() {
   if (isDetalle) {
     const report = buildModulosDetalleReport();
 
-    if (hint) hint.innerHTML = `5 actividades · sin duplicar · neto en destino`;
+    if (hint) hint.innerHTML = `COSECHA: supervisor único por módulo (pivote)`;
     if (meta) {
       meta.textContent = `${report.fundoFiltro || "todos"} · ${report.modulosCount} mód. · COSECHA ${report.sumaCosecha}`;
     }
@@ -1861,7 +1890,11 @@ function buildLotesHoyReport() {
     if (kind === "cosecha") g.cosecha.add(wKey);
     else if (kind === "scaner") g.scaner.add(wKey);
     else if (kind === "calidad") g.calidad.add(wKey);
-    else if (kind === "supervisor") g.supervisorAct.add(wKey);
+    else if (kind === "supervisor") {
+      if (normExactToken(row.actividad) === "SUPERVISOR DE ACOPIO" || esFilaSupervisorTitular(row)) {
+        g.supervisorAct.add(wKey);
+      }
+    }
   });
 
   const items = [...byKey.values()]
