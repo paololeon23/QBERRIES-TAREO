@@ -37,10 +37,13 @@ const ACTIVIDADES_POR_GRUPO = new Set([
 /** Área de Calidad — no forma parte del equipo cosecha (scaner + supervisor + cosecha). */
 export function isActividadCalidad(actividad) {
   const a = normActividadKpi(actividad);
+  if (!a || a.includes("supervisor")) return false;
   return (
+    a === "calidad" ||
     a === "auxiliar de calidad" ||
     a === "aux calidad" ||
-    a.includes("auxiliar") && a.includes("calidad") ||
+    a === "digitador de calidad" ||
+    (a.includes("auxiliar") && a.includes("calidad")) ||
     a === "area de calidad"
   );
 }

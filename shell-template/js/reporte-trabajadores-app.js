@@ -4,6 +4,7 @@
  */
 
 import { parseExcelBuffer } from "./excel-parser.js";
+import { assertPuedeSubir } from "./autorizados-etapa-i.js?v=20260921ok1";
 
 const state = {
   fileName: "",
@@ -576,6 +577,7 @@ function showWorkspace(show) {
 
 async function handleFile(file) {
   if (!file) return;
+  assertPuedeSubir();
   try {
     setStatus("loading", "Leyendo Excel…");
     const buffer = await file.arrayBuffer();

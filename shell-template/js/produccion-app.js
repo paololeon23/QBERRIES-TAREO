@@ -8,6 +8,7 @@ import {
   parseProduccionBuffer,
   aggregateWorkers
 } from "./produccion-parser.js";
+import { assertPuedeSubir } from "./autorizados-etapa-i.js?v=20260921ok1";
 
 const LISTADO_KEY = "qb-produccion-listado-v1";
 const LISTADO_JSON_URL = "./data/listado-trabajadores.json";
@@ -349,6 +350,7 @@ function saveListado(fileName, map) {
 
 async function handleListado(file) {
   if (!file) return;
+  assertPuedeSubir();
   try {
     setStatus("loading", "Leyendo listado de trabajadores…");
     const buffer = await file.arrayBuffer();
@@ -371,6 +373,7 @@ async function handleListado(file) {
 
 async function handleProduccion(file) {
   if (!file) return;
+  assertPuedeSubir();
   const nameLower = String(file.name || "").toLowerCase();
   if (/reporte[_\s-]?horas|tareo|validacion/.test(nameLower)) {
     setStatus(

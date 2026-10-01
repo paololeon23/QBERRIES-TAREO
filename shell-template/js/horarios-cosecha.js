@@ -98,27 +98,35 @@ function buildDirectEndMins(firstStartMin) {
 }
 
 export function normFundoHorario(fundo) {
-  const f = String(fundo || "").trim().toUpperCase();
+  const f = String(fundo || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
   if (f === "LICAPA II") return "LICAPA II";
   if (f === "LICAPA III") return "LICAPA III";
   return "LICAPA";
 }
 
-/** Compat: fundo LICAPA (sin II/III) o actividad del set nuevo. */
+/** LICAPA I y LICAPA III: 06:45 / 17:21. Solo LICAPA II queda en 06:30 / 17:06. */
+export function fundoUsaHorarioNuevo(fundo) {
+  return normFundoHorario(fundo) !== "LICAPA II";
+}
+
+/** Compat: fundo LICAPA / III o actividad del set nuevo. */
 export function usesHorarioLicapaNuevo(fundoOrActividad) {
   const raw = String(fundoOrActividad || "").trim();
   if (!raw) return true;
   if (/^LICAPA(\s+II|\s+III)?$/i.test(raw)) {
-    return normFundoHorario(raw) === "LICAPA";
+    return fundoUsaHorarioNuevo(raw);
   }
   return isActividadHorarioNuevo(raw);
 }
 
 /**
- * Horario nuevo (06:45 / 17:21) solo si:
+ * Horario nuevo (06:45 / 17:21) si:
  * - actividad está en el set preseleccionado (cosecha, etc.)
- * - Y el fundo es LICAPA (no II / III)
- * LICAPA II/III y el resto de actividades → 06:30 / 17:06
+ * - Y el fundo es LICAPA o LICAPA III
+ * Solo LICAPA II (u otras actividades) → 06:30 / 17:06
  */
 export function getHorariosCosecha(fundoOrOpts, actividadArg) {
   let fundo = fundoOrOpts;
@@ -128,14 +136,12 @@ export function getHorariosCosecha(fundoOrOpts, actividadArg) {
     actividad = fundoOrOpts.actividad ?? actividadArg;
   }
 
-  const fundoKey = normFundoHorario(fundo);
-  const esLicapaI = fundoKey === "LICAPA";
   const actEnSetNuevo =
     actividad != null && String(actividad).trim() !== ""
       ? isActividadHorarioNuevo(actividad)
       : true; /* sin actividad: decide solo el fundo */
 
-  const useNuevo = esLicapaI && actEnSetNuevo;
+  const useNuevo = fundoUsaHorarioNuevo(fundo) && actEnSetNuevo;
   const base = useNuevo ? HORARIOS_NUEVO : HORARIOS_LEGADO;
   return {
     ...base,
@@ -158,5 +164,5 @@ export function horarioResumenHint(fundo, actividad) {
   if (fundo || actividad) {
     return `${horarioMananaLabel(fundo, actividad)} / ${horarioTardeLabel(fundo, actividad)}`;
   }
-  return "LICAPA + actividades cosecha: 06:45→12:00 / 13:00→17:21 · LICAPA II/III u otras: 06:30→12:00 / 13:00→17:06";
+  return "LICAPA / LICAPA III + actividades cosecha: 06:45→12:00 / 13:00→17:21 · LICAPA II u otras: 06:30→12:00 / 13:00→17:06";
 }

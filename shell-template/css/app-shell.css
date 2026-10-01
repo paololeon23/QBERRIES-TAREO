@@ -117,3 +117,151 @@
     padding: 0.5rem;
   }
 }
+
+body.is-acceso-locked {
+  overflow: hidden;
+}
+
+.acceso-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(39, 174, 96, 0.18), transparent 55%),
+    rgba(10, 28, 18, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.acceso-overlay[hidden] {
+  display: none !important;
+}
+
+.acceso-card {
+  width: min(26rem, 100%);
+  background: #fff;
+  border: 1px solid #d7e6dc;
+  border-radius: 1rem;
+  padding: 1.35rem 1.35rem 1.2rem;
+  box-shadow: 0 24px 60px rgba(12, 40, 24, 0.28);
+}
+
+.acceso-card__eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1b7a45;
+}
+
+.acceso-card__title {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-family-display), "Manrope", sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #123322;
+}
+
+.acceso-card__lead {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #4b6356;
+}
+
+.acceso-card__field {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.acceso-card__field span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #2f4a3c;
+}
+
+.acceso-card__field input {
+  width: 100%;
+  min-height: 2.6rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid #c9d9cf;
+  border-radius: 0.6rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+}
+
+.acceso-card__field input:focus {
+  outline: 2px solid #27ae60;
+  outline-offset: 1px;
+  border-color: #27ae60;
+}
+
+.acceso-card__error {
+  margin: 0 0 0.75rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.5rem;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.acceso-card__error[hidden] {
+  display: none;
+}
+
+.acceso-card__btn {
+  width: 100%;
+  min-height: 2.55rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: #145a34;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.acceso-card__btn:hover {
+  background: #0f4729;
+}
+
+.acceso-card__btn--ghost {
+  margin-top: 0.45rem;
+  background: #fff;
+  color: #145a34;
+  border: 1px solid #c9d9cf;
+}
+
+.acceso-card__btn--ghost:hover {
+  background: #f3faf6;
+}
+
+.acceso-card__note {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  color: #6b7f74;
+}
+
+.topbar-chip--user {
+  max-width: 11rem;
+}
+
+.btn-acceso-salir {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid #d7e6dc;
+  border-radius: 999px;
+  background: #fff;
+  color: #145a34;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-acceso-salir:hover {
+  background: #f3f8f5;
+}

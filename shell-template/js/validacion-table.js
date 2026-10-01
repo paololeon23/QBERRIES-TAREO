@@ -13,7 +13,7 @@ import {
   matchActividadHorarioNuevoLabel,
   normActividadHorario,
   actividadHorarioKey
-} from "./horarios-cosecha.js?v=20260909b1";
+} from "./horarios-cosecha.js?v=20260922iii1";
 
 const ACT_SIN_ACTIVIDAD = "(Sin actividad)";
 

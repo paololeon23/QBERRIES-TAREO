@@ -2,12 +2,12 @@
 
 import { HOUR_BASE, HOURS_LABEL, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js?v=20260909b1";
 import { countSupervisoresCosto } from "./validacion-kpi.js";
-import { getHorariosCosecha, isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260909b1";
+import { getHorariosCosecha, isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260922iii1";
 
 /**
- * Horarios COSTO DE COSECHA (por actividad — ver horarios-cosecha.js):
- * - Actividades cosecha (preseleccionadas): 06:45→12:00 / 13:00→17:21
- * - Otras: 06:30→12:00 / 13:00→17:06
+ * Horarios COSTO DE COSECHA (ver horarios-cosecha.js):
+ * - LICAPA / LICAPA III + actividades cosecha: 06:45→12:00 / 13:00→17:21
+ * - LICAPA II u otras actividades: 06:30→12:00 / 13:00→17:06
  */
 const REST_GAP_MIN = 60;
 

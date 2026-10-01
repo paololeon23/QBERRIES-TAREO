@@ -1,7 +1,7 @@
 /** Orquestación: upload, modal, reportes, historial. */
 
-import { parseExcelBuffer, matchExactHourStep, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js?v=20260909b1";
-import { validateDataset } from "./validacion-rules.js?v=20260909b1";
+import { parseExcelBuffer, matchExactHourStep, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js?v=20260918m1fix2";
+import { validateDataset } from "./validacion-rules.js?v=20260922iii1";
 import {
   populateFilters,
   readFilters,
@@ -21,8 +21,8 @@ import {
   resetActividadFilterState,
   defaultSelectedActividades,
   syncActividadFilterButton
-} from "./validacion-table.js?v=20260916p1";
-import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js";
+} from "./validacion-table.js?v=20260922iii1";
+import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js?v=20260930cal1";
 import {
   openResumenModal,
   closeResumenModal,
@@ -38,8 +38,8 @@ import {
   esExcluidoDeCosechadores,
   esFilaSupervisorTitular,
   collectCosechadoresUnicosKeys
-} from "./validacion-resumen.js?v=20260917s17";
-import { isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260909b1";
+} from "./validacion-resumen.js?v=20261001sg1";
+import { isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260922iii1";
 import { getCurrentRoute } from "./shell.js";
 
 const HISTORY_KEY = "qb-validacion-history";
@@ -467,7 +467,7 @@ function renderTareoActFilterList() {
         const safe = escapeActHtml(a);
         const isOn = draftSet.has(a);
         const horario = isActividadHorarioNuevo(a)
-          ? "LICAPA 06:45 · II/III 06:30"
+          ? "LICAPA / III 06:45 · II 06:30"
           : "06:30 / 17:06";
         return `<label class="rt-filter-modal__option${isOn ? " is-checked" : ""}">
         <input type="checkbox" class="rt-filter-modal__check" value="${safe}" ${isOn ? "checked" : ""} />
@@ -959,6 +959,167 @@ function moduloCosechaLabel(row) {
   return isModuloCosechaValido(modulo) ? modulo : "";
 }
 
+/** Reloj de la fila: serial Excel o texto "17/09/2026 14:40". No usa timezone local. */
+function minutosRelojFila(row) {
+  const key = Number(row?.horaInicioKey);
+  if (Number.isFinite(key) && key > 0) {
+    let frac = key % 1;
+    if (frac < 0) frac += 1;
+    if (frac > 0.001) {
+      const mins = Math.round(frac * 24 * 60);
+      if (mins >= 0 && mins < 24 * 60) return mins;
+    }
+  }
+  const txt = String(row?.horaInicioTexto || "").trim();
+  const afterDate = txt.match(/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+(\d{1,2}):(\d{2})/);
+  if (afterDate) return Number(afterDate[1]) * 60 + Number(afterDate[2]);
+  const only = txt.match(/^(\d{1,2}):(\d{2})$/);
+  if (only) return Number(only[1]) * 60 + Number(only[2]);
+  const ini = row?.horaInicioMin;
+  return ini != null && Number.isFinite(ini) ? ini : null;
+}
+
+/** Mañana completa (antes de 12:00). Sirve para detectar traslados, no para el conteo. */
+function isFilaTurnoManana(row) {
+  const ini = minutosRelojFila(row);
+  if (ini == null || !Number.isFinite(ini)) return false;
+  return ini >= 6 * 60 && ini < 12 * 60;
+}
+
+/** 14:20: traslado desde LICAPA II. En el pivote siguen en M6, no en M1. */
+function esFilaTraslado1420(row) {
+  const min = minutosRelojFila(row);
+  return min != null && Number.isFinite(min) && min >= 14 * 60 + 15 && min <= 14 * 60 + 25;
+}
+
+function isMinutoInicioOficialManana(min) {
+  if (min == null || !Number.isFinite(min)) return false;
+  if (min < 6 * 60 || min >= 8 * 60) return false;
+  const slack = 5;
+  return Math.abs(min - (6 * 60 + 30)) <= slack || Math.abs(min - (6 * 60 + 45)) <= slack;
+}
+
+/** Inicio oficial: 06:30 o 06:45. 13:00 / 14:20 / 14:40 nunca cuentan como origen. */
+function isFilaInicioOficialManana(row) {
+  const txt = String(row?.horaInicioTexto || "").trim();
+  if (/(?:^|\s)(?:1[3-9]|2[0-3]):/.test(txt)) return false;
+  return isMinutoInicioOficialManana(minutosRelojFila(row));
+}
+
+/** Filtro de fundo = igual que el pivote Excel: solo ese fundo. */
+function moduloVisibleEnFiltro(fundo, fundoNorm) {
+  if (!fundoNorm) return true;
+  return normExactToken(fundo) === fundoNorm;
+}
+
+function isFundoLicapaIiOIii(fundo) {
+  const f = normExactToken(fundo);
+  return f === "LICAPA II" || f === "LICAPA III";
+}
+
+function rowStartMin(row) {
+  const ini = minutosRelojFila(row);
+  return ini != null && Number.isFinite(ini) ? ini : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Avisos: cuadrillas que cambiaron de fundo (LICAPA I ↔ II/III).
+ * No altera el conteo de mañana.
+ */
+function buildMovimientosLicapaIiIii(allRows) {
+  const excluir = keysConSupervisorCosecha(allRows || []);
+  const byWorker = new Map();
+
+  (allRows || []).forEach((row) => {
+    if (!isActividadCosechaExact(row.actividad)) return;
+    const wKey = workerUniqueKey(row);
+    if (!wKey || esExcluidoDeCosechadores(row, excluir)) return;
+    const fundo = String(row.fundo || "").trim() || "(sin fundo)";
+    const modulo = moduloCosechaLabel(row) || String(row.modulo || "").trim();
+    const supervisor = String(row.supervisor || "").trim() || "(sin supervisor)";
+    const startMin = rowStartMin(row);
+    const slot = {
+      fundo,
+      modulo,
+      supervisor,
+      startMin,
+      isManana: isFilaTurnoManana(row)
+    };
+    if (!byWorker.has(wKey)) byWorker.set(wKey, { first: null, last: null });
+    const w = byWorker.get(wKey);
+    if (slot.isManana) {
+      if (!w.first || !w.first.isManana || startMin < w.first.startMin) w.first = slot;
+    } else if (!w.first) {
+      w.first = slot;
+    }
+    if (!w.last || startMin >= w.last.startMin) w.last = slot;
+  });
+
+  const groups = new Map();
+  const supervisores = new Set();
+
+  byWorker.forEach((w) => {
+    if (!w.first || !w.last) return;
+    const desde = String(w.first.fundo || "").trim();
+    const hacia = String(w.last.fundo || "").trim();
+    if (normExactToken(desde) === normExactToken(hacia)) return;
+    if (!isFundoLicapaIiOIii(desde) && !isFundoLicapaIiOIii(hacia)) return;
+    const sup = w.last.supervisor || w.first.supervisor;
+    if (isAdminCosechaSupervisor(sup)) return;
+    const gKey = `${normExactToken(desde)}||${normExactToken(hacia)}`;
+    if (!groups.has(gKey)) {
+      groups.set(gKey, {
+        fundoDesde: desde,
+        fundoHacia: hacia,
+        supervisores: new Map(),
+        personas: 0
+      });
+    }
+    const g = groups.get(gKey);
+    g.personas += 1;
+    const sKey = normExactToken(sup);
+    if (sKey && sKey !== "(SIN SUPERVISOR)") {
+      if (!g.supervisores.has(sKey)) g.supervisores.set(sKey, sup);
+      supervisores.add(sKey);
+    }
+  });
+
+  const list = [...groups.values()]
+    .map((g) => ({
+      fundoDesde: g.fundoDesde,
+      fundoHacia: g.fundoHacia,
+      personas: g.personas,
+      supervisores: [...g.supervisores.values()].sort((a, b) => a.localeCompare(b, "es")),
+      supervisorCount: g.supervisores.size
+    }))
+    .sort((a, b) => {
+      const aa = `${a.fundoDesde} ${a.fundoHacia}`.localeCompare(`${b.fundoDesde} ${b.fundoHacia}`, "es");
+      return aa;
+    });
+
+  return {
+    list,
+    totalPersonas: list.reduce((s, g) => s + g.personas, 0),
+    totalSupervisores: supervisores.size
+  };
+}
+
+function htmlMovimientosLicapaIiIii(mov) {
+  const vacio = !mov?.list?.length;
+  const body = vacio
+    ? `<p class="modulos-aviso__empty">Hoy no se movieron cuadrillas entre LICAPA I y LICAPA II / III.</p>`
+    : `<p class="modulos-aviso__sum">${mov.totalSupervisores} supervisor(es) · ${mov.totalPersonas} personas</p>
+        <ul class="modulos-aviso__list">${mov.list
+          .map((g) => {
+            const names = g.supervisores.join(" · ");
+            return `<li><strong>${escapeHtml(g.fundoDesde)} → ${escapeHtml(g.fundoHacia)}</strong>: ${g.supervisorCount} supervisor(es) · ${g.personas} personas${
+              names ? `<div class="modulos-aviso__dni">${escapeHtml(names)}</div>` : ""
+            }</li>`;
+          })
+          .join("")}</ul>`;
+  return `<p class="modulos-aviso__title">LICAPA II / III · se movieron supervisores y gente</p>${body}`;
+}
+
 /** Vista del modal módulos: resumen (COSECHA) | detalle (actividades). */
 const modulosUiState = { view: "resumen" };
 
@@ -968,221 +1129,216 @@ const ACTIVIDADES_DETALLE_MODULO = new Set([
   "ESTIBA KIA",
   "SCANER",
   "SUPERVISOR DE COSECHA",
-  "CALIDAD"
+  "CALIDAD",
+  "SUPERVISOR DE CALIDAD",
+  "DIGITADOR DE CALIDAD"
 ]);
 
 /** Etiqueta canónica de actividad (evita SCANER/SCANNER duplicados). */
+function moduloDetalleNum(modulo) {
+  const m = String(modulo || "").match(/(\d+)/);
+  return m ? Number(m[1]) : 9999;
+}
+
 function actividadDetalleLabel(actividad) {
   const a = normExactToken(actividad);
   if (!a) return "";
   if (a === "SCANNER" || a === "ESCANER" || a === "ESCANEAR") return "SCANER";
   if (a.includes("SUPERVISOR") && a.includes("COSECHA")) return "SUPERVISOR DE COSECHA";
-  if (a.includes("CALIDAD")) return "CALIDAD";
+  if (a.includes("SUPERVISOR") && a.includes("CALIDAD")) return "SUPERVISOR DE CALIDAD";
+  if (a.includes("DIGITADOR") && a.includes("CALIDAD")) return "DIGITADOR DE CALIDAD";
+  if (a === "CALIDAD") return "CALIDAD";
   if (a.includes("ESTIBA") && a.includes("KIA")) return "ESTIBA KIA";
   if (a === "COSECHA") return "COSECHA";
   return a;
 }
 
 /**
- * Tabla detallada tipo pivote:
- * Módulo × Fundo × Actividad → personas únicas.
- * SUPERVISOR DE COSECHA = pivote Excel: Actividad COSECHA → Supervisor único por módulo.
- * Ejemplo LICAPA M4 = 17 (cuadrillas), no las 19 personas que tarearon esa actividad.
- * Si se movió, COSECHA cuenta en destino. En origen COSECHA (solo si hubo salida):
- * "inicio → neto (quedaron después HH:MM)" con horas/cantidades del Excel del día.
+ * Tabla detallada: únicos por módulo y actividad.
+ * SUPERVISOR DE COSECHA: titular = módulo donde arrancó;
+ * si su gente/él aparece en otro módulo → ese extra va en rojo “+ N SUPER (PERSONAL)”.
+ * Total únicos (Purizaga en M1 y M3 cuenta 1).
  */
 function buildModulosDetalleReport() {
   const rows = state.validated?.rows || [];
   const fundoFiltro = String(readFilters().fundo || "").trim();
   const fundoNorm = normExactToken(fundoFiltro);
-  const excluirCosecha = keysConSupervisorCosecha(rowsAlcanceFundo(fundoFiltro));
 
-  /** wKey → { mods, actsByMod } */
-  const byWorker = new Map();
-  /** groupKey → { fundo, modulo, keys: Set(supervisorNorm) } */
-  const supervisorPorModulo = new Map();
+  const buckets = new Map();
+  function addBucket(groupKey, meta, actividad, id) {
+    const bKey = `${groupKey}||${actividad}`;
+    if (!buckets.has(bKey)) {
+      buckets.set(bKey, {
+        fundo: meta.fundo,
+        modulo: meta.modulo,
+        groupKey,
+        actividad,
+        workers: new Set()
+      });
+    }
+    buckets.get(bKey).workers.add(id);
+  }
+
+  /** sKey → { nombre, slots: Map(groupKey → { fundo, modulo, bestStart, hasManana }) } */
+  const supByPerson = new Map();
+  function touchSupervisor(sKey, nombre, fundo, modulo, groupKey, startMin) {
+    if (!sKey) return;
+    if (!supByPerson.has(sKey)) {
+      supByPerson.set(sKey, { nombre: nombre || sKey, slots: new Map() });
+    }
+    const rec = supByPerson.get(sKey);
+    if (nombre && (!rec.nombre || rec.nombre.length < nombre.length)) rec.nombre = nombre;
+    const hasManana = isMinutoInicioOficialManana(startMin);
+    const prev = rec.slots.get(groupKey);
+    if (!prev) {
+      rec.slots.set(groupKey, { fundo, modulo, groupKey, bestStart: startMin, hasManana, punchCount: 1 });
+      return;
+    }
+    prev.punchCount += 1;
+    if (hasManana) prev.hasManana = true;
+    if (startMin < prev.bestStart) prev.bestStart = startMin;
+  }
+
+  const workerKeys = new Set();
+  const calidadKeys = new Set();
   let filasFuente = 0;
 
   rows.forEach((row) => {
-    if (fundoNorm && normExactToken(row.fundo) !== fundoNorm) return;
     const actividad = actividadDetalleLabel(row.actividad);
     if (!actividad || !ACTIVIDADES_DETALLE_MODULO.has(actividad)) return;
     const modulo = moduloCosechaLabel(row);
     if (!modulo) return;
     const fundo = String(row.fundo || "").trim() || "(sin fundo)";
+    if (fundoNorm && normExactToken(fundo) !== fundoNorm) return;
     const groupKey = `${normExactToken(fundo)}||${normExactToken(modulo)}`;
-    const supervisor = String(row.supervisor || "").trim() || "(sin supervisor)";
-    const startMin =
-      row.horaInicioMin != null && Number.isFinite(row.horaInicioMin)
-        ? row.horaInicioMin
-        : Number.POSITIVE_INFINITY;
+    const meta = { fundo, modulo, groupKey };
+    const startMin = rowStartMin(row);
 
-    if (isActividadCosechaExact(row.actividad)) {
-      const sKey = normExactToken(supervisor);
-      if (sKey && sKey !== "(SIN SUPERVISOR)") {
-        if (!supervisorPorModulo.has(groupKey)) {
-          supervisorPorModulo.set(groupKey, { fundo, modulo, keys: new Set() });
-        }
-        supervisorPorModulo.get(groupKey).keys.add(sKey);
-      }
+    if (actividad === "SUPERVISOR DE COSECHA") {
+      const nombre = String(row.trabajador || "").trim() || String(row.supervisor || "").trim();
+      const sKey = workerUniqueKey(row) || (normExactToken(nombre) ? `n:${normExactToken(nombre)}` : "");
+      touchSupervisor(sKey, nombre, fundo, modulo, groupKey, startMin);
+      return;
     }
 
-    if (actividad === "SUPERVISOR DE COSECHA") return;
-    const wKey = workerUniqueKey(row);
+    if (actividad === "COSECHA" && esFilaTraslado1420(row)) return;
+    const wKey =
+      actividad === "COSECHA" || actividad === "CALIDAD"
+        ? pivotDocumentoKey(row)
+        : workerUniqueKey(row);
     if (!wKey) return;
 
     filasFuente += 1;
-
-    if (!byWorker.has(wKey)) {
-      byWorker.set(wKey, { mods: new Map(), actsByMod: new Map() });
-    }
-    const w = byWorker.get(wKey);
-    const prev = w.mods.get(groupKey);
-    if (!prev || startMin < prev.startMin) {
-      w.mods.set(groupKey, { fundo, modulo, startMin, supervisor });
-    }
-    if (!w.actsByMod.has(groupKey)) w.actsByMod.set(groupKey, new Set());
-    // Supervisor con fila COSECHA extra: no inflar conteo de cosechadores
-    if (actividad === "COSECHA" && esExcluidoDeCosechadores(row, excluirCosecha)) return;
-    w.actsByMod.get(groupKey).add(actividad);
+    workerKeys.add(wKey);
+    if (actividad === "CALIDAD") calidadKeys.add(wKey);
+    addBucket(groupKey, meta, actividad, wKey);
   });
 
-  const buckets = new Map();
-  const visitMap = new Map(); // bKey → Set(wKey) actividad en ese módulo (inicio)
-  const leaveHoraByMod = new Map(); // groupKey → min hora destino (salieron)
-  const moveMap = new Map();
+  const supItemsByGroup = new Map();
+  const supMoved = [];
+  let sumaSupervisoresUnicos = 0;
 
-  byWorker.forEach((w, wKey) => {
-    const modList = [...w.mods.entries()];
-    if (!modList.length) return;
-
-    let first = modList[0];
-    let last = modList[0];
-    modList.forEach((entry) => {
-      const t = entry[1].startMin;
-      if (t < first[1].startMin) first = entry;
-      if (t > last[1].startMin) last = entry;
-    });
-
-    const [firstKey, firstMeta] = first;
-    const [assignKey, assignMeta] = last;
-
-    // Visitas (inicio) por módulo + actividad
-    w.actsByMod.forEach((acts, gKey) => {
-      const meta = w.mods.get(gKey);
-      if (!meta) return;
-      acts.forEach((actividad) => {
-        const bKey = `${gKey}||${actividad}`;
-        if (!visitMap.has(bKey)) visitMap.set(bKey, new Set());
-        visitMap.get(bKey).add(wKey);
-      });
-    });
-
-    if (firstKey !== assignKey) {
-      const supervisor = firstMeta.supervisor || assignMeta.supervisor || "(sin supervisor)";
-      if (!isAdminCosechaSupervisor(supervisor)) {
-        const moveKey = [
-          normExactToken(supervisor),
-          firstKey,
-          assignKey
-        ].join("||");
-        if (!moveMap.has(moveKey)) {
-          moveMap.set(moveKey, {
-            supervisor,
-            moduloDesde: firstMeta.modulo,
-            moduloHacia: assignMeta.modulo,
-            horaHaciaMin: assignMeta.startMin,
-            cosechadores: 0
-          });
+  supByPerson.forEach((rec) => {
+    if (!rec.slots.size) return;
+    sumaSupervisoresUnicos += 1;
+    let home = null;
+    rec.slots.forEach((slot) => {
+      if (!home) {
+        home = slot;
+        return;
+      }
+      if (slot.hasManana && !home.hasManana) home = slot;
+      else if (slot.hasManana === home.hasManana) {
+        if (slot.bestStart < home.bestStart) home = slot;
+        else if (slot.bestStart === home.bestStart) {
+          const na = moduloDetalleNum(slot.modulo);
+          const nb = moduloDetalleNum(home.modulo);
+          if (na < nb) home = slot;
         }
-        moveMap.get(moveKey).cosechadores += 1;
       }
-
-      const prevH = leaveHoraByMod.get(firstKey);
-      if (
-        prevH == null ||
-        (Number.isFinite(assignMeta.startMin) && assignMeta.startMin < prevH)
-      ) {
-        leaveHoraByMod.set(firstKey, assignMeta.startMin);
-      }
-    }
-
-    const acts = w.actsByMod.get(assignKey) || new Set();
-    acts.forEach((actividad) => {
-      const bKey = `${assignKey}||${actividad}`;
-      if (!buckets.has(bKey)) {
-        buckets.set(bKey, {
-          fundo: assignMeta.fundo,
-          modulo: assignMeta.modulo,
-          groupKey: assignKey,
-          actividad,
-          workers: new Set()
+    });
+    rec.slots.forEach((slot) => {
+      const isHome = slot.groupKey === home.groupKey;
+      if (!supItemsByGroup.has(slot.groupKey)) {
+        supItemsByGroup.set(slot.groupKey, {
+          fundo: slot.fundo,
+          modulo: slot.modulo,
+          groupKey: slot.groupKey,
+          titulares: [],
+          extras: [],
+          dividido: false,
+          divididoN: 0
         });
       }
-      buckets.get(bKey).workers.add(wKey);
+      const g = supItemsByGroup.get(slot.groupKey);
+      const entry = { nombre: rec.nombre, homeModulo: home.modulo, homeFundo: home.fundo };
+      if (isHome) g.titulares.push(entry);
+      else g.extras.push(entry);
     });
-  });
-
-  // Asegurar filas de origen COSECHA aunque neto < inicio
-  visitMap.forEach((workers, bKey) => {
-    if (buckets.has(bKey)) return;
-    const parts = bKey.split("||");
-    const actividad = parts[parts.length - 1];
-    if (actividad !== "COSECHA") return;
-    const groupKey = parts.slice(0, -1).join("||");
-    // buscar meta de algún worker
-    let meta = null;
-    for (const wKey of workers) {
-      const w = byWorker.get(wKey);
-      meta = w?.mods?.get(groupKey);
-      if (meta) break;
+    if (rec.slots.size > 1) {
+      const otros = [...rec.slots.values()]
+        .filter((s) => s.groupKey !== home.groupKey)
+        .map((s) => s.modulo);
+      const nMods = rec.slots.size;
+      rec.slots.forEach((slot) => {
+        const g = supItemsByGroup.get(slot.groupKey);
+        if (!g) return;
+        g.dividido = true;
+        g.divididoN = Math.max(g.divididoN || 0, nMods);
+      });
+      supMoved.push({
+        nombre: rec.nombre,
+        homeModulo: home.modulo,
+        otros,
+        nMods
+      });
     }
-    if (!meta) return;
-    buckets.set(bKey, {
-      fundo: meta.fundo,
-      modulo: meta.modulo,
-      groupKey,
-      actividad,
-      workers: new Set() // neto 0 posible
-    });
   });
 
-  supervisorPorModulo.forEach((g, groupKey) => {
-    const bKey = `${groupKey}||SUPERVISOR DE COSECHA`;
-    buckets.set(bKey, {
+  const items = [...buckets.values()]
+    .map((g) => ({
       fundo: g.fundo,
       modulo: g.modulo,
-      groupKey,
+      actividad: g.actividad,
+      cantidad: g.workers.size,
+      inicio: g.workers.size,
+      extraSuper: 0,
+      extraNombres: [],
+      titularNombres: [],
+      dividido: false,
+      divididoN: 0,
+      salieron: false,
+      horaDespues: ""
+    }));
+
+  supItemsByGroup.forEach((g) => {
+    items.push({
+      fundo: g.fundo,
+      modulo: g.modulo,
       actividad: "SUPERVISOR DE COSECHA",
-      workers: g.keys
+      cantidad: g.titulares.length,
+      inicio: g.titulares.length,
+      extraSuper: g.extras.length,
+      extraNombres: g.extras.map((e) => e.nombre),
+      titularNombres: g.titulares.map((e) => e.nombre),
+      dividido: Boolean(g.dividido),
+      divididoN: g.divididoN || 0,
+      salieron: false,
+      horaDespues: ""
     });
-    visitMap.set(bKey, new Set(g.keys));
   });
 
-  const items = [...buckets.entries()]
-    .map(([bKey, g]) => {
-      const inicio = visitMap.get(bKey)?.size || g.workers.size;
-      const cantidad = g.workers.size;
-      const horaMin = leaveHoraByMod.get(g.groupKey);
-      const salieron = inicio > cantidad;
-      return {
-        fundo: g.fundo,
-        modulo: g.modulo,
-        actividad: g.actividad,
-        cantidad,
-        inicio,
-        salieron,
-        horaDespues: salieron ? minutesToClock(horaMin) : ""
-      };
-    })
-    .filter((it) => it.cantidad > 0 || (it.actividad === "COSECHA" && it.inicio > 0))
+  const filtered = items
+    .filter((it) => it.cantidad > 0 || it.extraSuper > 0)
     .sort((a, b) => {
-      const mm = a.modulo.localeCompare(b.modulo, "es", { numeric: true });
-      if (mm) return mm;
       const ff = a.fundo.localeCompare(b.fundo, "es");
       if (ff) return ff;
+      const mm = a.modulo.localeCompare(b.modulo, "es", { numeric: true });
+      if (mm) return mm;
       const order = [
         "CALIDAD",
+        "SUPERVISOR DE CALIDAD",
+        "DIGITADOR DE CALIDAD",
         "COSECHA",
         "ESTIBA KIA",
         "SCANER",
@@ -1194,188 +1350,222 @@ function buildModulosDetalleReport() {
       return a.actividad.localeCompare(b.actividad, "es");
     });
 
-  const movers = [...moveMap.values()]
-    .sort((a, b) => {
-      const ss = a.supervisor.localeCompare(b.supervisor, "es");
-      if (ss) return ss;
-      return a.moduloDesde.localeCompare(b.moduloDesde, "es", { numeric: true });
-    });
-
-  const sumaCuentas = items.reduce((s, it) => s + it.cantidad, 0);
-  const sumaCosecha = items
+  const sumaCuentas = filtered.reduce((s, it) => s + it.cantidad + (it.extraSuper || 0), 0);
+  const sumaCosecha = filtered
     .filter((it) => it.actividad === "COSECHA")
     .reduce((s, it) => s + it.cantidad, 0);
-  const modulos = new Set(items.map((it) => `${normExactToken(it.fundo)}||${normExactToken(it.modulo)}`));
+  const sumaCalidad = calidadKeys.size;
+  const modulos = new Set(filtered.map((it) => `${normExactToken(it.fundo)}||${normExactToken(it.modulo)}`));
+
+  const movFundo = buildMovimientosLicapaIiIii(state.validated?.rows || []);
 
   return {
     fundoFiltro: fundoFiltro || "",
-    items,
-    movers,
-    totalUnicos: byWorker.size,
+    items: filtered,
+    movers: [],
+    movFundo,
+    supMoved,
+    totalUnicos: workerKeys.size,
     sumaCuentas,
     sumaCosecha,
+    sumaCalidad,
+    sumaSupervisoresUnicos,
+    sumaSupervisoresSiDuplica: sumaSupervisoresUnicos + filtered
+      .filter((it) => it.actividad === "SUPERVISOR DE COSECHA")
+      .reduce((s, it) => s + (Number(it.extraSuper) || 0), 0),
     modulosCount: modulos.size,
     filasFuente
   };
 }
+/** Clave tipo pivote Excel: Distinct Count de Documento (celdas distintas, blank cuenta 1). */
+function pivotDocumentoKey(row) {
+  const cell = row?.documentoCell;
+  if (cell != null && String(cell).trim() !== "") return `doc:${String(cell).trim()}`;
+  const doc = String(row?.documento || "").trim();
+  if (doc) return `doc:${doc}`;
+  const cod = String(row?.codigoTrabajador || "").replace(/\D/g, "");
+  if (cod) return `cod:${cod}`;
+  const name = String(row?.trabajador || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  if (name) return `n:${name}`;
+  return "blank";
+}
+
+const JORNAL_HORAS = 9.6;
+
+function formatSumaPersonas(n) {
+  if (!Number.isFinite(n)) return "0";
+  return String(Math.round(n));
+}
+
+function formatJornales(n) {
+  if (!Number.isFinite(n)) return "0.00";
+  return n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 /**
- * COSECHA (exacta) + Fundo del filtro (exacto) o todos.
- * Cada persona cuenta en UN solo módulo: el destino (última hora).
- * Si empezó en M3 y luego M5 → cuenta en M5; M3 muestra el neto en rojo.
- * Avisos: por supervisor (de → a, horas, N cosechadores).
+ * COSECHA por módulo.
+ * Con filtro LICAPA: recuento distinto de quien tareó COSECHA en LICAPA (pivote Excel).
+ * Quien arrancó en III y se pasó a LICAPA suma acá (amarillo).
  */
 function buildModulosCosechaReport() {
   const rows = state.validated?.rows || [];
   const fundoFiltro = String(readFilters().fundo || "").trim();
   const fundoNorm = normExactToken(fundoFiltro);
-  const alcance = rowsAlcanceFundo(fundoFiltro);
-  const excluir = keysConSupervisorCosecha(alcance);
 
-  const scoped = rows.filter((row) => {
-    if (!isActividadCosechaExact(row.actividad)) return false;
-    if (!moduloCosechaLabel(row)) return false;
-    if (fundoNorm) return normExactToken(row.fundo) === fundoNorm;
-    return true;
-  });
+  const byWorker = new Map();
+  let filasFuente = 0;
 
-  /** worker → módulo destino (última hora de inicio entre módulos) */
-  const assigned = new Map();
-  /** worker → primer módulo (más temprano) — para avisos de movimiento */
-  const firstStep = new Map();
-  /** groupKey → visitas */
-  const visits = new Map();
-  /** worker → Map(groupKey → { modulo, fundo, startMin, supervisor }) */
-  const workerMods = new Map();
-
-  scoped.forEach((row) => {
-    const wKey = workerUniqueKey(row);
-    if (!wKey || esExcluidoDeCosechadores(row, excluir)) return;
-
+  rows.forEach((row) => {
+    if (!isActividadCosechaExact(row.actividad)) return;
     const modulo = moduloCosechaLabel(row);
     if (!modulo) return;
-    const documento = String(row.documento || "").trim();
-    const trabajador = String(row.trabajador || "").trim();
+    const wKey = workerUniqueKey(row) || pivotDocumentoKey(row);
+    if (!wKey) return;
+
+    filasFuente += 1;
     const fundo = String(row.fundo || "").trim() || "(sin fundo)";
-    const groupKey = fundoFiltro ? modulo : `${fundo}||${modulo}`;
-    const supervisor = String(row.supervisor || "").trim() || "(sin supervisor)";
-    const startMin =
-      row.horaInicioMin != null && Number.isFinite(row.horaInicioMin)
-        ? row.horaInicioMin
-        : Number.POSITIVE_INFINITY;
-    const excelRow = Number(row.excelRow ?? row.rowIndex ?? 0) || 0;
-
-    if (!visits.has(groupKey)) {
-      visits.set(groupKey, { fundo, modulo, workers: new Map() });
-    }
-    const visitBucket = visits.get(groupKey);
-    if (!visitBucket.workers.has(wKey)) {
-      visitBucket.workers.set(wKey, { documento, trabajador, supervisor });
-    }
-
-    if (!workerMods.has(wKey)) workerMods.set(wKey, new Map());
-    const wMods = workerMods.get(wKey);
-    const prevMod = wMods.get(groupKey);
-    if (!prevMod || startMin < prevMod.startMin) {
-      wMods.set(groupKey, { fundo, modulo, startMin, supervisor, excelRow, documento, trabajador });
-    }
+    const groupKey = `${normExactToken(fundo)}||${normExactToken(modulo)}`;
+    const punch = {
+      fundo,
+      modulo,
+      groupKey,
+      startMin: rowStartMin(row),
+      horas: Number(row.horasTurno) || 0,
+      supervisor: String(row.supervisor || "").trim() || "(sin supervisor)",
+      documento: String(row.documento || "").trim(),
+      trabajador: String(row.trabajador || "").trim()
+    };
+    if (!byWorker.has(wKey)) byWorker.set(wKey, []);
+    byWorker.get(wKey).push(punch);
   });
 
-  workerMods.forEach((mods, wKey) => {
-    let first = null;
-    let last = null;
-    mods.forEach((meta, groupKey) => {
-      const slot = { ...meta, groupKey };
-      if (!first || meta.startMin < first.startMin) first = slot;
-      if (!last || meta.startMin > last.startMin) last = slot;
-    });
-    if (first) firstStep.set(wKey, first);
-    if (last) assigned.set(wKey, last);
-  });
-
-  const items = [...visits.entries()]
-    .map(([groupKey, g]) => {
-      let asignados = 0;
-      let reubicadosCount = 0; // pisaron aquí pero cuentan en otro (salieron)
-      g.workers.forEach((_info, wKey) => {
-        const slot = assigned.get(wKey);
-        if (!slot) return;
-        if (slot.groupKey === groupKey) asignados += 1;
-        else reubicadosCount += 1;
+  const buckets = new Map();
+  function bucket(groupKey, meta) {
+    if (!buckets.has(groupKey)) {
+      buckets.set(groupKey, {
+        fundo: meta.fundo,
+        modulo: meta.modulo,
+        inicio: new Set(),
+        destino: new Set(),
+        trabajadores: new Map(),
+        personas: 0,
+        jornales: 0
       });
+    }
+    return buckets.get(groupKey);
+  }
+
+  const assigned = new Map();
+  const moverAcc = new Map();
+  const unicosFundo = new Set();
+
+  byWorker.forEach((punches, wKey) => {
+    punches.sort((a, b) => a.startMin - b.startMin || 0);
+    const globalOrigin = punches.find((p) => isMinutoInicioOficialManana(p.startMin)) || punches[0];
+    const scoped = fundoNorm
+      ? punches.filter((p) => moduloVisibleEnFiltro(p.fundo, fundoNorm))
+      : punches;
+    if (!scoped.length) return;
+
+    unicosFundo.add(wKey);
+    const last = scoped[scoped.length - 1];
+    const originInFundo = scoped.find((p) => isMinutoInicioOficialManana(p.startMin));
+
+    scoped.forEach((p) => {
+      const b = bucket(p.groupKey, p);
+      b.trabajadores.set(wKey, {
+        documento: p.documento,
+        trabajador: p.trabajador,
+        supervisor: p.supervisor
+      });
+      b.jornales += p.horas / JORNAL_HORAS;
+    });
+
+    if (originInFundo) bucket(originInFundo.groupKey, originInFundo).inicio.add(wKey);
+    if (last) {
+      bucket(last.groupKey, last).destino.add(wKey);
+      assigned.set(wKey, {
+        fundo: last.fundo,
+        modulo: last.modulo,
+        groupKey: last.groupKey,
+        startMin: last.startMin,
+        documento: last.documento,
+        trabajador: last.trabajador,
+        supervisor: last.supervisor
+      });
+    }
+
+    if (globalOrigin && last && globalOrigin.groupKey !== last.groupKey) {
+      const mk = `${normExactToken(globalOrigin.supervisor || last.supervisor)}||${globalOrigin.groupKey}||${last.groupKey}`;
+      if (!moverAcc.has(mk)) {
+        moverAcc.set(mk, {
+          supervisor: globalOrigin.supervisor || last.supervisor,
+          fundoDesde: globalOrigin.fundo,
+          moduloDesde: globalOrigin.modulo,
+          fundoHacia: last.fundo,
+          moduloHacia: last.modulo,
+          horaDesde: minutesToClock(globalOrigin.startMin),
+          horaHacia: minutesToClock(last.startMin),
+          cosechadores: 0,
+          originKey: globalOrigin.groupKey,
+          destKey: last.groupKey
+        });
+      }
+      moverAcc.get(mk).cosechadores += 1;
+    }
+  });
+
+  const movers = [...moverAcc.values()].sort((a, b) =>
+    String(a.supervisor).localeCompare(String(b.supervisor), "es")
+  );
+  const warnKeys = new Set();
+  movers.forEach((m) => {
+    if (fundoNorm && isFundoLicapaIiOIii(m.fundoDesde)) {
+      warnKeys.add(m.destKey);
+      return;
+    }
+    if (m.originKey) warnKeys.add(m.originKey);
+    if (m.destKey) warnKeys.add(m.destKey);
+  });
+
+  const items = [...buckets.values()]
+    .filter((g) => moduloVisibleEnFiltro(g.fundo, fundoNorm))
+    .map((g) => {
+      const groupKey = `${normExactToken(g.fundo)}||${normExactToken(g.modulo)}`;
+      const personas = g.trabajadores.size;
       return {
         fundo: g.fundo,
         modulo: g.modulo,
-        cantidad: asignados,
-        pisaronAqui: g.workers.size,
-        reubicadosCount,
-        /** Neto reducido porque gente salió a otro módulo */
-        salieron: reubicadosCount > 0
+        groupKey,
+        inicio: g.inicio.size,
+        destino: g.destino.size,
+        personas,
+        jornales: g.jornales,
+        cantidad: personas,
+        pisaronAqui: personas,
+        reubicadosCount: 0,
+        salieron: false,
+        warn: warnKeys.has(groupKey)
       };
     })
     .sort((a, b) => {
-      if (!fundoFiltro) {
-        const ff = a.fundo.localeCompare(b.fundo, "es");
-        if (ff) return ff;
-      }
+      const ff = a.fundo.localeCompare(b.fundo, "es");
+      if (ff) return ff;
       return a.modulo.localeCompare(b.modulo, "es", { numeric: true });
     });
 
-  /** supervisor + de (primero) → a (destino) */
-  const moveMap = new Map();
-  assigned.forEach((dest, wKey) => {
-    const origin = firstStep.get(wKey);
-    if (!origin || origin.groupKey === dest.groupKey) return;
-    const supervisor = dest.supervisor || origin.supervisor || "(sin supervisor)";
-    const moveKey = [
-      normExactToken(supervisor),
-      origin.groupKey,
-      dest.groupKey
-    ].join("||");
-    if (!moveMap.has(moveKey)) {
-      moveMap.set(moveKey, {
-        supervisor,
-        moduloDesde: origin.modulo,
-        fundoDesde: origin.fundo,
-        moduloHacia: dest.modulo,
-        fundoHacia: dest.fundo,
-        horaDesdeMin: origin.startMin,
-        horaHaciaMin: dest.startMin,
-        workers: new Set()
-      });
-    }
-    const m = moveMap.get(moveKey);
-    m.workers.add(wKey);
-    if (Number.isFinite(origin.startMin) && origin.startMin < m.horaDesdeMin) {
-      m.horaDesdeMin = origin.startMin;
-    }
-    if (Number.isFinite(dest.startMin) && dest.startMin < m.horaHaciaMin) {
-      m.horaHaciaMin = dest.startMin;
-    }
-  });
-
-  const movers = [...moveMap.values()]
-    .map((m) => ({
-      supervisor: m.supervisor,
-      moduloDesde: m.moduloDesde,
-      fundoDesde: m.fundoDesde,
-      moduloHacia: m.moduloHacia,
-      fundoHacia: m.fundoHacia,
-      horaDesde: minutesToClock(m.horaDesdeMin),
-      horaHacia: minutesToClock(m.horaHaciaMin),
-      cosechadores: m.workers.size
-    }))
-    .sort((a, b) => {
-      const ss = a.supervisor.localeCompare(b.supervisor, "es");
-      if (ss) return ss;
-      const md = a.moduloDesde.localeCompare(b.moduloDesde, "es", { numeric: true });
-      if (md) return md;
-      return a.moduloHacia.localeCompare(b.moduloHacia, "es", { numeric: true });
-    });
-
-  const totalUnicos = assigned.size;
-  const sumaModulos = items.reduce((s, it) => s + it.cantidad, 0);
-  const totalReubicados = movers.reduce((s, m) => s + m.cosechadores, 0);
+  const mixedFundos = new Set(items.map((it) => normExactToken(it.fundo))).size > 1;
+  const totalInicio = items.reduce((s, it) => s + it.inicio, 0);
+  const totalPersonas = unicosFundo.size;
+  const totalJornales = items.reduce((s, it) => s + it.jornales, 0);
+  const totalUnicos = Math.round(totalPersonas);
+  const sumaModulos = totalUnicos;
+  const totalReubicados = 0;
 
   const sinDniMap = new Map();
   assigned.forEach((slot, wKey) => {
@@ -1391,27 +1581,15 @@ function buildModulosCosechaReport() {
       supervisor: slot.supervisor || ""
     });
   });
-  // También filas COSECHA del alcance sin DNI (por si no entraron a assigned)
-  scoped.forEach((row) => {
-    const doc = String(row.documento || "").trim();
-    if (doc) return;
-    const wKey = workerUniqueKey(row);
-    if (!wKey || wKey.startsWith("d:") || sinDniMap.has(wKey)) return;
-    sinDniMap.set(wKey, {
-      trabajador: String(row.trabajador || "").trim() || "(sin nombre)",
-      documento: "",
-      codigo: String(row.codigoTrabajador || "").replace(/\D/g, ""),
-      modulo: moduloCosechaLabel(row) || "",
-      fundo: String(row.fundo || "").trim(),
-      supervisor: String(row.supervisor || "").trim() || "(sin supervisor)"
-    });
-  });
   const sinDni = [...sinDniMap.values()].sort((a, b) =>
     a.trabajador.localeCompare(b.trabajador, "es")
   );
 
   const resumenKeys = collectResumenCosechaKeys(fundoFiltro);
-  const modulosKeys = new Set(assigned.keys());
+  const modulosKeys = new Set();
+  assigned.forEach((slot, k) => {
+    if (!fundoNorm || normExactToken(slot.fundo) === fundoNorm) modulosKeys.add(k);
+  });
   const extraVsResumen = [];
   modulosKeys.forEach((k) => {
     if (resumenKeys.has(k)) return;
@@ -1435,18 +1613,33 @@ function buildModulosCosechaReport() {
 
   return {
     fundoFiltro: fundoFiltro || "",
-    showFundo: !fundoFiltro,
+    showFundo: !fundoFiltro || mixedFundos,
     items,
     movers,
+    movFundo: buildMovimientosLicapaIiIii(rows),
     totalReubicados,
     totalUnicos,
     sumaModulos,
-    filasFuente: scoped.length,
+    totalInicio,
+    totalPersonas,
+    totalJornales,
+    filasFuente,
     resumenCosechadores: resumenKeys.size,
     sinDni,
     extraVsResumen,
     faltanEnModulos
   };
+}
+
+function formatModuloMoveLabel(m) {
+  const sameFundo =
+    normExactToken(m.fundoDesde) === normExactToken(m.fundoHacia) ||
+    !m.fundoDesde ||
+    !m.fundoHacia;
+  if (sameFundo) {
+    return `${m.moduloDesde} - ${m.moduloHacia}`;
+  }
+  return `${m.fundoDesde} ${m.moduloDesde} → ${m.fundoHacia} ${m.moduloHacia}`;
 }
 
 function minutesToClock(min) {
@@ -1477,27 +1670,27 @@ function renderModulosCosechaTable() {
   if (isDetalle) {
     const report = buildModulosDetalleReport();
 
-    if (hint) hint.innerHTML = `COSECHA: supervisor único por módulo (pivote)`;
+    if (hint) {
+      hint.innerHTML = `Cantidad no duplica al supervisor. En los 2 módulos sale + (supervisor dividido…). TOTAL = únicos (9), no la suma de filas (10).`;
+    }
     if (meta) {
-      meta.textContent = `${report.fundoFiltro || "todos"} · ${report.modulosCount} mód. · COSECHA ${report.sumaCosecha}`;
+      meta.textContent = `${report.fundoFiltro || "todos"} · ${report.modulosCount} mód. · CALIDAD ${report.sumaCalidad} · COSECHA ${report.sumaCosecha} · SUP ${report.sumaSupervisoresUnicos}`;
     }
 
     if (avisos) {
-      // Lista dinámica: solo aparece si hoy hay movimientos reales
-      if (!report.movers?.length) {
-        avisos.hidden = true;
-        avisos.innerHTML = "";
-      } else {
-        avisos.hidden = false;
-        avisos.innerHTML = `
-          <p class="modulos-aviso__title">Supervisores con cambio de módulo</p>
-          <ul class="modulos-aviso__list">${report.movers
+      const blocks = [htmlMovimientosLicapaIiIii(report.movFundo)];
+      if (report.supMoved?.length) {
+        blocks.unshift(`
+          <p class="modulos-aviso__title">Supervisor dividido en 2 módulos</p>
+          <ul class="modulos-aviso__list">${report.supMoved
             .map(
               (m) =>
-                `<li><strong>${escapeHtml(m.supervisor)}</strong>: ${escapeHtml(m.moduloDesde)} - ${escapeHtml(m.moduloHacia)}</li>`
+                `<li><strong>${escapeHtml(m.nombre)}</strong>: ${escapeHtml(m.homeModulo)} y ${escapeHtml((m.otros || []).join(", "))}</li>`
             )
-            .join("")}</ul>`;
+            .join("")}</ul>`);
       }
+      avisos.hidden = false;
+      avisos.innerHTML = blocks.join("");
     }
 
     if (head) {
@@ -1518,8 +1711,11 @@ function renderModulosCosechaTable() {
             prevFundo = it.fundo;
             const rowClass = showMod ? " class=\"modulos-detalle__group\"" : "";
             let cantHtml = String(it.cantidad);
-            // Solo si hoy hubo salida real de este módulo (números/hora del Excel)
-            if (it.actividad === "COSECHA" && it.salieron && it.inicio > it.cantidad) {
+            if (it.actividad === "SUPERVISOR DE COSECHA" && it.dividido) {
+              const n = it.divididoN || 2;
+              const who = [...(it.titularNombres || []), ...(it.extraNombres || [])].join(" · ");
+              cantHtml = `${it.cantidad} <span class="modulos-num--rojo" title="${escapeHtml(who)}"><span class="modulos-plus" aria-hidden="true">+</span> (supervisor dividido en estos ${n} módulos)</span>`;
+            } else if (it.actividad === "COSECHA" && it.salieron && it.inicio > it.cantidad) {
               const hora =
                 it.horaDespues && it.horaDespues !== "—" ? it.horaDespues : "";
               const nota = hora
@@ -1537,58 +1733,53 @@ function renderModulosCosechaTable() {
           .join("");
         body.innerHTML =
           rowsHtml +
-          `<tr class="modulos-table__total"><td colspan="3">TOTAL COSECHA</td><td>${report.sumaCosecha}</td></tr>`;
+          `<tr class="modulos-table__total"><td colspan="3">TOTAL CALIDAD</td><td>${report.sumaCalidad}</td></tr>` +
+          `<tr class="modulos-table__total"><td colspan="3">TOTAL COSECHA</td><td>${report.sumaCosecha}</td></tr>` +
+          `<tr class="modulos-table__total"><td colspan="3">TOTAL SUPERVISORES</td><td>${
+            report.sumaSupervisoresSiDuplica > report.sumaSupervisoresUnicos
+              ? `${report.sumaSupervisoresUnicos} <span class="modulos-num--rojo"><span class="modulos-plus" aria-hidden="true">+</span> (supervisor dividido en 2 módulos · si sumas las filas da ${report.sumaSupervisoresSiDuplica})</span>`
+              : String(report.sumaSupervisoresUnicos)
+          }</td></tr>`;
       }
     }
 
-    if (count) count.textContent = `COSECHA ${report.sumaCosecha}`;
+    if (count) count.textContent = `CALIDAD ${report.sumaCalidad} · COSECHA ${report.sumaCosecha} · SUP ${report.sumaSupervisoresUnicos}`;
     return report;
   }
 
   const report = buildModulosCosechaReport();
 
   if (hint) {
-    hint.innerHTML = `COSECHA · únicos (DNI/nombre) · sin duplicados · <b style="color:#b91c1c">rojo</b> = neto tras salida`;
+    hint.innerHTML = `Filtro fundo = recuento distinto como Excel · amarillo = llegaron de otro fundo (ej. León M10→LICAPA)`;
   }
   if (meta) {
     const f = report.fundoFiltro || "todos";
-    const r = report.resumenCosechadores;
-    meta.textContent =
-      r != null
-        ? `${f} · ${report.items.length} mód. · ${report.totalUnicos} únicos (Resumen ${r})`
-        : `${f} · ${report.items.length} mód. · ${report.totalUnicos} únicos`;
+    meta.textContent = `${f} · ${report.items.length} mód. · ${formatSumaPersonas(report.totalPersonas)} personas`;
   }
 
   if (head) {
     head.innerHTML = report.showFundo
-      ? `<tr><th>Fundo</th><th>Módulo</th><th>Neto</th><th>Inicio</th><th>Salieron</th></tr>`
-      : `<tr><th>Módulo</th><th>Neto</th><th>Inicio</th><th>Salieron</th></tr>`;
+      ? `<tr><th>Fundo</th><th>Módulo</th><th>Inicio</th><th>Personas</th></tr>`
+      : `<tr><th>Módulo</th><th>Inicio</th><th>Personas</th></tr>`;
   }
 
   if (body) {
     if (!report.items.length) {
-      const cols = report.showFundo ? 5 : 4;
+      const cols = report.showFundo ? 4 : 3;
       body.innerHTML = `<tr><td colspan="${cols}" class="errores-modal__empty">Sin datos.</td></tr>`;
     } else {
       const rowsHtml = report.items
         .map((it) => {
-          const warnClass = it.salieron ? " class=\"modulos-table__warn\"" : "";
-          const cantHtml = it.salieron
-            ? `<span class="modulos-num--rojo" title="Inicio ${it.pisaronAqui}">${it.cantidad}</span>`
-            : String(it.cantidad);
-          const reuCell =
-            it.reubicadosCount > 0
-              ? `<span class="modulos-reu-badge">${it.reubicadosCount}</span>`
-              : "0";
+          const cls = it.warn ? ` class="modulos-table__warn"` : "";
           return report.showFundo
-            ? `<tr${warnClass}><td>${escapeHtml(it.fundo)}</td><td>${escapeHtml(it.modulo)}</td><td>${cantHtml}</td><td>${it.pisaronAqui}</td><td>${reuCell}</td></tr>`
-            : `<tr${warnClass}><td>${escapeHtml(it.modulo)}</td><td>${cantHtml}</td><td>${it.pisaronAqui}</td><td>${reuCell}</td></tr>`;
+            ? `<tr${cls}><td>${escapeHtml(it.fundo)}</td><td>${escapeHtml(it.modulo)}</td><td>${it.inicio}</td><td>${formatSumaPersonas(it.personas)}</td></tr>`
+            : `<tr${cls}><td>${escapeHtml(it.modulo)}</td><td>${it.inicio}</td><td>${formatSumaPersonas(it.personas)}</td></tr>`;
         })
         .join("");
 
       const totalRow = report.showFundo
-        ? `<tr class="modulos-table__total"><td colspan="2">TOTAL</td><td>${report.totalUnicos}</td><td>—</td><td>${report.totalReubicados || 0}</td></tr>`
-        : `<tr class="modulos-table__total"><td>TOTAL</td><td>${report.totalUnicos}</td><td>—</td><td>${report.totalReubicados || 0}</td></tr>`;
+        ? `<tr class="modulos-table__total"><td colspan="2">TOTAL</td><td>${report.totalInicio}</td><td>${formatSumaPersonas(report.totalPersonas)}</td></tr>`
+        : `<tr class="modulos-table__total"><td>TOTAL</td><td>${report.totalInicio}</td><td>${formatSumaPersonas(report.totalPersonas)}</td></tr>`;
 
       body.innerHTML = rowsHtml + totalRow;
     }
@@ -1596,6 +1787,17 @@ function renderModulosCosechaTable() {
 
   if (avisos) {
     const blocks = [];
+    if (report.movers?.length) {
+      blocks.push(`
+        <p class="modulos-aviso__title">Amarillo · se pasaron de módulo</p>
+        <ul class="modulos-aviso__list">${report.movers
+          .map(
+            (m) =>
+              `<li><strong>${escapeHtml(m.supervisor)}</strong>: ${escapeHtml(formatModuloMoveLabel(m))} · ${m.cosechadores} personas · por eso suma en origen y destino</li>`
+          )
+          .join("")}</ul>`);
+    }
+    blocks.push(htmlMovimientosLicapaIiIii(report.movFundo));
     if (report.sinDni?.length) {
       blocks.push(`
         <p class="modulos-aviso__title">Sin DNI (${report.sinDni.length})</p>
@@ -1628,7 +1830,7 @@ function renderModulosCosechaTable() {
         <ul class="modulos-aviso__list">${report.movers
           .map(
             (m) =>
-              `<li><strong>${escapeHtml(m.supervisor)}</strong>: ${escapeHtml(m.moduloDesde)} ${escapeHtml(m.horaDesde)} → ${escapeHtml(m.moduloHacia)} ${escapeHtml(m.horaHacia)} · ${m.cosechadores}</li>`
+              `<li><strong>${escapeHtml(m.supervisor)}</strong>: ${escapeHtml(formatModuloMoveLabel(m))} · ${escapeHtml(m.horaDesde)} → ${escapeHtml(m.horaHacia)} · ${m.cosechadores}</li>`
           )
           .join("")}</ul>`);
     }
@@ -1641,7 +1843,7 @@ function renderModulosCosechaTable() {
     }
   }
 
-  if (count) count.textContent = `${report.totalUnicos} únicos`;
+  if (count) count.textContent = `${formatSumaPersonas(report.totalPersonas)} personas`;
   return report;
 }
 
@@ -2180,15 +2382,38 @@ function exportModulosCosechaExcel() {
         { value: it.modulo },
         { value: it.fundo },
         { value: it.actividad },
-        { value: it.cantidad }
+        {
+          value:
+            it.actividad === "SUPERVISOR DE COSECHA" && it.dividido
+              ? `${it.cantidad} + (supervisor dividido en estos ${it.divididoN || 2} módulos)`
+              : it.cantidad
+        }
       ]
     }));
+    rows.push({
+      cells: [
+        { value: "TOTAL CALIDAD" },
+        { value: "" },
+        { value: "" },
+        { value: report.sumaCalidad }
+      ]
+    });
     rows.push({
       cells: [
         { value: "TOTAL COSECHA" },
         { value: "" },
         { value: "" },
         { value: report.sumaCosecha }
+      ]
+    });
+    rows.push({
+      cells: [
+        { value: "TOTAL SUPERVISORES" },
+        { value: "" },
+        { value: "" },
+        { value: report.sumaSupervisoresSiDuplica > report.sumaSupervisoresUnicos
+          ? `${report.sumaSupervisoresUnicos} + (supervisor dividido en 2 módulos · si sumas las filas da ${report.sumaSupervisoresSiDuplica})`
+          : report.sumaSupervisoresUnicos }
       ]
     });
 
@@ -2211,23 +2436,21 @@ function exportModulosCosechaExcel() {
     : "TODOS";
 
   const headers = report.showFundo
-    ? ["Fundo", "Módulo", "Neto", "Inicio", "Salieron"]
-    : ["Módulo", "Neto", "Inicio", "Salieron"];
+    ? ["Fundo", "Módulo", "Inicio", "Personas"]
+    : ["Módulo", "Inicio", "Personas"];
 
   const rows = report.items.map((it) => ({
     cells: report.showFundo
       ? [
           { value: it.fundo },
           { value: it.modulo },
-          { value: it.cantidad },
-          { value: it.pisaronAqui },
-          { value: it.reubicadosCount }
+          { value: it.inicio },
+          { value: Math.round(it.personas) }
         ]
       : [
           { value: it.modulo },
-          { value: it.cantidad },
-          { value: it.pisaronAqui },
-          { value: it.reubicadosCount }
+          { value: it.inicio },
+          { value: Math.round(it.personas) }
         ]
   }));
 
@@ -2236,15 +2459,13 @@ function exportModulosCosechaExcel() {
       ? [
           { value: "TOTAL" },
           { value: "" },
-          { value: report.totalUnicos },
-          { value: "" },
-          { value: report.totalReubicados || 0 }
+          { value: report.totalInicio },
+          { value: Math.round(report.totalPersonas) }
         ]
       : [
           { value: "TOTAL" },
-          { value: report.totalUnicos },
-          { value: "" },
-          { value: report.totalReubicados || 0 }
+          { value: report.totalInicio },
+          { value: Math.round(report.totalPersonas) }
         ]
   });
 
@@ -2264,12 +2485,16 @@ function exportModulosCosechaExcel() {
       ]
     });
     report.movers.forEach((m) => {
-      const desde = report.showFundo
-        ? `${m.fundoDesde} · ${m.moduloDesde}`
-        : m.moduloDesde;
-      const hacia = report.showFundo
-        ? `${m.fundoHacia} · ${m.moduloHacia}`
-        : m.moduloHacia;
+      const crossFundo =
+        normExactToken(m.fundoDesde) !== normExactToken(m.fundoHacia);
+      const desde =
+        report.showFundo || crossFundo
+          ? `${m.fundoDesde || ""} · ${m.moduloDesde}`
+          : m.moduloDesde;
+      const hacia =
+        report.showFundo || crossFundo
+          ? `${m.fundoHacia || ""} · ${m.moduloHacia}`
+          : m.moduloHacia;
       rows.push({
         cells: [
           { value: m.supervisor },
@@ -2818,7 +3043,7 @@ function downloadResumenExcel() {
     cells: [
       g.fundo,
       g.supervisor,
-      g.sgLabel || "—",
+      "LUIS VERDE",
       g.planillas,
       g.cosechadores ?? g.trabajadores ?? 0,
       { value: g.errores, tone: g.errores > 0 ? "danger" : "" },
@@ -3106,7 +3331,6 @@ function bindUi() {
     }
     resetPlanillasFaltantesState();
     syncResumenFiltersFromMain(state.validated, readFilters());
-    renderResumenView(state.validated, readFilters());
     await openResumenModal(() => state.validated);
   });
   $("btnReportHallazgos")?.addEventListener("click", () => downloadReport("hallazgos"));

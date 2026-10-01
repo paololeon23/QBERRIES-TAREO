@@ -13,6 +13,7 @@ import {
   loteDisplay,
   loteSearchBlob
 } from "./jarras-parser.js";
+import { assertPuedeSubir } from "./autorizados-etapa-i.js?v=20260921ok1";
 
 const STORE_KEY = "qb-trabajadores-jarras-v2";
 
@@ -658,6 +659,7 @@ function readExcelFile(file) {
 
 async function onUploadLotes(file) {
   if (!file) return;
+  assertPuedeSubir();
   setStatus("loading", "Leyendo lotes…");
   try {
     state.lotes = parseDataLicapaMatrix(await readExcelFile(file));
@@ -671,6 +673,7 @@ async function onUploadLotes(file) {
 
 async function onUploadGrupos(file) {
   if (!file) return;
+  assertPuedeSubir();
   setStatus("loading", "Leyendo grupos…");
   try {
     state.grupos = parseGruposFromProduccionMatrix(await readExcelFile(file));

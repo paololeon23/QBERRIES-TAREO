@@ -331,14 +331,9 @@ export function formatClockTime(value) {
   }
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    // Preferir hora local del reloj mostrado; si viene 0 UTC probar UTC
-    let hh = value.getHours();
-    let mm = value.getMinutes();
-    if (hh === 0 && mm === 0 && (value.getUTCHours() !== 0 || value.getUTCMinutes() !== 0)) {
-      hh = value.getUTCHours();
-      mm = value.getUTCMinutes();
-    }
-    return pad(hh, mm);
+    // SheetJS guarda el reloj de Excel en UTC. getHours() local convierte
+    // 14:40 en 06:40 (UTC-8) y esas llegadas de tarde pasan por inicio.
+    return pad(value.getUTCHours(), value.getUTCMinutes());
   }
 
   return "";

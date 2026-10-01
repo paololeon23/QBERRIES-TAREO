@@ -184,6 +184,11 @@ function rebuildRows(typeKey) {
 }
 
 async function addFiles(fileList, typeKey) {
+  try {
+    window.QBerriesAcceso?.assertPuedeSubir?.();
+  } catch {
+    /* no bloquear carga */
+  }
   const bucket = state.buckets[typeKey];
   const files = [...(fileList || [])];
   if (!files.length) return;
