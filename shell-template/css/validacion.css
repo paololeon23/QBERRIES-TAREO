@@ -400,7 +400,17 @@
 }
 
 .welcome-block--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
   margin-bottom: 0.75rem;
+}
+
+.welcome-block__copy {
+  min-width: 0;
+  flex: 1 1 12rem;
 }
 
 .welcome-block__hello {
@@ -430,6 +440,67 @@
   color: #145a34;
   font-size: 0.8rem;
   font-weight: 650;
+}
+
+.tareo-fecha {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 13.75rem;
+  margin: 0;
+}
+
+.tareo-fecha[hidden] {
+  display: none !important;
+}
+
+.tareo-fecha__caption {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #1f7a45;
+}
+
+.tareo-fecha__control {
+  position: relative;
+  display: block;
+}
+
+.tareo-fecha__control::after {
+  content: "";
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-right: 2px solid #1f7a45;
+  border-bottom: 2px solid #1f7a45;
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+
+.tareo-fecha select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.4rem 2.15rem 0.4rem 0.9rem;
+  border: 1px solid #b7e0c6;
+  border-radius: 0.7rem;
+  background: #fff;
+  color: #145a34;
+  font-size: 0.875rem;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(18, 48, 32, 0.06);
+}
+
+.tareo-fecha select:hover,
+.tareo-fecha select:focus {
+  border-color: #27ae60;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.18);
 }
 
 @keyframes hero-in {
@@ -982,6 +1053,7 @@ table.data-table.data-table--excel {
   margin: 0;
   display: flex;
   align-items: center;
+  position: relative;
 }
 
 .toolbar--filters .toolbar__filters .field--estado {
@@ -990,15 +1062,48 @@ table.data-table.data-table--excel {
   max-width: 12.5rem;
 }
 
+.toolbar--filters .toolbar__filters .field--variedad {
+  flex: 1 1 12.5rem;
+  min-width: 11.75rem;
+  max-width: 16rem;
+}
+
 .toolbar--filters .toolbar__filters .field select {
   display: block;
   width: 100%;
   height: 2.35rem;
   min-height: 2.35rem;
   max-height: 2.35rem;
-  padding: 0 0.7rem;
+  padding: 0 1.85rem 0 0.7rem;
   box-sizing: border-box;
   box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar--filters .toolbar__filters .field:has(select)::after {
+  content: "";
+  position: absolute;
+  right: 0.72rem;
+  top: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-top: -0.28rem;
+  border-right: 1.6px solid #6b7280;
+  border-bottom: 1.6px solid #6b7280;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.toolbar--filters .toolbar__filters .field.has-value select {
+  border-color: #27ae60;
+  background: #f3fbf6;
+  color: #145a34;
+  font-weight: 600;
 }
 
 .toolbar--filters .tareo-act-btn {
@@ -4499,6 +4604,12 @@ table.data-table.data-table--excel {
     flex: 0 0 8rem;
     min-width: 7.5rem;
     max-width: 9rem;
+  }
+
+  .toolbar--filters .toolbar__filters .field--variedad {
+    flex: 0 0 12rem;
+    min-width: 11.5rem;
+    max-width: 14rem;
   }
 
   .toolbar--filters .toolbar__filters .field select {

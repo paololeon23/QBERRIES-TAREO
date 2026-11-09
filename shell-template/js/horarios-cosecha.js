@@ -1,6 +1,6 @@
 /** Horarios COSTO DE COSECHA por actividad (nuevo vs legado). */
 
-import { HOUR_STEPS } from "./excel-parser.js?v=20260909b1";
+import { HOUR_STEPS } from "./excel-parser.js?v=20261006var1";
 
 const HORARIOS_LEGADO = {
   firstStartMin: 6 * 60 + 30,

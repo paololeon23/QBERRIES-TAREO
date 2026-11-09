@@ -6,14 +6,14 @@ import {
   HOURS_LABEL,
   HOUR_BASE,
   isNombreTrabajadorVacio
-} from "./excel-parser.js?v=20260909b1";
+} from "./excel-parser.js?v=20261006var1";
 import {
   ACTIVIDADES_HORARIO_NUEVO,
   isActividadHorarioNuevo,
   matchActividadHorarioNuevoLabel,
   normActividadHorario,
   actividadHorarioKey
-} from "./horarios-cosecha.js?v=20260922iii1";
+} from "./horarios-cosecha.js?v=20261006var1";
 
 const ACT_SIN_ACTIVIDAD = "(Sin actividad)";
 
@@ -33,13 +33,113 @@ function formatHour(value) {
   return String(Math.round(n * 1e3) / 1e3);
 }
 
-function fillSelect(select, values, blankLabel) {
+function fillSelect(select, values, blankLabel, opts = {}) {
   if (!select) return;
   const current = select.value;
-  select.innerHTML = `<option value="">${blankLabel}</option>${values
-    .map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`)
-    .join("")}`;
-  if (values.includes(current)) select.value = current;
+  const list = [...values];
+  let nextVal = list.includes(current) ? current : "";
+  if (!nextVal && current && opts.keepByNorm) {
+    const hit = list.find((v) => normVariedad(v) === normVariedad(current));
+    if (hit) nextVal = hit;
+  }
+  const nextSig = `${blankLabel}\u0001${list.join("\u0001")}\u0001${nextVal}`;
+  const curSig = `${select.options[0]?.textContent || ""}\u0001${[...select.options]
+    .slice(1)
+    .map((o) => o.value)
+    .join("\u0001")}\u0001${select.value}`;
+  if (curSig === nextSig) return;
+  fillingTareoFilters += 1;
+  try {
+    select.innerHTML = `<option value="">${blankLabel}</option>${list
+      .map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`)
+      .join("")}`;
+    select.value = nextVal;
+    if (select.id === "fltVariedad") {
+      select.title = nextVal ? `Variedad ${nextVal}` : "Variedad";
+    }
+  } finally {
+    fillingTareoFilters -= 1;
+  }
+}
+
+function rowVariedad(row) {
+  return String(row?.sessionVariedad || row?.variedad || "").trim();
+}
+
+function normVariedad(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Etiqueta estable para el select (Excel trae SEKOYA POP / MAGICA). */
+function canonicalVariedadLabel(value) {
+  const n = normVariedad(value);
+  if (n === "SEKOYA POP") return "Sekoya Pop";
+  if (n === "MAGICA") return "Mágica";
+  return String(value || "").trim();
+}
+
+function uniqueVariedadLabels(values) {
+  const byNorm = new Map();
+  (values || []).forEach((v) => {
+    const raw = String(v || "").trim();
+    if (!raw) return;
+    const key = normVariedad(raw);
+    if (!key || byNorm.has(key)) return;
+    byNorm.set(key, canonicalVariedadLabel(raw));
+  });
+  return [...byNorm.values()].sort((a, b) => a.localeCompare(b, "es"));
+}
+
+/** Fundo → variedades del catálogo gerencial / lotes-licapa. */
+function variedadesCatalogoFundo(fundo) {
+  const key = normVariedad(fundo);
+  if (!key) return [];
+  if (key === "LICAPA III" || key === "LICAPA II") return ["Sekoya Pop", "Mágica"];
+  if (key === "LICAPA" || key === "LICAPA I") return ["Sekoya Pop"];
+  return [];
+}
+
+let loteVariedadResolver = null;
+
+export function setLoteVariedadResolver(fn) {
+  loteVariedadResolver = typeof fn === "function" ? fn : null;
+}
+
+function variedadDesdeLote(row) {
+  if (!loteVariedadResolver) return "";
+  return String(loteVariedadResolver(row) || "").trim();
+}
+
+/**
+ * Enlaza variedad con Excel Q, lote del catálogo y fundo.
+ * Sin variedad en Q no se descarta: supervisor/calidad siguen el fundo/lote.
+ */
+export function matchVariedadFilter(row, variedad) {
+  const want = String(variedad || "").trim();
+  if (!want) return true;
+  const wantN = normVariedad(want);
+  if (!wantN) return true;
+
+  const explicit = rowVariedad(row);
+  if (explicit) return normVariedad(explicit) === wantN;
+
+  const fromLote = variedadDesdeLote(row);
+  if (fromLote) return normVariedad(fromLote) === wantN;
+
+  const fundoVars = variedadesCatalogoFundo(row?.fundo);
+  if (!fundoVars.length) return false;
+  return fundoVars.some((v) => normVariedad(v) === wantN);
+}
+
+let fillingTareoFilters = 0;
+
+export function isFillingTareoFilters() {
+  return fillingTareoFilters > 0;
 }
 
 /** Estado del multi-select de actividades (tareo). */
@@ -455,16 +555,39 @@ export function populateFilters(state, options = {}) {
           ? allRows.filter((r) => (r.flags || []).includes("duplicado"))
           : allRows;
 
+  const fechaSel = document.getElementById("fltFecha")?.value || "";
+  const variedadSel = document.getElementById("fltVariedad")?.value || "";
+  const fundoSel = document.getElementById("fltFundo")?.value || "";
+
+  const byFecha = fechaSel
+    ? rows.filter((r) => String(r.fecha || "").trim() === fechaSel)
+    : rows;
+  const byVariedad = variedadSel ? byFecha.filter((r) => matchVariedadFilter(r, variedadSel)) : byFecha;
+  const byFundo = fundoSel ? byFecha.filter((r) => r.fundo === fundoSel) : byFecha;
+  const linked = variedadSel || fundoSel
+    ? byFecha.filter((r) => {
+        if (variedadSel && !matchVariedadFilter(r, variedadSel)) return false;
+        if (fundoSel && r.fundo !== fundoSel) return false;
+        return true;
+      })
+    : byFecha;
+
   fillSelect(
     document.getElementById("fltSupervisor"),
-    [...new Set(rows.map((r) => r.supervisor).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
+    [...new Set(linked.map((r) => r.supervisor).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
     "Supervisor"
   );
   fillSelect(
     document.getElementById("fltFundo"),
-    [...new Set(rows.map((r) => r.fundo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
+    [...new Set(byVariedad.map((r) => r.fundo).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")),
     "Fundo"
   );
+  const variedadesOpts = uniqueVariedadLabels([
+    ...byFundo.map((r) => rowVariedad(r)),
+    ...byFundo.map((r) => variedadDesdeLote(r)),
+    ...[...new Set(byFundo.map((r) => r.fundo))].flatMap((fundo) => variedadesCatalogoFundo(fundo))
+  ]);
+  fillSelect(document.getElementById("fltVariedad"), variedadesOpts, "Variedad", { keepByNorm: true });
 
   initActividadFilterFromRows(allRows, { forceDefaults: !actividadFilterState.initialized });
 
@@ -494,13 +617,22 @@ export function populateFilters(state, options = {}) {
     if (["", "ok", "posible-salida", "aviso", "rojo"].includes(prev)) estado.value = prev;
     else estado.value = "";
   }
+  syncTareoFilterHasValue();
+}
+
+function syncTareoFilterHasValue() {
+  ["fltSupervisor", "fltFundo", "fltVariedad", "fltEstado"].forEach((id) => {
+    const el = document.getElementById(id);
+    el?.closest(".field")?.classList.toggle("has-value", Boolean(el?.value));
+  });
 }
 
 export function readFilters() {
   return {
     supervisor: document.getElementById("fltSupervisor")?.value || "",
     fundo: document.getElementById("fltFundo")?.value || "",
-    fecha: "",
+    fecha: document.getElementById("fltFecha")?.value || "",
+    variedad: document.getElementById("fltVariedad")?.value || "",
     macro: "",
     actividad: "",
     actividades: [...actividadFilterState.selected],
@@ -525,8 +657,13 @@ export function countTotalPosibleSalidas(rows) {
 }
 
 export function countTotalDuplicados(rows) {
-  // Cada fila del Excel marcada como duplicada (para ver los 2+ registros)
-  return (rows || []).filter((r) => (r.flags || []).includes("duplicado")).length;
+  // Personas con al menos un turno duplicado (no contar 2 filas del mismo DNI como 2).
+  return new Set(
+    (rows || [])
+      .filter((r) => (r.flags || []).includes("duplicado"))
+      .map((r) => String(r.documento || "").trim())
+      .filter(Boolean)
+  ).size;
 }
 
 /** Vista sin agrupar: una fila por registro Excel (para revisar duplicados). */
@@ -562,7 +699,7 @@ export function expandDuplicateRows(rows) {
 }
 
 export function clearAllFilterControls() {
-  ["fltSupervisor", "fltFundo", "fltTipoLote"].forEach((id) => {
+  ["fltSupervisor", "fltFundo", "fltFecha", "fltVariedad", "fltTipoLote"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -590,6 +727,8 @@ export function filterRows(rows, filters) {
   return rows.filter((row) => {
     if (filters.supervisor && row.supervisor !== filters.supervisor) return false;
     if (filters.fundo && row.fundo !== filters.fundo) return false;
+    if (filters.fecha && String(row.fecha || "").trim() !== filters.fecha) return false;
+    if (filters.variedad && !matchVariedadFilter(row, filters.variedad)) return false;
     if (filters.macro && row.macroPartida !== filters.macro) return false;
     if (actSet) {
       if (!actSet.size) return false;

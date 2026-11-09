@@ -1,11 +1,11 @@
 /** Vista Resumen: tabla por supervisor/fundo + gráfico + errores. */
 
-import { collapseToDayRows } from "./validacion-table.js?v=20260922iii1";
+import { collapseToDayRows, matchVariedadFilter } from "./validacion-table.js?v=20261006var3";
 import {
   getHorariosCosecha,
   horarioMananaLabel,
   horarioTardeLabel
-} from "./horarios-cosecha.js?v=20260922iii1";
+} from "./horarios-cosecha.js?v=20261006var1";
 import {
   countCosechaCosto,
   countAuxiliarCalidad,
@@ -1493,7 +1493,7 @@ function withResumenFilterFill(fn) {
 /**
  * Actividades disponibles según filtros (como Excel: al elegir Macro solo salen sus actividades).
  */
-function fillResumenActividadOptions(validated, { supervisor = "", fundo = "", macro = "" } = {}) {
+function fillResumenActividadOptions(validated, { supervisor = "", fundo = "", macro = "", fecha = "", variedad = "" } = {}) {
   const actSelect = document.getElementById("resumenFltActividad");
   if (!actSelect) return;
 
@@ -1505,6 +1505,8 @@ function fillResumenActividadOptions(validated, { supervisor = "", fundo = "", m
           if (supervisor && row.supervisor !== supervisor) return false;
           if (fundo && row.fundo !== fundo) return false;
           if (macro && row.macroPartida !== macro) return false;
+          if (fecha && String(row.fecha || "").trim() !== fecha) return false;
+          if (variedad && !matchVariedadFilter(row, variedad)) return false;
           return true;
         })
         .map((r) => String(r.actividad || "").trim())
@@ -1544,6 +1546,8 @@ function fillResumenSelect(selectId, values, allLabel = "Todos") {
 let resumenMainFilters = {
   supervisor: "",
   fundo: "",
+  fecha: "",
+  variedad: "",
   actividades: []
 };
 
@@ -1562,6 +1566,8 @@ function updateResumenFiltersSyncLabel() {
   const parts = [];
   if (resumenMainFilters.supervisor) parts.push(`Supervisor: ${resumenMainFilters.supervisor}`);
   if (resumenMainFilters.fundo) parts.push(`Fundo: ${resumenMainFilters.fundo}`);
+  if (resumenMainFilters.fecha) parts.push(`Fecha: ${resumenMainFilters.fecha}`);
+  if (resumenMainFilters.variedad) parts.push(`Variedad: ${resumenMainFilters.variedad}`);
   const nAct = (resumenMainFilters.actividades || []).length;
   if (nAct) parts.push(nAct === 1 ? "1 actividad" : `${nAct} actividades`);
   el.textContent = parts.length
@@ -1577,18 +1583,27 @@ export function syncResumenFiltersFromMain(validated, mainFilters = {}) {
   resumenMainFilters = {
     supervisor: f.supervisor || "",
     fundo: f.fundo || "",
+    fecha: f.fecha || "",
+    variedad: f.variedad || "",
     actividades: Array.isArray(f.actividades) ? [...f.actividades] : []
   };
 
   withResumenFilterFill(() => {
+    const fecha = resumenMainFilters.fecha || "";
+    const variedad = resumenMainFilters.variedad || "";
+    const scoped = rows.filter((r) => {
+      if (fecha && String(r.fecha || "").trim() !== fecha) return false;
+      if (variedad && !matchVariedadFilter(r, variedad)) return false;
+      return true;
+    });
     fillResumenSelect(
       "resumenFltSupervisor",
-      rows.map((r) => r.supervisor),
+      scoped.map((r) => r.supervisor),
       "Todos"
     );
     fillResumenSelect(
       "resumenFltFundo",
-      rows.map((r) => r.fundo),
+      scoped.map((r) => r.fundo),
       "Todos"
     );
 
@@ -1617,6 +1632,8 @@ export function syncResumenFiltersFromMain(validated, mainFilters = {}) {
     fillResumenActividadOptions(validated, {
       supervisor: resumenMainFilters.supervisor,
       fundo: resumenMainFilters.fundo,
+      fecha: resumenMainFilters.fecha,
+      variedad: resumenMainFilters.variedad,
       macro: macroSel?.value || ""
     });
 
@@ -1645,6 +1662,8 @@ export function getFilteredResumenData(validated, mainFilters = {}) {
   const fundo = (fundoEl ? fundoEl.value : "") || mf.fundo || "";
   const macro = macroEl ? macroEl.value : mf.macro || "";
   const actividad = actEl ? actEl.value : mf.actividad || "";
+  const fecha = mf.fecha || "";
+  const variedad = mf.variedad || "";
   const actSet =
     !actividad && Array.isArray(mf.actividades) && mf.actividades.length
       ? new Set(mf.actividades.map((a) => normActividadResumen(a)).filter(Boolean))
@@ -1653,6 +1672,8 @@ export function getFilteredResumenData(validated, mainFilters = {}) {
   const baseFiltered = (validated.rows || []).filter((row) => {
     if (supervisor && row.supervisor !== supervisor) return false;
     if (fundo && row.fundo !== fundo) return false;
+    if (fecha && String(row.fecha || "").trim() !== fecha) return false;
+    if (variedad && !matchVariedadFilter(row, variedad)) return false;
     if (macro && row.macroPartida !== macro) return false;
     return true;
   });
@@ -1683,6 +1704,7 @@ export function getFilteredResumenData(validated, mainFilters = {}) {
     filters: {
       supervisor,
       fundo,
+      fecha,
       macro,
       actividad,
       actividades: actSet ? [...mf.actividades] : []
@@ -3257,7 +3279,9 @@ export function bindResumenUi({ getValidated, getMainFilters, onExport }) {
     fillResumenActividadOptions(validated, {
       supervisor: document.getElementById("resumenFltSupervisor")?.value || "",
       fundo: document.getElementById("resumenFltFundo")?.value || "",
-      macro: document.getElementById("resumenFltMacro")?.value || ""
+      macro: document.getElementById("resumenFltMacro")?.value || "",
+      fecha: resumenMainFilters.fecha || "",
+      variedad: resumenMainFilters.variedad || ""
     });
     if (fillingResumenFilters || resumenRendering) return;
     renderResumenView(validated, getMainFilters?.() || {});

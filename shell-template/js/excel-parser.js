@@ -101,6 +101,7 @@ const FALLBACK = {
   fundo: 13, // N — LICAPA / LICAPA II / LICAPA III
   modulo: 14, // O
   lote: 15, // P — Lote (a veces encabezado “Módulo Turno”)
+  variedad: 16, // Q
   ceco: 20, // U
   codSupervisor: 21, // V
   supervisor: 22, // W
@@ -407,6 +408,7 @@ function mapHeaders(headerRow) {
     actividad: -1,
     modulo: -1,
     lote: -1,
+    variedad: -1,
     ceco: -1,
     fecha: -1,
     horaInicio: -1,
@@ -572,6 +574,14 @@ function mapHeaders(headerRow) {
       mapping.lote = index;
     }
 
+    // Variedad (columna Q)
+    if (
+      mapping.variedad < 0 &&
+      (h === "variedad" || h === "variedades" || (h.includes("variedad") && !h.includes("supervisor")))
+    ) {
+      mapping.variedad = index;
+    }
+
     // CECO / Centro de costo (columna U)
     if (
       mapping.ceco < 0 &&
@@ -594,15 +604,16 @@ function mapHeaders(headerRow) {
       fechaCandidates.push({ index, score });
     }
 
-    // Hora Inicio
+    // Hora Inicio (programada AB). No usar "Hora Inicio Real".
     if (
-      scoreMatch(
+      !h.includes("real") &&
+      (scoreMatch(
         h,
         ["hora inicio", "horainicio", "hora de inicio", "hora ini"],
         ["hora inicio", "horainicio", "hora de inicio", "hora ini"],
-        ["pago", "fin", "total"]
+        ["pago", "fin", "total", "real"]
       ) ||
-      (h.includes("inicio") && h.includes("hora"))
+        (h.includes("inicio") && h.includes("hora")))
     ) {
       let score = 50;
       if (h === "hora inicio" || h === "horainicio") score = 100;
@@ -610,15 +621,16 @@ function mapHeaders(headerRow) {
       iniCandidates.push({ index, score });
     }
 
-    // Hora Fin
+    // Hora Fin (programada AC). No usar "Hora Fin Real".
     if (
-      scoreMatch(
+      !h.includes("real") &&
+      (scoreMatch(
         h,
         ["hora fin", "horafin", "hora de fin", "hora final"],
         ["hora fin", "horafin", "hora de fin", "hora final"],
-        ["pago", "inicio", "total"]
+        ["pago", "inicio", "total", "real"]
       ) ||
-      (h.includes("fin") && h.includes("hora"))
+        (h.includes("fin") && h.includes("hora")))
     ) {
       let score = 50;
       if (h === "hora fin" || h === "horafin") score = 100;
@@ -688,6 +700,7 @@ function mapHeaders(headerRow) {
   if (mapping.fundo < 0) mapping.fundo = FALLBACK.fundo; // N
   if (mapping.modulo < 0) mapping.modulo = FALLBACK.modulo; // O
   if (mapping.lote < 0) mapping.lote = FALLBACK.lote; // P
+  if (mapping.variedad < 0) mapping.variedad = FALLBACK.variedad; // Q
   if (mapping.ceco < 0) mapping.ceco = FALLBACK.ceco;
   if (mapping.supervisor < 0) mapping.supervisor = FALLBACK.supervisor;
   if (mapping.codSupervisor < 0) mapping.codSupervisor = FALLBACK.codSupervisor;
@@ -846,6 +859,7 @@ export function parseExcelBuffer(buffer, fileName = "archivo.xlsx") {
       actividad,
       modulo: cleanText(readSheetCell(sheet, r, mapping.modulo)),
       lote: cleanText(readSheetCell(sheet, r, mapping.lote)),
+      variedad: cleanText(readSheetCell(sheet, r, mapping.variedad)),
       ceco,
       fecha,
       fechaSerial,
@@ -859,7 +873,6 @@ export function parseExcelBuffer(buffer, fileName = "archivo.xlsx") {
       horas: horasTurno,
       costoCosecha: horasTurno,
       totalDia: null,
-      variedad: "",
       tipo: "",
       estado: "",
       sessionTipo: "",

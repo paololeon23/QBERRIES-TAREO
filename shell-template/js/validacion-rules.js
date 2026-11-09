@@ -1,8 +1,8 @@
 /** Motor de reglas: valida suma del día (turnos) solo en COSTO DE COSECHA. */
 
-import { HOUR_BASE, HOURS_LABEL, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js?v=20260909b1";
+import { HOUR_BASE, HOURS_LABEL, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js?v=20261006var1";
 import { countSupervisoresCosto } from "./validacion-kpi.js";
-import { getHorariosCosecha, isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260922iii1";
+import { getHorariosCosecha, isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20261006var1";
 
 /**
  * Horarios COSTO DE COSECHA (ver horarios-cosecha.js):
@@ -101,11 +101,15 @@ export function validateDataset(parsed) {
     supervisorAlerts: []
   };
 
-  // Turno duplicado: mismo DNI + fecha + misma hora de inicio (los 2 turnos del día son normales).
+  // Turno duplicado: mismo DNI + fecha + misma HORA DE INICIO programada (HH:MM).
+  // Mañana 06:30/06:45 y tarde 13:00 son 2 turnos normales, no duplicado.
+  // No usar Hora Inicio Real (el Excel copia el reloj en filas Copia=Si).
   const byShift = new Map();
   rows.forEach((row) => {
-    if (!row.documento || !row.horaInicioKey) return;
-    const shiftKey = `${row.documento}|${row.fecha || ""}|${row.horaInicioKey}`;
+    if (!row.documento) return;
+    const ini = String(row.horaInicioTexto || "").trim();
+    if (!ini) return;
+    const shiftKey = `${row.documento}|${row.fecha || ""}|${ini}`;
     if (!byShift.has(shiftKey)) byShift.set(shiftKey, []);
     byShift.get(shiftKey).push(row);
   });

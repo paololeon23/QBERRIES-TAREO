@@ -1,8 +1,9 @@
 /** Orquestación: upload, modal, reportes, historial. */
 
-import { parseExcelBuffer, matchExactHourStep, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js?v=20260918m1fix2";
-import { validateDataset } from "./validacion-rules.js?v=20260922iii1";
+import { parseExcelBuffer, matchExactHourStep, classifyDayHours, isNombreTrabajadorVacio } from "./excel-parser.js?v=20261006var1";
+import { validateDataset } from "./validacion-rules.js?v=20261006var1";
 import {
+  isFillingTareoFilters,
   populateFilters,
   readFilters,
   filterRows,
@@ -20,8 +21,10 @@ import {
   resetActividadFilterToDefaults,
   resetActividadFilterState,
   defaultSelectedActividades,
-  syncActividadFilterButton
-} from "./validacion-table.js?v=20260922iii1";
+  syncActividadFilterButton,
+  matchVariedadFilter,
+  setLoteVariedadResolver
+} from "./validacion-table.js?v=20261006var3";
 import { countSupervisoresCosto, countScanerCosto, countCosechaCosto } from "./validacion-kpi.js?v=20260930cal1";
 import {
   openResumenModal,
@@ -38,8 +41,8 @@ import {
   esExcluidoDeCosechadores,
   esFilaSupervisorTitular,
   collectCosechadoresUnicosKeys
-} from "./validacion-resumen.js?v=20261001sg1";
-import { isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20260922iii1";
+} from "./validacion-resumen.js?v=20261006var3";
+import { isActividadHorarioNuevo } from "./horarios-cosecha.js?v=20261006var1";
 import { getCurrentRoute } from "./shell.js";
 
 const HISTORY_KEY = "qb-validacion-history";
@@ -335,6 +338,8 @@ function uniqueSortedDates(rows) {
   });
 }
 
+let fillingFechaSelect = false;
+
 function buildKpisFromRows(rows) {
   // Solo se trabaja con COSTO DE COSECHA para los KPI de actividad
   const costoRows = rows.filter((r) => r.esCostoCosecha);
@@ -372,16 +377,30 @@ function buildKpisFromRows(rows) {
 
 function renderFechaMeta(rows) {
   const host = $("tareoFechaMeta");
-  if (!host) return;
+  const sel = $("fltFecha");
+  if (!host || !sel) return;
   const fechas = uniqueSortedDates(rows);
   if (!fechas.length) {
     host.hidden = true;
-    host.textContent = "";
+    sel.innerHTML = `<option value="">Todas las fechas</option>`;
     return;
   }
   host.hidden = false;
-  host.textContent =
-    fechas.length === 1 ? `Fecha del tareo: ${fechas[0]}` : `Fechas del tareo: ${fechas.join(" · ")}`;
+  const prev = sel.value;
+  const nextVal = fechas.includes(prev) ? prev : "";
+  const html = `<option value="">Todas las fechas</option>${fechas
+    .map((f) => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`)
+    .join("")}`;
+  const nextSig = `${fechas.join("\u0001")}\u0001${nextVal}`;
+  const curSig = `${[...sel.options].slice(1).map((o) => o.value).join("\u0001")}\u0001${sel.value}`;
+  if (curSig === nextSig) return;
+  fillingFechaSelect = true;
+  try {
+    sel.innerHTML = html;
+    sel.value = nextVal;
+  } finally {
+    fillingFechaSelect = false;
+  }
 }
 
 function syncFilterTips(filteredCount) {
@@ -401,6 +420,18 @@ function syncFilterTips(filteredCount) {
       f.fundo
         ? `Activo: fundo ${f.fundo}. ${living}.`
         : `Filtra por fundo / sede. Ahora ves ${living}.`
+    ],
+    [
+      "fltVariedad",
+      f.variedad
+        ? `Activo: variedad ${f.variedad}. ${living}.`
+        : `Filtra por variedad del Excel. Ahora ves ${living}.`
+    ],
+    [
+      "fltFecha",
+      f.fecha
+        ? `Activo: fecha ${f.fecha}. ${living}. Elige “Todas las fechas” para ver el Excel completo.`
+        : `Elige un día del tareo. Ahora ves ${living}.`
     ],
     [
       "btnFltActividad",
@@ -561,6 +592,8 @@ function applyFiltersObject(filters) {
   };
   setVal("fltSupervisor", filters.supervisor);
   setVal("fltFundo", filters.fundo);
+  setVal("fltFecha", filters.fecha);
+  setVal("fltVariedad", filters.variedad);
   setVal("fltEstado", filters.estado);
   setVal("fltTipoLote", filters.tipo);
   const search = $("fltSearch");
@@ -658,7 +691,8 @@ function getScopeFilters(base = null, { ignoreActividades = false } = {}) {
   return {
     supervisor: f.supervisor || "",
     fundo: f.fundo || "",
-    fecha: "",
+    fecha: f.fecha || "",
+    variedad: f.variedad || "",
     macro: f.macro || "",
     actividad: f.actividad || "",
     actividades: ignoreActividades
@@ -802,7 +836,12 @@ function enterDupFocusMode() {
   state.savedFiltersBeforeDupFocus = readFilters();
   state.dupFocusMode = true;
   populateFilters(state, { dupOnly: true });
-  applyFiltersObject(state.savedFiltersBeforeDupFocus);
+  const { available } = getActividadFilterState();
+  setSelectedActividades(available);
+  applyFiltersObject({
+    ...state.savedFiltersBeforeDupFocus,
+    actividades: available
+  });
   refreshView();
 }
 
@@ -831,7 +870,7 @@ function restoreAllFilters() {
 }
 
 function refreshView({ keepPage = false } = {}) {
-  if (!state.validated) return;
+  if (!state.validated || fillingFechaSelect || isFillingTareoFilters()) return;
   if (!keepPage) resetPager();
 
   if (state.errorFocusMode) {
@@ -869,6 +908,13 @@ function refreshView({ keepPage = false } = {}) {
       }
     }
   }
+
+  populateFilters(state, {
+    errorOnly: state.errorFocusMode,
+    warnOnly: state.warnFocusMode,
+    paseOnly: state.paseFocusMode,
+    dupOnly: state.dupFocusMode
+  });
 
   const filters = readFilters();
   if (state.dupFocusMode) filters.soloDuplicados = true;
@@ -932,10 +978,30 @@ function workerUniqueKey(row) {
 
 /** Filas del alcance fundo (todas las actividades) para alinear con KPI Resumen. */
 function rowsAlcanceFundo(fundoFiltro = "") {
-  const fundoNorm = normExactToken(fundoFiltro);
+  const f = readFilters();
+  const fundoNorm = normExactToken(fundoFiltro || f.fundo || "");
+  const fecha = String(f.fecha || "").trim();
+  const variedad = String(f.variedad || "").trim();
   return (state.validated?.rows || []).filter((row) => {
     if (fundoNorm && normExactToken(row.fundo) !== fundoNorm) return false;
+    if (fecha && String(row.fecha || "").trim() !== fecha) return false;
+    if (variedad && !matchVariedadFilter(row, variedad)) return false;
     return true;
+  });
+}
+
+function rowsDelTareo() {
+  const f = readFilters();
+  return filterRows(state.validated?.rows || [], {
+    supervisor: f.supervisor || "",
+    fundo: f.fundo || "",
+    fecha: f.fecha || "",
+    variedad: f.variedad || "",
+    actividades: undefined,
+    estado: "",
+    tipo: "",
+    search: "",
+    soloDuplicados: false
   });
 }
 
@@ -1160,7 +1226,7 @@ function actividadDetalleLabel(actividad) {
  * Total únicos (Purizaga en M1 y M3 cuenta 1).
  */
 function buildModulosDetalleReport() {
-  const rows = state.validated?.rows || [];
+  const rows = rowsDelTareo();
   const fundoFiltro = String(readFilters().fundo || "").trim();
   const fundoNorm = normExactToken(fundoFiltro);
 
@@ -1357,7 +1423,7 @@ function buildModulosDetalleReport() {
   const sumaCalidad = calidadKeys.size;
   const modulos = new Set(filtered.map((it) => `${normExactToken(it.fundo)}||${normExactToken(it.modulo)}`));
 
-  const movFundo = buildMovimientosLicapaIiIii(state.validated?.rows || []);
+  const movFundo = buildMovimientosLicapaIiIii(rows);
 
   return {
     fundoFiltro: fundoFiltro || "",
@@ -1409,11 +1475,11 @@ function formatJornales(n) {
 
 /**
  * COSECHA por módulo.
- * Con filtro LICAPA: recuento distinto de quien tareó COSECHA en LICAPA (pivote Excel).
- * Quien arrancó en III y se pasó a LICAPA suma acá (amarillo).
+ * Solo cuenta quien tenga ≥ 9.6 h de COSECHA en el día (jornal mínimo).
+ * Con filtro LICAPA: recuento distinto como Excel.
  */
 function buildModulosCosechaReport() {
-  const rows = state.validated?.rows || [];
+  const rows = rowsDelTareo();
   const fundoFiltro = String(readFilters().fundo || "").trim();
   const fundoNorm = normExactToken(fundoFiltro);
 
@@ -1466,6 +1532,10 @@ function buildModulosCosechaReport() {
 
   byWorker.forEach((punches, wKey) => {
     punches.sort((a, b) => a.startMin - b.startMin || 0);
+    const totalHoras = punches.reduce((s, p) => s + (Number(p.horas) || 0), 0);
+    /* Principal: jornal mínimo 9.6. Menos = posible pase, no cuenta en Por módulo. */
+    if (totalHoras + 1e-9 < JORNAL_HORAS) return;
+
     const globalOrigin = punches.find((p) => isMinutoInicioOficialManana(p.startMin)) || punches[0];
     const scoped = fundoNorm
       ? punches.filter((p) => moduloVisibleEnFiltro(p.fundo, fundoNorm))
@@ -1474,7 +1544,9 @@ function buildModulosCosechaReport() {
 
     unicosFundo.add(wKey);
     const last = scoped[scoped.length - 1];
-    const originInFundo = scoped.find((p) => isMinutoInicioOficialManana(p.startMin));
+    /* Sin 06:30/06:45 → primer marcaje (Inicio = Personas). */
+    const originInFundo =
+      scoped.find((p) => isMinutoInicioOficialManana(p.startMin)) || scoped[0] || null;
 
     scoped.forEach((p) => {
       const b = bucket(p.groupKey, p);
@@ -1750,7 +1822,7 @@ function renderModulosCosechaTable() {
   const report = buildModulosCosechaReport();
 
   if (hint) {
-    hint.innerHTML = `Filtro fundo = recuento distinto como Excel · amarillo = llegaron de otro fundo (ej. León M10→LICAPA)`;
+    hint.innerHTML = `Solo ≥ 9.6 h (jornal mínimo) · filtro fundo = distinto Excel · amarillo = llegaron de otro fundo`;
   }
   if (meta) {
     const f = report.fundoFiltro || "todos";
@@ -1921,11 +1993,28 @@ async function loadLotesLicapaCatalog() {
       if (codLote) byCod.set(normExactToken(codLote), meta);
     });
     lotesLicapaCatalog = { list, byLote, byCod };
+    wireLoteVariedadResolver();
   } catch (err) {
     console.warn("[lotes-licapa] No se pudo cargar:", err);
     lotesLicapaCatalog = { list: [], byLote: new Map(), byCod: new Map() };
+    wireLoteVariedadResolver();
   }
   return lotesLicapaCatalog;
+}
+
+function wireLoteVariedadResolver() {
+  setLoteVariedadResolver((row) => {
+    const cat = lotesLicapaCatalog;
+    if (!cat) return "";
+    const loteNum =
+      extractLoteNumberFromText(row?.lote) ||
+      extractLoteNumberFromText(row?.modulo) ||
+      "";
+    let meta = loteNum ? cat.byLote.get(loteNum) : null;
+    if (!meta && row?.lote) meta = cat.byCod.get(normExactToken(row.lote));
+    if (!meta && row?.ceco) meta = cat.byCod.get(normExactToken(row.ceco));
+    return meta?.variedad || "";
+  });
 }
 
 /** Extrae nº de lote desde col P / texto (189, LOTE 189, LT189, M5T2LT189…). */
@@ -2034,7 +2123,7 @@ let lotesHoyUiState = { search: "", report: null };
  * Módulo/Turno = lotes-licapa → "MODULO 5 - TURNO 2".
  */
 function buildLotesHoyReport() {
-  const rows = state.validated?.rows || [];
+  const rows = rowsDelTareo();
   const fundoFiltro = String(readFilters().fundo || "").trim();
   const fundoNorm = normExactToken(fundoFiltro);
   const catalog = lotesLicapaCatalog;
@@ -2580,7 +2669,7 @@ function motivoErrorPersona(row) {
 
 function collectPersonasConError() {
   if (!state.validated?.rows?.length) return [];
-  const dayRows = collapseToDayRows(state.validated.rows).filter((r) => r.status === "rojo");
+  const dayRows = collapseToDayRows(getScopedRows()).filter((r) => r.status === "rojo");
   return dayRows
     .map((r) => ({
       documento: r.documento || "",
@@ -3240,6 +3329,7 @@ async function handleFile(file) {
     $("validacionWorkspace")?.classList.remove("is-hidden");
 
     resetActividadFilterState();
+    await loadLotesLicapaCatalog();
     populateFilters(state, { errorOnly: false });
     refreshView();
 
@@ -3306,6 +3396,8 @@ function bindUi() {
   [
     "fltSupervisor",
     "fltFundo",
+    "fltFecha",
+    "fltVariedad",
     "fltEstado",
     "fltTipoLote"
   ].forEach((id) => {
@@ -3459,5 +3551,6 @@ function bindUi() {
 
 bindUpload();
 bindUi();
+loadLotesLicapaCatalog();
 renderHistory();
 if (getCurrentRoute() === "historial") renderHistory();
